@@ -6,3 +6,19 @@ services:
     environment:
       - NODE_ENV=production
     restart: always
+    develop:
+      watch:
+        - action: rebuild
+          path: ./src
+        - action: rebuild
+          path: ./server.ts
+        - action: rebuild
+          path: ./index.html
+        - action: rebuild
+          path: ./vite.config.ts
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./package-lock.json
+        - action: rebuild
+          path: ./Dockerfile

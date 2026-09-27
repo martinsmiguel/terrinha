@@ -19,6 +19,24 @@ npm install
 npm run dev        # http://localhost:3000
 ```
 
+### Docker (produção/LAN)
+
+Construa e inicie o servidor:
+
+```bash
+docker compose up --build
+```
+
+Para manter o container atualizado enquanto edita o código, use Compose Watch
+(Docker Compose 2.22 ou superior):
+
+```bash
+docker compose up --watch
+```
+
+Alterações em `src/`, `server.ts`, `index.html` e na configuração de build
+reconstroem o serviço automaticamente. Encerre com `docker compose down`.
+
 Multiplayer: seus amigos abrem `http://<seu-ip>:3000` — use o botão
 **Criar Partida** / **Entrar via Código**. Detalhes em
 [docs/how-to/hospedar-partida-wifi.md](docs/how-to/hospedar-partida-wifi.md).
