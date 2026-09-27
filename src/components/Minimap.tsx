@@ -4,8 +4,8 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { GameEngine, GameState, Unit, Building, ResourceNode, MAP_SIZE } from '../game/engine';
-import { Eye, EyeOff, Home, Compass, MapPin, Maximize2, Minimize2, Lock, Unlock, ChevronDown, ChevronUp } from 'lucide-react';
+import { GameEngine, GameState, Unit, Building, MAP_SIZE } from '../game/engine';
+import { Eye, EyeOff, Home, Compass, Lock, Unlock, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface MinimapProps {
   engine: GameEngine | null;

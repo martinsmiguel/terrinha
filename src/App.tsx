@@ -4,13 +4,13 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { GameEngine, GameState, Unit, Building, ResourceNode, MAP_SIZE, PlayerResources, UnitType } from './game/engine';
+import { GameEngine, GameState, Unit, Building, ResourceNode, MAP_SIZE, UnitType } from './game/engine';
 import { MultiplayerManager, ChatMessage } from './game/multiplayer';
 import { Minimap } from './components/Minimap';
 import { soundManager } from './game/audio';
 import { create3DHealthBar, update3DHealthBar, align3DHealthBarToCamera } from './game/healthBar';
 import { createBuildingGhost, updateBuildingGhost, checkBuildingPlacementValid } from './game/buildingGhost';
-import { BUILDING_CATALOG, BuildingDef, BuildingType, createConstructionScaffold } from './game/buildingDefs';
+import { BUILDING_CATALOG, BuildingType, createConstructionScaffold } from './game/buildingDefs';
 import { generateProceduralTerrain, ProceduralMapResult } from './game/proceduralMap';
 import { EmpireCatalogModal } from './components/EmpireCatalogModal';
 import { ResourceNavMenu } from './components/ResourceNavMenu';
@@ -18,7 +18,6 @@ import {
   Users,
   Hammer,
   Sword,
-  Package,
   Play,
   Shield,
   Copy,
@@ -31,8 +30,6 @@ import {
   Sparkles,
   Info,
   Maximize2,
-  ChevronRight,
-  RefreshCw,
   Volume2,
   VolumeX,
   LayoutGrid,
@@ -54,16 +51,13 @@ import {
   Unlock,
   ChevronDown,
   ChevronUp,
-  Minimize2,
   Layers,
-  SlidersHorizontal,
-  CircleDot,
-  Radio,
 } from 'lucide-react';
 import * as THREE from 'three';
 import { v4 as uuidv4 } from 'uuid';
 import { createWorkZoneMesh, updateWorkZoneMesh } from './game/workZone';
 import { applyPopDelta, countDeathsByOwner } from './game/population';
+import { tradeResource, MARKET_LABELS, MarketResourceType } from './game/economy';
 
 const FACTION_COLORS: Record<string, { name: string; hex: number; colorClass: string; border: string }> = {
   player1: { name: 'Império Português (Azul)', hex: 0x2563eb, colorClass: 'bg-blue-600', border: 'border-blue-500' },
@@ -85,7 +79,7 @@ export default function App() {
   const [playerSlot, setPlayerSlot] = useState<'player1' | 'player2' | 'player3' | 'player4'>('player1');
   const [lanIps, setLanIps] = useState<string[]>([]);
   const [copiedIp, setCopiedIp] = useState(false);
-  const [connectedPlayers, setConnectedPlayers] = useState(1);
+  const [, setConnectedPlayers] = useState(1);
 
   // Squad Formation Mode ('box' | 'line' | 'spread')
   const [squadFormation, setSquadFormation] = useState<'box' | 'line' | 'spread'>('box');
@@ -2457,9 +2451,6 @@ export default function App() {
           soundManager.playClickSound();
           return next;
         });
-      } else if (e.key === 'm' || e.key === 'M') {
-        setIsEmpireCatalogOpen((prev) => !prev);
-        soundManager.playClickSound();
       } else if (e.key === 'h' || e.key === 'H') {
         setHudMode((prev) => {
           const next = prev === 'hidden' ? 'full' : 'hidden';
@@ -3360,21 +3351,6 @@ export default function App() {
     if (!b || b.owner !== playerSlot || b.trainingQueue.length <= index) return;
 
     const item = b.trainingQueue[index];
-    let refundFood = 0;
-    let refundWood = 0;
-    let refundGold = 0;
-
-    if (item.unitType === 'villager') refundFood = 50;
-    else if (item.unitType === 'soldier') {
-      refundFood = 80;
-      refundGold = 40;
-    } else if (item.unitType === 'fishing_boat') {
-      refundWood = 75;
-    } else if (item.unitType === 'trade_boat') {
-      refundWood = 100;
-      refundGold = 30;
-    }
-
     const cmd = { type: 'cancel_train', buildingId, index };
     if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
     else multiRef.current?.sendToHost(cmd);
@@ -3567,63 +3543,37 @@ export default function App() {
   };
 
   // Trade resource at the Grand Market (Ikariam / AoE market exchange)
-  const handleTradeResource = (type: 'wood' | 'food' | 'stone', action: 'buy' | 'sell', amount: number) => {
-    const marketRates = {
-      wood: { buyPrice: 50, sellPrice: 35 },
-      food: { buyPrice: 55, sellPrice: 38 },
-      stone: { buyPrice: 70, sellPrice: 48 },
-    };
-    const rate = marketRates[type];
+  const handleTradeResource = (type: MarketResourceType, action: 'buy' | 'sell', amount: number) => {
     const myRes = gameState.playerResources[playerSlot];
     if (!myRes) return;
 
+    const outcome = tradeResource(myRes, type, action, amount);
+    if (!outcome.ok || !outcome.next) {
+      triggerNotification(outcome.reason || 'Operação de comércio inválida.', 'warning');
+      return;
+    }
+
+    setGameState((prev) => {
+      const applied = tradeResource(prev.playerResources[playerSlot], type, action, amount);
+      if (!applied.ok || !applied.next) return prev;
+      return {
+        ...prev,
+        playerResources: {
+          ...prev.playerResources,
+          [playerSlot]: applied.next,
+        },
+      };
+    });
+    soundManager.playClickSound();
+
+    const nextRes = outcome.next;
+    const label = MARKET_LABELS[type];
     if (action === 'buy') {
-      const totalGoldCost = Math.round((amount / 100) * rate.buyPrice);
-      if ((myRes.gold || 0) < totalGoldCost) {
-        triggerNotification(`Ouro insuficiente! Necessário ${totalGoldCost} ouro.`, 'warning');
-        return;
-      }
-      setGameState((prev) => {
-        const pRes = prev.playerResources[playerSlot];
-        const resKey = type === 'wood' ? 'wood' : 'food';
-        return {
-          ...prev,
-          playerResources: {
-            ...prev.playerResources,
-            [playerSlot]: {
-              ...pRes,
-              gold: (pRes.gold || 0) - totalGoldCost,
-              [resKey]: (pRes[resKey] || 0) + amount,
-            },
-          },
-        };
-      });
-      soundManager.playClickSound();
-      triggerNotification(`Mercadão: Comprado ${amount} de ${type} por ${totalGoldCost} ouro!`, 'success');
+      const goldSpent = myRes.gold - nextRes.gold;
+      triggerNotification(`Mercadão: Comprado ${amount} de ${label} por ${goldSpent} ouro!`, 'success');
     } else {
-      const resKey = type === 'wood' ? 'wood' : 'food';
-      const currentSupply = myRes[resKey] || 0;
-      if (currentSupply < amount) {
-        triggerNotification(`${type} insuficiente no armazém para vender!`, 'warning');
-        return;
-      }
-      const totalGoldGain = Math.round((amount / 100) * rate.sellPrice);
-      setGameState((prev) => {
-        const pRes = prev.playerResources[playerSlot];
-        return {
-          ...prev,
-          playerResources: {
-            ...prev.playerResources,
-            [playerSlot]: {
-              ...pRes,
-              [resKey]: (pRes[resKey] || 0) - amount,
-              gold: (pRes.gold || 0) + totalGoldGain,
-            },
-          },
-        };
-      });
-      soundManager.playClickSound();
-      triggerNotification(`Mercadão: Vendido ${amount} de ${type} por ${totalGoldGain} ouro!`, 'success');
+      const goldGained = nextRes.gold - myRes.gold;
+      triggerNotification(`Mercadão: Vendido ${amount} de ${label} por ${goldGained} ouro!`, 'success');
     }
   };
 
