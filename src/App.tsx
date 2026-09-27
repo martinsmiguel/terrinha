@@ -72,6 +72,10 @@ import {
   UNIT_COSTS,
 } from './game/economy';
 import { isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, type PlayerSlot } from './game/networkCommands';
+import { evaluateMatch, localOutcome, type LocalOutcome } from './game/victory';
+
+/** Donos de Centro da Vila no setup inicial: os participantes da partida. */
+const MATCH_CONTENDERS: string[] = ['player1', 'player2'];
 
 const FACTION_COLORS: Record<string, { name: string; hex: number; colorClass: string; border: string }> = {
   player1: { name: 'Império Português (Azul)', hex: 0x2563eb, colorClass: 'bg-blue-600', border: 'border-blue-500' },
@@ -1713,6 +1717,9 @@ export default function App() {
 
     const interval = setInterval(() => {
       setGameState((prev) => {
+        // Partida encerrada: a simulacao nao avanca mais
+        if (prev.match?.status === 'finished') return prev;
+
         let updatedUnits = [...prev.units];
         let updatedNodes = [...prev.resourceNodes];
         let updatedBuildings = [...prev.buildings];
@@ -2289,6 +2296,7 @@ export default function App() {
           buildings: updatedBuildings,
           resourceNodes: updatedNodes,
           playerResources: updatedResources,
+          match: evaluateMatch(updatedBuildings, MATCH_CONTENDERS),
         };
       });
     }, 50);
@@ -3980,6 +3988,28 @@ export default function App() {
   // RENDER: IN-GAME RTS INTERFACE
   // ==========================================
   const myResources = gameState.playerResources[playerSlot] || { wood: 0, food: 0, gold: 0, pop: 0, maxPop: 10 };
+
+  // Match outcome: o host publica gameState.match, o jogador local deriva seu resultado
+  const matchStatus = gameState.match;
+  const matchFinished = matchStatus?.status === 'finished';
+  const isMatchContender = MATCH_CONTENDERS.includes(playerSlot);
+  const outcome: LocalOutcome = isMatchContender
+    ? localOutcome(playerSlot, gameState.buildings, MATCH_CONTENDERS)
+    : 'running';
+  const showResultScreen = isMatchContender && (matchFinished || outcome !== 'running');
+  const isDraw = matchStatus?.status === 'finished' && matchStatus.winner === null;
+  const resultLabel = isDraw ? 'EMPATE' : outcome === 'victory' ? 'VITÓRIA' : 'DERROTA';
+  const resultToneClass = isDraw
+    ? 'text-slate-100'
+    : outcome === 'victory'
+      ? 'text-amber-300'
+      : 'text-red-400';
+  const resultDetail = isDraw
+    ? 'Nenhum Centro da Vila sobreviveu ao confronto.'
+    : outcome === 'victory'
+      ? 'Todos os oponentes perderam o Centro da Vila.'
+      : 'Seu Centro da Vila foi destruído.';
+
   const selectedUnitsList = gameState.units.filter((u) => selectedUnitIds.includes(u.id));
   const soldierCount = selectedUnitsList.filter((u) => u.type === 'soldier').length;
   const villagerCount = selectedUnitsList.filter((u) => u.type === 'villager').length;
@@ -6442,6 +6472,37 @@ export default function App() {
         }}
         activeGatherersCount={activeGatherers}
       />
+
+      {/* MATCH RESULT SCREEN (vitoria / derrota / empate) */}
+      {showResultScreen && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
+          <div className="bg-slate-900/95 border border-slate-700/80 rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-5 text-center">
+            <div className={`text-4xl font-black tracking-wide ${resultToneClass}`}>{resultLabel}</div>
+            <p className="text-sm text-slate-400">{resultDetail}</p>
+            <div className="flex flex-col gap-2 pt-1">
+              {(role === 'host' || role === 'single') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setupInitialMap();
+                    soundManager.playClickSound();
+                  }}
+                  className="p-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition-colors"
+                >
+                  Jogar Novamente
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsGameStarted(false)}
+                className="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm transition-colors"
+              >
+                Voltar ao Menu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

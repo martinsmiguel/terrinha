@@ -5,6 +5,7 @@
 
 import * as THREE from 'three';
 import { ParticleSystem } from './particles';
+import type { MatchStatus } from './victory';
 
 export type UnitType = 'villager' | 'soldier' | 'cavalry' | 'fishing_boat' | 'trade_boat';
 export type BuildingType =
@@ -80,6 +81,8 @@ export interface GameState {
   buildings: Building[];
   resourceNodes: ResourceNode[];
   playerResources: Record<string, PlayerResources>;
+  /** Estado da partida segundo a condicao de vitoria (calculado pelo host). */
+  match?: MatchStatus;
 }
 
 export const MAP_SIZE = 60;
