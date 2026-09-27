@@ -23,6 +23,10 @@ import {
   MarketResourceType,
   goldCostForBuy,
   goldGainForSell,
+  canAfford,
+  missingCost,
+  COST_SHORT,
+  COST_CHIP_CLASS,
 } from '../game/economy';
 
 interface EmpireCatalogModalProps {
@@ -91,6 +95,7 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
               <span className="text-red-300">C {Math.floor(playerResources.food)}</span>
               <span className="text-yellow-300">O {Math.floor(playerResources.gold)}</span>
               <span className="text-slate-300">P {Math.floor(playerResources.stone)}</span>
+              <span className="text-orange-300">T {Math.floor(playerResources.planks)}</span>
             </div>
 
             <button
@@ -161,9 +166,7 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               {buildingList.map((type) => {
                 const def = BUILDING_CATALOG[type];
-                const canAffordWood = playerResources.wood >= def.cost.wood;
-                const canAffordGold = !def.cost.gold || playerResources.gold >= def.cost.gold;
-                const canAfford = canAffordWood && canAffordGold;
+                const affordable = canAfford(playerResources, def.cost);
 
                 return (
                   <div
@@ -218,26 +221,36 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
 
                     <div className="pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
                       <div className="flex items-center gap-2 text-xs font-mono">
-                        <span className={canAffordWood ? 'text-amber-400 font-bold' : 'text-red-400 font-bold'}>
-                          M {def.cost.wood}
-                        </span>
-                        {def.cost.gold && (
-                          <span className={canAffordGold ? 'text-yellow-400 font-bold' : 'text-red-400 font-bold'}>
-                            O {def.cost.gold}
+                        {(['wood', 'food', 'gold', 'stone', 'planks'] as const)
+                          .filter((key) => (def.cost[key] || 0) > 0)
+                          .map((key) => {
+                            const owned = (playerResources[key] || 0) >= (def.cost[key] || 0);
+                            return (
+                              <span
+                                key={key}
+                                className={owned ? COST_CHIP_CLASS[key] : 'text-red-400 font-bold'}
+                              >
+                                {COST_SHORT[key]} {def.cost[key]}
+                              </span>
+                            );
+                          })}
+                        <span className="text-slate-500 text-[10px]">{def.buildTimeSeconds}s</span>
+                        {!affordable && (
+                          <span className="text-red-400 text-[10px]">
+                            {missingCost(playerResources, def.cost, 'short')}
                           </span>
                         )}
-                        <span className="text-slate-500 text-[10px]">{def.buildTimeSeconds}s</span>
                       </div>
 
                       <button
                         type="button"
-                        disabled={!canAfford}
+                        disabled={!affordable}
                         onClick={() => {
                           onSelectBuildingToBuild(type);
                           onClose();
                         }}
                         className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                          canAfford
+                          affordable
                             ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-md hover:shadow-amber-500/20 active:scale-95'
                             : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
                         }`}

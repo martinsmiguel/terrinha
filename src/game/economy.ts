@@ -34,6 +34,15 @@ export const COST_LABEL: Record<CostKey, string> = {
   planks: 'Tábuas',
 };
 
+/** Cor de exibição de cada chip de custo na UI. */
+export const COST_CHIP_CLASS: Record<CostKey, string> = {
+  wood: 'text-amber-400 font-bold',
+  food: 'text-red-300 font-bold',
+  gold: 'text-yellow-300 font-bold',
+  stone: 'text-slate-300 font-bold',
+  planks: 'text-orange-300 font-bold',
+};
+
 const COST_KEYS: CostKey[] = ['wood', 'food', 'gold', 'stone', 'planks'];
 
 /** Custo de cada unidade treinável (fonte única de verdade). */
