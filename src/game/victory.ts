@@ -7,8 +7,8 @@ import type { Building } from './engine';
 
 /** Estado da partida segundo a condição de vitória. */
 export type MatchStatus =
-  | { status: 'running' }
-  | { status: 'finished'; winner: string | null };
+  | { status: 'running'; players: string[] }
+  | { status: 'finished'; winner: string | null; players: string[] };
 
 /** Resultado local (vista do jogador), derivado do estado da partida. */
 export type LocalOutcome = 'running' | 'victory' | 'defeat';
@@ -36,9 +36,9 @@ export const hasTownCenter = (buildings: Building[], owner: string): boolean =>
 export const evaluateMatch = (buildings: Building[], contenders: string[]): MatchStatus => {
   const alive = townCenterOwners(buildings).filter((owner) => contenders.includes(owner));
   if (alive.length > 1) {
-    return { status: 'running' };
+    return { status: 'running', players: contenders };
   }
-  return { status: 'finished', winner: alive.length === 1 ? alive[0] : null };
+  return { status: 'finished', winner: alive.length === 1 ? alive[0] : null, players: contenders };
 };
 
 /**

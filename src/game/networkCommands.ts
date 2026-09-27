@@ -50,6 +50,14 @@ interface CommandMetadata {
   senderId?: string;
 }
 
+/**
+ * Participantes do modo solo: o jogador humano vem primeiro e os slots
+ * restantes sao preenchidos ate o tamanho escolhido (2, 3 ou 4 jogadores).
+ */
+export function soloMatchSlots(humanSlot: PlayerSlot, matchSize: number): PlayerSlot[] {
+  return [humanSlot, ...PLAYER_SLOTS.filter((slot) => slot !== humanSlot)].slice(0, matchSize);
+}
+
 export type NetworkCommand = CommandMetadata & (
   | { type: 'move'; unitId: string; target: Position }
   | { type: 'gather'; unitId: string; targetId: string; origin?: Position; radiusLimit?: number; timeLimitSeconds?: number }

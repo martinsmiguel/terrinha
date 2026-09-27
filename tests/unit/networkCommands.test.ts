@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAuthorizedPlayerCommand, isValidJoinRequest, isValidNetworkCommand, roomJoinError } from '../../src/game/networkCommands';
+import { isAuthorizedPlayerCommand, isValidJoinRequest, isValidNetworkCommand, roomJoinError, soloMatchSlots } from '../../src/game/networkCommands';
 import { BUILDING_CATALOG } from '../../src/game/buildingDefs';
 import type { GameState } from '../../src/game/engine';
 
@@ -215,5 +215,14 @@ describe('cavalry training', () => {
       playerResources: { ...barracksState.playerResources, player1: { ...barracksState.playerResources.player1, gold: 79 } },
     };
     expect(isAuthorizedPlayerCommand(noGold, { type: 'train', buildingId: 'barracks-1', unitType: 'cavalry' }, 'player1')).toBe(false);
+  });
+});
+
+describe('soloMatchSlots', () => {
+  it('puts the human first and fills the rest with AI slots up to the chosen size', () => {
+    expect(soloMatchSlots('player1', 2)).toEqual(['player1', 'player2']);
+    expect(soloMatchSlots('player1', 4)).toEqual(['player1', 'player2', 'player3', 'player4']);
+    expect(soloMatchSlots('player3', 3)).toEqual(['player3', 'player1', 'player2']);
+    expect(soloMatchSlots('player4', 2)).toEqual(['player4', 'player1']);
   });
 });

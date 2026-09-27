@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { GameEngine, GameState, Unit, Building, ResourceNode, MAP_SIZE, UnitType } from './game/engine';
+import { GameEngine, GameState, PlayerResources, Unit, Building, ResourceNode, MAP_SIZE, UnitType } from './game/engine';
 import { findPath, nextWaypoint } from './game/movement/pathfinding';
 import { resolveSeparation } from './game/movement/separation';
 import { createVisionGrid, expireVision, revealVision, visionRadiusFor, isVisibleAt } from './game/visibility';
@@ -77,11 +77,8 @@ import {
   UNIT_COSTS,
   halfCost,
 } from './game/economy';
-import { isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, type PlayerSlot } from './game/networkCommands';
+import { PLAYER_SLOTS, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, soloMatchSlots, type PlayerSlot } from './game/networkCommands';
 import { evaluateMatch, localOutcome, type LocalOutcome } from './game/victory';
-
-/** Donos de Centro da Vila no setup inicial: os participantes da partida. */
-const MATCH_CONTENDERS: string[] = ['player1', 'player2'];
 
 /** Reparo: HP por tick (50 ms) e madeira consumida por HP reparado. */
 const REPAIR_HP_PER_TICK = 4;
@@ -111,6 +108,15 @@ export default function App() {
   const [lanIps, setLanIps] = useState<string[]>([]);
   const [copiedIp, setCopiedIp] = useState(false);
   const [, setConnectedPlayers] = useState(1);
+
+  // Participantes da partida: no solo vem do tamanho escolhido (2..4),
+  // no multiplayer e o host mais quem entrar na sala.
+  const [activeSlots, setActiveSlots] = useState<PlayerSlot[]>(['player1', 'player2']);
+  const activeSlotsRef = useRef<PlayerSlot[]>(['player1', 'player2']);
+  activeSlotsRef.current = activeSlots;
+  const [matchSize, setMatchSize] = useState<2 | 3 | 4>(2);
+  const playerSlotRef = useRef<PlayerSlot>('player1');
+  playerSlotRef.current = playerSlot;
 
   // Squad Formation Mode ('box' | 'line' | 'spread')
   const [squadFormation, setSquadFormation] = useState<'box' | 'line' | 'spread'>('box');
@@ -581,6 +587,14 @@ export default function App() {
 
       multi.onPlayerJoined = (data) => {
         setConnectedPlayers(data.playerCount);
+        const joinedSlot = isPlayerSlot(data.playerSlot) ? data.playerSlot : null;
+        if (joinedSlot) {
+          if (!activeSlotsRef.current.includes(joinedSlot)) {
+            activeSlotsRef.current = [...activeSlotsRef.current, joinedSlot];
+            setActiveSlots(activeSlotsRef.current);
+          }
+          if (role === 'host') spawnStarterBaseFor(joinedSlot);
+        }
         setChatMessages((prev) => [
           ...prev,
           { sender: 'Sistema', message: `${data.playerName} entrou na partida!`, timestamp: Date.now() },
@@ -589,6 +603,11 @@ export default function App() {
 
       multi.onPlayerLeft = (data) => {
         setConnectedPlayers(data.playerCount);
+        const leftSlot = isPlayerSlot(data.playerSlot) ? data.playerSlot : null;
+        if (leftSlot && role === 'host') {
+          activeSlotsRef.current = activeSlotsRef.current.filter((slot) => slot !== leftSlot);
+          setActiveSlots(activeSlotsRef.current);
+        }
         setChatMessages((prev) => [
           ...prev,
           { sender: 'Sistema', message: `${data.playerName || 'Um jogador'} saiu da partida.`, timestamp: Date.now() },
@@ -644,6 +663,87 @@ export default function App() {
     };
   }, [isGameStarted]);
 
+  // Base inicial de um slot: Centro da Vila + 2 aldeoes + 1 soldado
+  const buildStarterBase = (slot: PlayerSlot, spawn: { x: number; z: number }) => {
+    const townCenter: Building = {
+      id: uuidv4(),
+      type: 'town_center',
+      owner: slot,
+      position: { x: spawn.x, z: spawn.z },
+      health: 2400,
+      maxHealth: 2400,
+      isComplete: true,
+      trainingQueue: [],
+    };
+
+    const villager = (offsetX: number): Unit => ({
+      id: uuidv4(),
+      type: 'villager',
+      owner: slot,
+      position: { x: spawn.x + offsetX, z: spawn.z + 2 },
+      targetPosition: null,
+      targetEntityId: null,
+      health: 100,
+      maxHealth: 100,
+      attackDamage: 5,
+      state: 'idle' as const,
+    });
+
+    const units: Unit[] = [
+      villager(1.8),
+      villager(-1.8),
+      {
+        id: uuidv4(),
+        type: 'soldier',
+        owner: slot,
+        position: { x: spawn.x + 2.5, z: spawn.z - 1.5 },
+        targetPosition: null,
+        targetEntityId: null,
+        health: 150,
+        maxHealth: 150,
+        attackDamage: 18,
+        state: 'idle',
+      },
+    ];
+
+    return { townCenter, units };
+  };
+
+  const spawnForSlot = (slot: PlayerSlot): { x: number; z: number } | null => {
+    const procMap = proceduralMapRef.current;
+    if (!procMap) return null;
+    if (slot === 'player1') return procMap.player1Spawn;
+    if (slot === 'player2') return procMap.player2Spawn;
+    if (slot === 'player3') return procMap.player3Spawn;
+    return procMap.player4Spawn;
+  };
+
+  const startingColonyResources = (pop: number): PlayerResources => ({
+    wood: 350,
+    food: 350,
+    gold: 200,
+    stone: 100,
+    planks: 0,
+    pop,
+    maxPop: 15,
+  });
+
+  // Multiplayer: quem entra depois do inicio da partida ganha a propria base no host
+  const spawnStarterBaseFor = (slot: PlayerSlot) => {
+    const spawn = spawnForSlot(slot);
+    if (!spawn) return;
+    if (gameStateRef.current.buildings.some((b) => b.owner === slot && b.type === 'town_center')) return;
+
+    const { townCenter, units } = buildStarterBase(slot, spawn);
+    setGameState((prev) => ({
+      ...prev,
+      buildings: [...prev.buildings, townCenter],
+      units: [...prev.units, ...units],
+      playerResources: { ...prev.playerResources, [slot]: startingColonyResources(units.length) },
+    }));
+    triggerNotification(`${FACTION_COLORS[slot]?.name ?? slot} recebeu uma base inicial!`, 'success');
+  };
+
   // Initial map setup with Procedural Terrain, River, Valleys, Town Centers, Resources & Villagers
   const setupInitialMap = () => {
     const procMap = generateProceduralTerrain(MAP_SIZE);
@@ -659,106 +759,35 @@ export default function App() {
 
     const nodes: ResourceNode[] = procMap.resourceNodes;
 
-    // Player 1 Base (Southwest - Level Plains Village Plateau)
-    const p1Tc: Building = {
-      id: uuidv4(),
-      type: 'town_center',
-      owner: 'player1',
-      position: { x: procMap.player1Spawn.x, z: procMap.player1Spawn.z },
-      health: 2400,
-      maxHealth: 2400,
-      isComplete: true,
-      trainingQueue: [],
-    };
+    // Solo: o jogador local escolhe 2, 3 ou 4 participantes (ele + IA).
+    // Multiplayer: o host nasce sozinho e cada slot que entrar ganha a propria base.
+    const slots: PlayerSlot[] = role === 'single' ? soloMatchSlots(playerSlot, matchSize) : [playerSlot];
 
-    const p1Villagers: Unit[] = [
-      {
-        id: uuidv4(),
-        type: 'villager',
-        owner: 'player1',
-        position: { x: procMap.player1Spawn.x + 1.8, z: procMap.player1Spawn.z + 2 },
-        targetPosition: null,
-        targetEntityId: null,
-        health: 100,
-        maxHealth: 100,
-        attackDamage: 5,
-        state: 'idle',
-      },
-      {
-        id: uuidv4(),
-        type: 'villager',
-        owner: 'player1',
-        position: { x: procMap.player1Spawn.x - 1.8, z: procMap.player1Spawn.z + 2 },
-        targetPosition: null,
-        targetEntityId: null,
-        health: 100,
-        maxHealth: 100,
-        attackDamage: 5,
-        state: 'idle',
-      },
-      {
-        id: uuidv4(),
-        type: 'soldier',
-        owner: 'player1',
-        position: { x: procMap.player1Spawn.x + 2.5, z: procMap.player1Spawn.z - 1.5 },
-        targetPosition: null,
-        targetEntityId: null,
-        health: 150,
-        maxHealth: 150,
-        attackDamage: 18,
-        state: 'idle',
-      },
-    ];
+    const buildings: Building[] = [];
+    const units: Unit[] = [];
+    const playerResources: Record<string, PlayerResources> = {};
 
-    // Player 2 Base (Northeast - Rival Village Plateau / AI)
-    const p2Tc: Building = {
-      id: uuidv4(),
-      type: 'town_center',
-      owner: 'player2',
-      position: { x: procMap.player2Spawn.x, z: procMap.player2Spawn.z },
-      health: 2400,
-      maxHealth: 2400,
-      isComplete: true,
-      trainingQueue: [],
-    };
+    PLAYER_SLOTS.forEach((slot) => {
+      playerResources[slot] = startingColonyResources(0);
+    });
 
-    const p2Units: Unit[] = [
-      {
-        id: uuidv4(),
-        type: 'villager',
-        owner: 'player2',
-        position: { x: procMap.player2Spawn.x - 1.8, z: procMap.player2Spawn.z + 1.8 },
-        targetPosition: null,
-        targetEntityId: null,
-        health: 100,
-        maxHealth: 100,
-        attackDamage: 5,
-        state: 'idle',
-      },
-      {
-        id: uuidv4(),
-        type: 'soldier',
-        owner: 'player2',
-        position: { x: procMap.player2Spawn.x + 2.2, z: procMap.player2Spawn.z - 1.5 },
-        targetPosition: null,
-        targetEntityId: null,
-        health: 150,
-        maxHealth: 150,
-        attackDamage: 18,
-        state: 'idle',
-      },
-    ];
+    slots.forEach((slot) => {
+      const spawn = spawnForSlot(slot);
+      if (!spawn) return;
+      const starter = buildStarterBase(slot, spawn);
+      buildings.push(starter.townCenter);
+      units.push(...starter.units);
+      playerResources[slot] = startingColonyResources(starter.units.length);
+    });
+
+    setActiveSlots(slots);
+    activeSlotsRef.current = slots;
 
     setGameState({
-      units: [...p1Villagers, ...p2Units],
-      buildings: [p1Tc, p2Tc],
+      units,
+      buildings,
       resourceNodes: nodes,
-      playerResources: {
-        player1: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 3, maxPop: 15 },
-        player2: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 2, maxPop: 15 },
-        player3: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 0, maxPop: 10 },
-        player4: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 0, maxPop: 10 },
-      },
+      playerResources,
     });
   };
 
@@ -2418,34 +2447,53 @@ export default function App() {
           }
         });
 
-        // 3. Simple Autonomous AI for player2 if singleplayer
+        // 3. IA autonoma de todos os slots nao humanos no modo solo (2..4 jogadores)
         if (role === 'single') {
-          const aiTc = updatedBuildings.find((b) => b.owner === 'player2' && b.type === 'town_center');
-          const aiUnits = updatedUnits.filter((u) => u.owner === 'player2');
-          const aiRes = updatedResources['player2'];
+          const humanSlot = playerSlotRef.current;
+          const aiSlots = activeSlotsRef.current.filter((slot) => slot !== humanSlot);
 
-          if (aiTc && aiTc.trainingQueue.length === 0 && aiUnits.length < 8 && aiRes.food >= 50) {
-            aiRes.food -= 50;
-            aiTc.trainingQueue.push({ unitType: aiUnits.length % 2 === 0 ? 'soldier' : 'villager', progress: 0 });
-          }
+          aiSlots.forEach((aiSlot) => {
+            const aiTc = updatedBuildings.find((b) => b.owner === aiSlot && b.type === 'town_center');
+            const aiUnits = updatedUnits.filter((u) => u.owner === aiSlot);
+            const aiRes = updatedResources[aiSlot];
+            if (!aiRes || !aiTc) return;
 
-          // Idle AI units gather or march
-          aiUnits.forEach((aiUnit) => {
-            if (aiUnit.state === 'idle') {
+            // Producao: mosqueteiro, aldeao e cavalaria quando o ouro permite
+            if (aiTc.trainingQueue.length === 0 && aiUnits.length < 8) {
+              const cycle: UnitType[] = ['soldier', 'villager', 'soldier', 'cavalry'];
+              const trainType = cycle[aiUnits.length % cycle.length];
+              const cost = UNIT_COSTS[trainType];
+              if (canAfford(aiRes, cost)) {
+                updatedResources[aiSlot] = applyCost(aiRes, cost);
+                aiTc.trainingQueue.push({ unitType: trainType, progress: 0 });
+              }
+            }
+
+            // Unidades ociosas: aldeoes coletam, militares marcham contra a base humana
+            aiUnits.forEach((aiUnit) => {
+              if (aiUnit.state !== 'idle') return;
+
               if (aiUnit.type === 'villager') {
                 const nearestTree = updatedNodes.find((n) => n.type === 'tree');
                 if (nearestTree) {
                   aiUnit.state = 'gathering';
                   aiUnit.targetEntityId = nearestTree.id;
                 }
-              } else if (aiUnit.type === 'soldier' && aiUnits.filter((u) => u.type === 'soldier').length >= 3) {
-                // Attack Player 1 TC
-                const p1Tc = updatedBuildings.find((b) => b.owner === 'player1');
-                if (p1Tc) {
-                  aiUnit.targetPosition = { x: p1Tc.position.x + 2, z: p1Tc.position.z + 2 };
+                return;
+              }
+
+              const soldiers = aiUnits.filter((u) => u.type === 'soldier').length;
+              const cavalry = aiUnits.filter((u) => u.type === 'cavalry').length;
+              const shouldMarch =
+                (aiUnit.type === 'soldier' && soldiers >= 3) ||
+                (aiUnit.type === 'cavalry' && (cavalry >= 2 || soldiers >= 3));
+              if (shouldMarch) {
+                const humanTc = updatedBuildings.find((b) => b.owner === humanSlot && b.type === 'town_center');
+                if (humanTc) {
+                  aiUnit.targetPosition = { x: humanTc.position.x + 2, z: humanTc.position.z + 2 };
                 }
               }
-            }
+            });
           });
         }
 
@@ -2482,7 +2530,10 @@ export default function App() {
           buildings: updatedBuildings,
           resourceNodes: updatedNodes,
           playerResources: updatedResources,
-          match: evaluateMatch(updatedBuildings, MATCH_CONTENDERS),
+          match:
+            activeSlotsRef.current.length >= 2
+              ? evaluateMatch(updatedBuildings, activeSlotsRef.current)
+              : { status: 'running' as const, players: activeSlotsRef.current },
         };
       });
     }, 50);
@@ -4192,6 +4243,36 @@ export default function App() {
               </button>
             </div>
 
+            <div className="pt-1">
+              <span className="block text-xs font-medium text-slate-400 mb-1.5">
+                Treino Solo: jogadores na partida (você + IA)
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                {([2, 3, 4] as const).map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => {
+                      setMatchSize(size);
+                      soundManager.playClickSound();
+                    }}
+                    className={`py-2 rounded-xl border text-xs font-semibold transition-all ${
+                      matchSize === size
+                        ? 'bg-amber-500/15 border-amber-500/60 text-amber-300 ring-1 ring-amber-500/30'
+                        : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                    }`}
+                  >
+                    {size} jogadores
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-500 mt-1">
+                {matchSize === 2
+                  ? 'Você contra uma colônia rival.'
+                  : `${matchSize - 1} colônias rivais controladas pela IA.`}
+              </p>
+            </div>
+
             <button
               type="button"
               onClick={() => {
@@ -4232,9 +4313,10 @@ export default function App() {
   // Match outcome: o host publica gameState.match, o jogador local deriva seu resultado
   const matchStatus = gameState.match;
   const matchFinished = matchStatus?.status === 'finished';
-  const isMatchContender = MATCH_CONTENDERS.includes(playerSlot);
+  const contenders = matchStatus?.players ?? activeSlots;
+  const isMatchContender = contenders.includes(playerSlot);
   const outcome: LocalOutcome = isMatchContender
-    ? localOutcome(playerSlot, gameState.buildings, MATCH_CONTENDERS)
+    ? localOutcome(playerSlot, gameState.buildings, contenders)
     : 'running';
   const showResultScreen = isMatchContender && (matchFinished || outcome !== 'running');
   const isDraw = matchStatus?.status === 'finished' && matchStatus.winner === null;

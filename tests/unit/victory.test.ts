@@ -43,22 +43,45 @@ describe('evaluateMatch', () => {
   it('keeps running while both town centers stand', () => {
     expect(evaluateMatch([townCenter('player1'), townCenter('player2')], contenders)).toEqual({
       status: 'running',
+      players: contenders,
     });
   });
 
   it('finishes with the last surviving owner as winner', () => {
     const buildings = [house('player1'), townCenter('player2')];
-    expect(evaluateMatch(buildings, contenders)).toEqual({ status: 'finished', winner: 'player2' });
+    expect(evaluateMatch(buildings, contenders)).toEqual({ status: 'finished', winner: 'player2', players: contenders });
   });
 
   it('treats a draw with no town centers left as a finished match without winner', () => {
-    expect(evaluateMatch([house('player1')], contenders)).toEqual({ status: 'finished', winner: null });
+    expect(evaluateMatch([house('player1')], contenders)).toEqual({ status: 'finished', winner: null, players: contenders });
+  });
+
+  it('runs a three or four player match until the last rival town center falls', () => {
+    const four = ['player1', 'player2', 'player3', 'player4'];
+    expect(
+      evaluateMatch([townCenter('player1'), townCenter('player2'), townCenter('player3'), house('player4')], four)
+    ).toEqual({ status: 'running', players: four });
+    expect(
+      evaluateMatch([townCenter('player1'), house('player2'), house('player3'), house('player4')], four)
+    ).toEqual({ status: 'finished', winner: 'player1', players: four });
+    expect(evaluateMatch([house('player1'), house('player2'), house('player3'), house('player4')], four)).toEqual({
+      status: 'finished',
+      winner: null,
+      players: four,
+    });
   });
 
   it('ignores owners outside the contender list', () => {
     const buildings = [townCenter('player1'), townCenter('player2'), townCenter('player3')];
-    expect(evaluateMatch(buildings, ['player1', 'player2'])).toEqual({ status: 'running' });
-    expect(evaluateMatch(buildings, ['player1'])).toEqual({ status: 'finished', winner: 'player1' });
+    expect(evaluateMatch(buildings, ['player1', 'player2'])).toEqual({
+      status: 'running',
+      players: ['player1', 'player2'],
+    });
+    expect(evaluateMatch(buildings, ['player1'])).toEqual({
+      status: 'finished',
+      winner: 'player1',
+      players: ['player1'],
+    });
   });
 });
 
