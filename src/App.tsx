@@ -56,6 +56,7 @@ import {
   ChevronDown,
   ChevronUp,
   Layers,
+  PawPrint,
 } from 'lucide-react';
 import * as THREE from 'three';
 import { v4 as uuidv4 } from 'uuid';
@@ -1100,6 +1101,54 @@ export default function App() {
           musket.position.set(0.28, 0.7, 0.1);
           musket.rotation.z = -0.3;
           group.add(musket);
+        } else if (unit.type === 'cavalry') {
+          // Cavalaria montada: cavalo + cavaleiro
+          const horseBody = new THREE.Mesh(
+            new THREE.BoxGeometry(0.45, 0.5, 1.3),
+            new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 0.85 })
+          );
+          horseBody.position.y = 0.75;
+          horseBody.castShadow = true;
+          group.add(horseBody);
+
+          const horseHead = new THREE.Mesh(
+            new THREE.BoxGeometry(0.3, 0.42, 0.5),
+            new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 0.85 })
+          );
+          horseHead.position.set(0, 1.0, -0.78);
+          group.add(horseHead);
+
+          const legGeometry = new THREE.CylinderGeometry(0.07, 0.07, 0.55, 6);
+          const legMaterial = new THREE.MeshStandardMaterial({ color: 0x4a2e18 });
+          const legSpots: [number, number][] = [[0.16, 0.45], [-0.16, 0.45], [0.16, -0.45], [-0.16, -0.45]];
+          const unitGroup = group;
+          legSpots.forEach(([legX, legZ]) => {
+            const leg = new THREE.Mesh(legGeometry, legMaterial);
+            leg.position.set(legX, 0.27, legZ);
+            unitGroup.add(leg);
+          });
+
+          const rider = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.2, 0.25, 0.7, 8),
+            new THREE.MeshStandardMaterial({ color: ownerColor })
+          );
+          rider.position.y = 1.35;
+          rider.castShadow = true;
+          group.add(rider);
+
+          const riderHead = new THREE.Mesh(
+            new THREE.SphereGeometry(0.17, 8, 8),
+            new THREE.MeshStandardMaterial({ color: 0xffdbac })
+          );
+          riderHead.position.y = 1.85;
+          group.add(riderHead);
+
+          const helmet = new THREE.Mesh(
+            new THREE.ConeGeometry(0.16, 0.3, 6),
+            new THREE.MeshStandardMaterial({ color: 0x1f2937 })
+          );
+          helmet.position.y = 2.08;
+          group.add(helmet);
         } else if (unit.type === 'fishing_boat') {
           // Barco de Pesca (Wooden skiff with triangular sail)
           const hull = new THREE.Mesh(
@@ -1183,10 +1232,10 @@ export default function App() {
         // Floating 3D Health Bar (only visible when selected or damaged)
         const isBoat = unit.type === 'fishing_boat' || unit.type === 'trade_boat';
         const healthBar = create3DHealthBar({
-          width: isBoat ? 1.2 : unit.type === 'soldier' ? 1.0 : 0.9,
-          height: unit.type === 'soldier' ? 0.13 : 0.12,
+          width: isBoat ? 1.2 : unit.type === 'cavalry' ? 1.2 : unit.type === 'soldier' ? 1.0 : 0.9,
+          height: unit.type === 'soldier' || unit.type === 'cavalry' ? 0.13 : 0.12,
           ownerColor,
-          yOffset: isBoat ? 1.9 : unit.type === 'soldier' ? 1.75 : 1.55,
+          yOffset: isBoat ? 1.9 : unit.type === 'cavalry' ? 2.4 : unit.type === 'soldier' ? 1.75 : 1.55,
         });
         group.add(healthBar);
 
@@ -1776,7 +1825,7 @@ export default function App() {
                 return { ...unit, targetPosition: null, state: 'idle' as const };
               }
 
-              const speed = unit.type === 'soldier' ? 0.2 : 0.16;
+              const speed = unit.type === 'soldier' ? 0.2 : unit.type === 'cavalry' ? 0.3 : 0.16;
               const isBoat = unit.type === 'fishing_boat' || unit.type === 'trade_boat';
               const pMap = proceduralMapRef.current;
 
@@ -2101,9 +2150,9 @@ export default function App() {
                 const dz = target.position.z - unit.position.z;
                 const dist = Math.sqrt(dx * dx + dz * dz);
 
-                const attackRange = unit.type === 'soldier' ? (targetBuilding ? 5.5 : 4.5) : (targetBuilding ? 2.5 : 1.2);
+                const attackRange = unit.type === 'soldier' ? (targetBuilding ? 5.5 : 4.5) : unit.type === 'cavalry' ? (targetBuilding ? 3.5 : 2.5) : (targetBuilding ? 2.5 : 1.2);
                 if (dist > attackRange) {
-                  const speed = 0.18;
+                  const speed = unit.type === 'cavalry' ? 0.26 : 0.18;
                   return {
                     ...unit,
                     position: {
@@ -2115,7 +2164,7 @@ export default function App() {
                   // Apply damage with rhythmic attack cadence
                   const cooldown = unit.attackCooldown ?? 0;
                   if (cooldown <= 0) {
-                    const damage = unit.type === 'soldier' ? 24 : 8;
+                    const damage = unit.type === 'soldier' ? 24 : unit.type === 'cavalry' ? 32 : 8;
                     const prevHealth = target.health;
                     target.health = Math.max(0, target.health - damage);
 
@@ -2259,7 +2308,7 @@ export default function App() {
             if (currentItem.progress >= 100) {
               // Spawn unit
               const isBoat = currentItem.unitType === 'fishing_boat' || currentItem.unitType === 'trade_boat';
-              const maxHp = isBoat ? 220 : currentItem.unitType === 'soldier' ? 150 : 100;
+              const maxHp = isBoat ? 220 : currentItem.unitType === 'soldier' ? 150 : currentItem.unitType === 'cavalry' ? 180 : 100;
               const newUnit: Unit = {
                 id: uuidv4(),
                 type: currentItem.unitType,
@@ -2272,7 +2321,7 @@ export default function App() {
                 targetEntityId: null,
                 health: maxHp,
                 maxHealth: maxHp,
-                attackDamage: currentItem.unitType === 'soldier' ? 18 : 5,
+                attackDamage: currentItem.unitType === 'soldier' ? 18 : currentItem.unitType === 'cavalry' ? 20 : 5,
                 state: 'idle',
               };
               updatedUnits.push(newUnit);
@@ -2847,6 +2896,8 @@ export default function App() {
               handleTrainUnit('villager', 1);
             } else if (b.type === 'barracks' && key === 's') {
               handleTrainUnit('soldier', 1);
+            } else if (b.type === 'barracks' && key === 'c') {
+              handleTrainUnit('cavalry', 1);
             } else if (b.type === 'dock' && key === 'p') {
               handleTrainUnit('fishing_boat', 1);
             } else if (b.type === 'dock' && key === 'm') {
@@ -3583,6 +3634,8 @@ export default function App() {
             ? 'Aldeão'
             : unitType === 'soldier'
             ? 'Mosqueteiro'
+            : unitType === 'cavalry'
+            ? 'Cavalaria'
             : unitType === 'fishing_boat'
             ? 'Barco de Pesca'
             : 'Barco Mercante';
@@ -3614,6 +3667,8 @@ export default function App() {
           ? 'Aldeão'
           : unitType === 'soldier'
           ? 'Mosqueteiro'
+          : unitType === 'cavalry'
+          ? 'Cavalaria'
           : unitType === 'fishing_boat'
           ? 'Barco de Pesca'
           : 'Barco Mercante';
@@ -4809,7 +4864,7 @@ export default function App() {
                   <>
                     {selectedUnitsList[0].type === 'villager' ? <Users className="w-4 h-4 text-amber-400 shrink-0" /> : <Sword className="w-4 h-4 text-blue-400 shrink-0" />}
                     <span className="font-bold text-white truncate">
-                      {selectedUnitsList[0].type === 'villager' ? 'Aldeão' : 'Mosqueteiro'} ({Math.round(selectedUnitsList[0].health)}/{selectedUnitsList[0].maxHealth} HP)
+                      {selectedUnitsList[0].type === 'villager' ? 'Aldeão' : selectedUnitsList[0].type === 'cavalry' ? 'Cavalaria' : 'Mosqueteiro'} ({Math.round(selectedUnitsList[0].health)}/{selectedUnitsList[0].maxHealth} HP)
                     </span>
                   </>
                 ) : selectedBuilding ? (
@@ -5089,7 +5144,7 @@ export default function App() {
                     </div>
                     <div>
                       <h3 className="font-bold text-base text-white capitalize">
-                        {selectedUnit.type === 'soldier' ? 'Soldado Mosqueteiro' : 'Aldeão Construtor'}
+                        {selectedUnit.type === 'soldier' ? 'Soldado Mosqueteiro' : selectedUnit.type === 'cavalry' ? 'Cavalaria Montada' : 'Aldeão Construtor'}
                       </h3>
                       <div className="text-xs text-slate-400 flex items-center gap-2">
                         <span>Status: <span className="text-amber-400 font-medium capitalize">{selectedUnit.state}</span></span>
@@ -5473,6 +5528,10 @@ export default function App() {
                                   <div className="p-1.5 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30">
                                     <Sword className="w-4 h-4" />
                                   </div>
+                                ) : selectedBuilding.trainingQueue[0].unitType === 'cavalry' ? (
+                                  <div className="p-1.5 rounded-xl bg-amber-600/20 text-amber-400 border border-amber-500/30">
+                                    <PawPrint className="w-4 h-4" />
+                                  </div>
                                 ) : selectedBuilding.trainingQueue[0].unitType === 'fishing_boat' ||
                                   selectedBuilding.trainingQueue[0].unitType === 'trade_boat' ? (
                                   <div className="p-1.5 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
@@ -5487,6 +5546,8 @@ export default function App() {
                                   <div className="font-bold text-white text-xs">
                                     {selectedBuilding.trainingQueue[0].unitType === 'soldier'
                                       ? 'Soldado Mosqueteiro'
+                                      : selectedBuilding.trainingQueue[0].unitType === 'cavalry'
+                                      ? 'Cavalaria Montada'
                                       : selectedBuilding.trainingQueue[0].unitType === 'fishing_boat'
                                       ? 'Barco de Pesca Fluvial'
                                       : selectedBuilding.trainingQueue[0].unitType === 'trade_boat'
@@ -5623,6 +5684,7 @@ export default function App() {
 
                       {/* Barracks Recruitment */}
                       {selectedBuilding.type === 'barracks' && (
+                        <>
                         <div className="flex gap-2">
                           <button
                             type="button"
@@ -5669,6 +5731,49 @@ export default function App() {
                             <span>+5</span>
                           </button>
                         </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            disabled={
+                              !canAfford(myResources, UNIT_COSTS.cavalry) ||
+                              selectedBuilding.trainingQueue.length >= 5 ||
+                              myResources.pop + totalQueuedForPlayer >= myResources.maxPop
+                            }
+                            onClick={() => handleTrainUnit('cavalry', 1)}
+                            className={`flex-1 p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                              canAfford(myResources, UNIT_COSTS.cavalry) &&
+                              selectedBuilding.trainingQueue.length < 5 &&
+                              myResources.pop + totalQueuedForPlayer < myResources.maxPop
+                                ? 'bg-amber-700 hover:bg-amber-600 text-white font-bold border-amber-500 shadow-md shadow-amber-700/10 hover:scale-[1.01]'
+                                : 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed'
+                            }`}
+                          >
+                            <PawPrint className="w-4 h-4" />
+                            <span>Treinar Cavalaria (60 Alim + 80 Ouro) [C]</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={
+                              !canAfford(myResources, UNIT_COSTS.cavalry) ||
+                              selectedBuilding.trainingQueue.length >= 5 ||
+                              myResources.pop + totalQueuedForPlayer >= myResources.maxPop
+                            }
+                            onClick={() => handleTrainUnit('cavalry', 5)}
+                            className={`px-3 py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1 transition-all ${
+                              canAfford(myResources, UNIT_COSTS.cavalry) &&
+                              selectedBuilding.trainingQueue.length < 5 &&
+                              myResources.pop + totalQueuedForPlayer < myResources.maxPop
+                                ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700'
+                                : 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed'
+                            }`}
+                            title="Enfileirar múltiplas unidades de cavalaria"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>+5</span>
+                          </button>
+                        </div>
+                        </>
                       )}
 
                       {/* Dock Naval Shipyard Construction */}
@@ -6461,6 +6566,7 @@ export default function App() {
                   <li>• <kbd className="font-mono text-slate-200">Z</kbd>: <strong className="text-emerald-300">Zonas de Trabalho Delimitadas</strong>: Configura o raio limite de extração (8m, 14m, 22m, etc.). Ao enviar aldeões para um recurso, eles fixam o local como centro e nunca saem desmatando o mapa inteiro descontroladamente!</li>
                   <li>• <kbd className="font-mono text-slate-200">V</kbd>: Recrutar Aldeão (Com Centro da Vila selecionado)</li>
                   <li>• <kbd className="font-mono text-slate-200">S</kbd>: Recrutar Mosqueteiro (Com Quartel selecionado)</li>
+                  <li>• <kbd className="font-mono text-slate-200">C</kbd>: Recrutar Cavalaria (Com Quartel selecionado)</li>
                   <li>• <strong className="text-slate-200">Fila de Produção de 5 Slots</strong>: Enfileire até 5 unidades; clique no ✕ de qualquer slot para cancelar e reembolsar 100% dos recursos!</li>
                   <li>• <strong className="text-slate-200">Manejo Sustentável vs Desmatamento</strong>: Selecione árvores para escolher entre remoção definitiva ou plantio automático de mudas com renovação contínua.</li>
                   <li>• <strong className="text-slate-200">Encadeamento Contínuo</strong>: Aldeões e mineradores buscam a próxima árvore ou mina próxima dentro da zona ao esgotar o alvo!</li>

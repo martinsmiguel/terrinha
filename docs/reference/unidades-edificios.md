@@ -20,21 +20,21 @@
 | Unidade | Custo | Onde treina | Papel |
 | --- | --- | --- | --- |
 | Aldeão | 50 comida | Centro da Vila | Coleta e construção |
-| Soldado | 80 comida + 40 ouro | Quartel Militar | Combate (mosquete) |
+| Soldado | 80 comida + 40 ouro | Quartel Militar | Combate (mosquete, alcance 4.5) |
+| Cavalaria | 60 comida + 80 ouro | Quartel Militar | Choque rápido (0.3 m/tick, 32 dmg, alcance 2.5) |
 | Barco de Pesca | 75 madeira + 25 tábuas | Cais Naval | Coleta de peixe |
 | Barco Mercante | 100 madeira + 30 ouro + 30 tábuas | Cais Naval | +3 ouro/s |
 
 - Fila de treino: máx. **5** por edifício; cancelamento reembolsa 100%.
 - Custo único de verdade: `UNIT_COSTS` em `src/game/economy.ts` (`canAfford`,
   `applyCost`, `refundCost`, `missingCost`, `describeCost`).
-- `cavalry` tem custo definido (60 comida + 80 ouro) mas ainda não é treinável.
 
 ## Edifícios
 
 | Edifício | Tecla | Custo | Construção | Efeito |
 | --- | --- | --- | --- | --- |
 | Casa Colonial | Q | 60 madeira | 8 s | +5 pop máx. |
-| Quartel Militar | W | 120 madeira + 30 ouro | 14 s | Treina soldados |
+| Quartel Militar | W | 120 madeira + 30 ouro | 14 s | Treina soldados e cavalaria |
 | Torre de Vigia | E | 80 madeira + 40 pedra + 20 tábuas | 12 s | Tiro automático (16 dmg, alcance 12) |
 | Serralheria & Madeireira | R | 110 madeira | 11 s | +35% coleta de madeira; refina madeira em tábuas |
 | Mineradora & Pedreira | T | 130 madeira + 25 ouro | 14 s | +40% coleta de ouro **e pedra** |

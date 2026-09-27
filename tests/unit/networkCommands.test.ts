@@ -191,3 +191,29 @@ describe('repair and demolish commands', () => {
     expect(isAuthorizedPlayerCommand(damagedState, { type: 'demolish', buildingId: 'town-center-1' }, 'player1')).toBe(false);
   });
 });
+
+describe('cavalry training', () => {
+  const barracksState: GameState = {
+    ...state,
+    buildings: [{
+      id: 'barracks-1', type: 'barracks', owner: 'player1', position: { x: 8, z: 8 },
+      health: 800, maxHealth: 800, isComplete: true, trainingQueue: [],
+    }],
+  };
+
+  it('accepts cavalry orders at the barracks and rejects them elsewhere', () => {
+    const cavalry = { type: 'train', buildingId: 'barracks-1', unitType: 'cavalry' as const };
+    expect(isValidNetworkCommand(cavalry)).toBe(true);
+    expect(isAuthorizedPlayerCommand(barracksState, cavalry, 'player1')).toBe(true);
+    expect(isAuthorizedPlayerCommand(barracksState, { ...cavalry, buildingId: 'town-center-1' }, 'player1')).toBe(false);
+    expect(isAuthorizedPlayerCommand(barracksState, cavalry, 'player2')).toBe(false);
+  });
+
+  it('charges cavalry the 60 food + 80 gold upkeep of gold', () => {
+    const noGold = {
+      ...barracksState,
+      playerResources: { ...barracksState.playerResources, player1: { ...barracksState.playerResources.player1, gold: 79 } },
+    };
+    expect(isAuthorizedPlayerCommand(noGold, { type: 'train', buildingId: 'barracks-1', unitType: 'cavalry' }, 'player1')).toBe(false);
+  });
+});

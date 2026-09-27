@@ -7,10 +7,11 @@ export type PlayerSlot = (typeof PLAYER_SLOTS)[number];
 const MAP_LIMIT = 60;
 const MAX_ID_LENGTH = 128;
 const BUILDING_TYPES = Object.keys(BUILDING_CATALOG).filter((type) => type !== 'town_center');
-const UNIT_TYPES = ['villager', 'soldier', 'fishing_boat', 'trade_boat'];
+const UNIT_TYPES = ['villager', 'soldier', 'cavalry', 'fishing_boat', 'trade_boat'];
 const UNIT_COSTS: Record<TrainableType, Partial<PlayerResources>> = {
   villager: { food: 50 },
   soldier: { food: 80, gold: 40 },
+  cavalry: { food: 60, gold: 80 },
   fishing_boat: { wood: 75 },
   trade_boat: { wood: 100, gold: 30 },
 };
@@ -42,7 +43,7 @@ export interface RoomMember {
 
 type Position = { x: number; z: number };
 type BuildableType = Exclude<BuildingType, 'town_center'>;
-type TrainableType = Exclude<UnitType, 'cavalry'>;
+type TrainableType = UnitType;
 
 interface CommandMetadata {
   playerSlot?: PlayerSlot;
@@ -254,7 +255,7 @@ export function isAuthorizedPlayerCommand(
       if (!building || !building.isComplete || !canAffordTraining(state, building, value.unitType)) return false;
       return (
         (building.type === 'town_center' && value.unitType === 'villager') ||
-        (building.type === 'barracks' && value.unitType === 'soldier') ||
+        (building.type === 'barracks' && (value.unitType === 'soldier' || value.unitType === 'cavalry')) ||
         (building.type === 'dock' && (value.unitType === 'fishing_boat' || value.unitType === 'trade_boat'))
       );
     }
