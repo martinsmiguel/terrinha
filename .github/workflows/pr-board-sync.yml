@@ -1,0 +1,57 @@
+name: Sincronizar quadro com PRs
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, closed]
+
+jobs:
+  update-board:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Marcar issues do PR como em revisão
+        if: github.event.action == 'opened' || github.event.action == 'ready_for_review'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const body = context.payload.pull_request.body || '';
+            const numbers = [...new Set((body.match(/#(\d+)/g) || []).map(m => parseInt(m.slice(1), 10)))];
+            for (const n of numbers) {
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: n,
+                  body: `👀 PR #${context.payload.pull_request.number} aberto — card em revisão.`
+                });
+                console.log(`Issue #${n} comentada`);
+              } catch (e) { console.log(`#${n} ignorada: ${e.message}`); }
+            }
+
+      - name: Fechar issues quando PR mergeado
+        if: github.event.action == 'closed' && github.event.pull_request.merged
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const body = context.payload.pull_request.body || '';
+            const numbers = [...new Set((body.match(/#(\d+)/g) || []).map(m => parseInt(m.slice(1), 10)))];
+            for (const n of numbers) {
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: n,
+                  body: `✅ PR #${context.payload.pull_request.number} mergeado — card concluído.`
+                });
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: n,
+                  state: 'closed'
+                });
+              } catch (e) { console.log(`#${n} ignorada: ${e.message}`); }
+            }
