@@ -4,8 +4,7 @@
  */
 
 import * as THREE from 'three';
-import { ResourceNode, Building, Unit } from './engine';
-import { v4 as uuidv4 } from 'uuid';
+import { ResourceNode } from './engine';
 
 export interface MapCell {
   x: number;
@@ -385,8 +384,6 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
 
   const reedGeo = new THREE.CylinderGeometry(0.04, 0.06, 0.8, 4);
   const reedMat = new THREE.MeshStandardMaterial({ color: 0x65a30d, roughness: 0.8 });
-  const pebbleGeo = new THREE.DodecahedronGeometry(0.24, 0);
-  const pebbleMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9 });
   const boulderGeo = new THREE.DodecahedronGeometry(0.55, 1);
   const boulderMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.95 });
 
@@ -465,7 +462,6 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
   ];
 
   mineSpots.forEach((spot, idx) => {
-    const ed = calculateElevationData(spot.x, spot.z);
     resourceNodes.push({
       id: `gold-mine-${idx}`,
       type: 'gold_mine',

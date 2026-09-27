@@ -16,9 +16,6 @@ import {
   TrendingUp,
   Store,
   Compass,
-  CheckCircle2,
-  AlertCircle,
-  HelpCircle,
 } from 'lucide-react';
 import { BUILDING_CATALOG, BuildingType } from '../game/buildingDefs';
 import { PlayerResources } from '../game/engine';

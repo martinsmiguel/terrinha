@@ -232,12 +232,10 @@ export function checkBuildingPlacementValid(
     if (type === 'dock') {
       // Docks must be placed at the water boundary or in shallow water
       let nearbyWater = false;
-      let nearbyLand = false;
       const testOffsets = [-2, 0, 2];
       for (const ox of testOffsets) {
         for (const oz of testOffsets) {
           if (isWaterAt(x + ox, z + oz)) nearbyWater = true;
-          else nearbyLand = true;
         }
       }
       if (!nearbyWater) {

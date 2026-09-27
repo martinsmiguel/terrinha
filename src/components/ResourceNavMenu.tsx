@@ -6,18 +6,14 @@
 import React, { useState } from 'react';
 import {
   Package,
-  Home,
   Hammer,
-  TrendingUp,
   Store,
   ChevronDown,
   Navigation,
-  Compass,
   Sprout,
   Users,
   Castle,
   RefreshCw,
-  SlidersHorizontal,
 } from 'lucide-react';
 import { PlayerResources } from '../game/engine';
 

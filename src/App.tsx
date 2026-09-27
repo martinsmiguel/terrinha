@@ -4,13 +4,13 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { GameEngine, GameState, Unit, Building, ResourceNode, MAP_SIZE, PlayerResources, UnitType } from './game/engine';
+import { GameEngine, GameState, Unit, Building, ResourceNode, MAP_SIZE, UnitType } from './game/engine';
 import { MultiplayerManager, ChatMessage } from './game/multiplayer';
 import { Minimap } from './components/Minimap';
 import { soundManager } from './game/audio';
 import { create3DHealthBar, update3DHealthBar, align3DHealthBarToCamera } from './game/healthBar';
 import { createBuildingGhost, updateBuildingGhost, checkBuildingPlacementValid } from './game/buildingGhost';
-import { BUILDING_CATALOG, BuildingDef, BuildingType, createConstructionScaffold } from './game/buildingDefs';
+import { BUILDING_CATALOG, BuildingType, createConstructionScaffold } from './game/buildingDefs';
 import { generateProceduralTerrain, ProceduralMapResult } from './game/proceduralMap';
 import { EmpireCatalogModal } from './components/EmpireCatalogModal';
 import { ResourceNavMenu } from './components/ResourceNavMenu';
@@ -18,7 +18,6 @@ import {
   Users,
   Hammer,
   Sword,
-  Package,
   Play,
   Shield,
   Copy,
@@ -31,8 +30,6 @@ import {
   Sparkles,
   Info,
   Maximize2,
-  ChevronRight,
-  RefreshCw,
   Volume2,
   VolumeX,
   LayoutGrid,
@@ -54,11 +51,7 @@ import {
   Unlock,
   ChevronDown,
   ChevronUp,
-  Minimize2,
   Layers,
-  SlidersHorizontal,
-  CircleDot,
-  Radio,
 } from 'lucide-react';
 import * as THREE from 'three';
 import { v4 as uuidv4 } from 'uuid';
@@ -87,7 +80,6 @@ export default function App() {
   const [lobbyError, setLobbyError] = useState<string | null>(null);
   const [lanIps, setLanIps] = useState<string[]>([]);
   const [copiedIp, setCopiedIp] = useState(false);
-  const [connectedPlayers, setConnectedPlayers] = useState(1);
 
   // Squad Formation Mode ('box' | 'line' | 'spread')
   const [squadFormation, setSquadFormation] = useState<'box' | 'line' | 'spread'>('box');
@@ -551,7 +543,6 @@ export default function App() {
       };
 
       multi.onPlayerJoined = (data) => {
-        setConnectedPlayers(data.playerCount);
         setChatMessages((prev) => [
           ...prev,
           { sender: 'Sistema', message: `${data.playerName} entrou na partida!`, timestamp: Date.now() },
@@ -559,7 +550,6 @@ export default function App() {
       };
 
       multi.onPlayerLeft = (data) => {
-        setConnectedPlayers(data.playerCount);
         setChatMessages((prev) => [
           ...prev,
           { sender: 'Sistema', message: `${data.playerName || 'Um jogador'} saiu da partida.`, timestamp: Date.now() },
@@ -2518,9 +2508,6 @@ export default function App() {
           soundManager.playClickSound();
           return next;
         });
-      } else if (e.key === 'm' || e.key === 'M') {
-        setIsEmpireCatalogOpen((prev) => !prev);
-        soundManager.playClickSound();
       } else if (e.key === 'h' || e.key === 'H') {
         setHudMode((prev) => {
           const next = prev === 'hidden' ? 'full' : 'hidden';
@@ -3419,22 +3406,6 @@ export default function App() {
   const handleCancelTrain = (buildingId: string, index: number) => {
     const b = gameState.buildings.find((bd) => bd.id === buildingId);
     if (!b || b.owner !== playerSlot || b.trainingQueue.length <= index) return;
-
-    const item = b.trainingQueue[index];
-    let refundFood = 0;
-    let refundWood = 0;
-    let refundGold = 0;
-
-    if (item.unitType === 'villager') refundFood = 50;
-    else if (item.unitType === 'soldier') {
-      refundFood = 80;
-      refundGold = 40;
-    } else if (item.unitType === 'fishing_boat') {
-      refundWood = 75;
-    } else if (item.unitType === 'trade_boat') {
-      refundWood = 100;
-      refundGold = 30;
-    }
 
     const cmd = { type: 'cancel_train', buildingId, index };
     if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
