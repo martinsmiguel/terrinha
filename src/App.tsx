@@ -57,8 +57,21 @@ import * as THREE from 'three';
 import { v4 as uuidv4 } from 'uuid';
 import { createWorkZoneMesh, updateWorkZoneMesh } from './game/workZone';
 import { applyPopDelta, countDeathsByOwner } from './game/population';
-import { tradeResource, MARKET_LABELS, MarketResourceType } from './game/economy';
-import { canAffordResources, deductResourceCost, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, type PlayerSlot } from './game/networkCommands';
+import {
+  applyCost,
+  canAfford,
+  COST_CHIP_CLASS,
+  COST_SHORT,
+  describeCost,
+  MARKET_LABELS,
+  MarketResourceType,
+  missingCost,
+  refundCost,
+  refinePlanks,
+  tradeResource,
+  UNIT_COSTS,
+} from './game/economy';
+import { isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, type PlayerSlot } from './game/networkCommands';
 
 const FACTION_COLORS: Record<string, { name: string; hex: number; colorClass: string; border: string }> = {
   player1: { name: 'Império Português (Azul)', hex: 0x2563eb, colorClass: 'bg-blue-600', border: 'border-blue-500' },
@@ -2230,6 +2243,14 @@ export default function App() {
           if (activeTradeBoats > 0) {
             res.gold = (res.gold || 0) + activeTradeBoats * 0.15; // ~3 gold / second per trade boat
           }
+
+          // Completed Sawmills refine wood into noble planks
+          const completedSawmills = updatedBuildings.filter(
+            (b) => b.owner === slot && b.type === 'sawmill' && b.isComplete && b.health > 0
+          ).length;
+          if (completedSawmills > 0) {
+            updatedResources[slot] = refinePlanks(res, completedSawmills);
+          }
         });
 
         // 3. Simple Autonomous AI for player2 if singleplayer
@@ -2377,7 +2398,7 @@ export default function App() {
       };
       setGameState((prev) => {
         const pRes = prev.playerResources[cmd.owner];
-        if (!pRes || !canAffordResources(pRes, def.cost)) return prev;
+        if (!pRes || !canAfford(pRes, def.cost)) return prev;
         const placement = checkBuildingPlacementValid(
           cmd.buildingType,
           cmd.position.x,
@@ -2410,7 +2431,7 @@ export default function App() {
           units: updatedUnits,
           playerResources: {
             ...prev.playerResources,
-            [cmd.owner]: deductResourceCost(pRes, def.cost),
+            [cmd.owner]: applyCost(pRes, def.cost),
           },
         };
       });
@@ -2425,14 +2446,8 @@ export default function App() {
           .filter((candidate) => candidate.owner === owner)
           .reduce((total, candidate) => total + candidate.trainingQueue.length, 0);
         if (resources.pop + queuedForOwner >= resources.maxPop) return prev;
-        const trainingCost = cmd.unitType === 'villager'
-          ? { food: 50 }
-          : cmd.unitType === 'soldier'
-            ? { food: 80, gold: 40 }
-            : cmd.unitType === 'fishing_boat'
-              ? { wood: 75 }
-              : { wood: 100, gold: 30 };
-        if (cmd.playerSlot && !canAffordResources(resources, trainingCost)) return prev;
+        const unitCost = UNIT_COSTS[cmd.unitType];
+        if (cmd.playerSlot && !canAfford(resources, unitCost)) return prev;
 
         return {
           ...prev,
@@ -2444,7 +2459,7 @@ export default function App() {
           ...(cmd.playerSlot ? {
             playerResources: {
               ...prev.playerResources,
-              [owner]: deductResourceCost(resources, trainingCost),
+              [owner]: applyCost(resources, unitCost),
             },
           } : {}),
         };
@@ -2454,8 +2469,7 @@ export default function App() {
         const b = prev.buildings.find((bd) => bd.id === cmd.buildingId);
         if (!b || b.trainingQueue.length <= cmd.index) return prev;
         const item = b.trainingQueue[cmd.index];
-        const costF = item.unitType === 'soldier' ? 80 : 50;
-        const costG = item.unitType === 'soldier' ? 40 : 0;
+        const unitCost = UNIT_COSTS[item.unitType];
         const pRes = prev.playerResources[b.owner];
         const newQueue = b.trainingQueue.filter((_, idx) => idx !== cmd.index);
         return {
@@ -2465,11 +2479,7 @@ export default function App() {
           ),
           playerResources: {
             ...prev.playerResources,
-            [b.owner]: {
-              ...pRes,
-              food: pRes.food + costF,
-              gold: (pRes.gold || 0) + costG,
-            },
+            [b.owner]: refundCost(pRes, unitCost),
           },
         };
       });
@@ -2737,10 +2747,9 @@ export default function App() {
 
       const def = BUILDING_CATALOG[buildMode];
       const myRes = gameStateRef.current.playerResources[playerSlot];
-      const costW = def ? def.cost.wood : 60;
-      const costG = def && def.cost.gold ? def.cost.gold : 0;
+      const buildingCost = def ? def.cost : { wood: 60 };
 
-      if (myRes.wood >= costW && (myRes.gold || 0) >= costG) {
+      if (canAfford(myRes, buildingCost)) {
         // Collect selected villager ids so they automatically move to build
         let builderVillagers = gameStateRef.current.units.filter(
           (u) => selectedUnitIdsRef.current.includes(u.id) && u.owner === playerSlot && u.type === 'villager'
@@ -2780,7 +2789,7 @@ export default function App() {
       } else {
         soundManager.playClickSound();
         triggerNotification(
-          `Recursos insuficientes para ${def ? def.name : 'Edifício'}! Necessário: ${costW} Madeira${costG > 0 ? `, ${costG} Ouro` : ''}`,
+          `Recursos insuficientes para ${def ? def.name : 'Edifício'}! ${missingCost(myRes, buildingCost) || ''}`,
           'warning'
         );
       }
@@ -3365,21 +3374,7 @@ export default function App() {
     const b = gameState.buildings.find((bd) => bd.id === selectedEntity.id);
     if (!b || b.owner !== playerSlot) return;
 
-    let costFood = 0;
-    let costWood = 0;
-    let costGold = 0;
-
-    if (unitType === 'villager') {
-      costFood = 50;
-    } else if (unitType === 'soldier') {
-      costFood = 80;
-      costGold = 40;
-    } else if (unitType === 'fishing_boat') {
-      costWood = 75;
-    } else if (unitType === 'trade_boat') {
-      costWood = 100;
-      costGold = 30;
-    }
+    const unitCost = UNIT_COSTS[unitType];
 
     const myRes = gameState.playerResources[playerSlot];
 
@@ -3397,16 +3392,14 @@ export default function App() {
 
     const unitsToQueue = Math.min(count, availableSlots);
     let successfullyQueued = 0;
-    let currentFood = myRes.food;
-    let currentWood = myRes.wood;
-    let currentGold = myRes.gold;
+    let currentRes = myRes;
 
     for (let i = 0; i < unitsToQueue; i++) {
       if (myRes.pop + totalQueuedForPlayer + successfullyQueued >= myRes.maxPop) {
         triggerNotification('Limite de população atingido! Construa Casas Coloniais [Q] (+5 pop).', 'warning');
         break;
       }
-      if (currentFood < costFood || currentWood < costWood || currentGold < costGold) {
+      if (!canAfford(currentRes, unitCost)) {
         const unitName =
           unitType === 'villager'
             ? 'Aldeão'
@@ -3415,12 +3408,13 @@ export default function App() {
             : unitType === 'fishing_boat'
             ? 'Barco de Pesca'
             : 'Barco Mercante';
-        triggerNotification(`Recursos insuficientes para construir ${unitName}!`, 'warning');
+        triggerNotification(
+          `Recursos insuficientes para ${unitName}! ${missingCost(currentRes, unitCost) || ''}`,
+          'warning'
+        );
         break;
       }
-      currentFood -= costFood;
-      currentWood -= costWood;
-      currentGold -= costGold;
+      currentRes = applyCost(currentRes, unitCost);
       successfullyQueued++;
 
       const cmd = { type: 'train', buildingId: b.id, unitType };
@@ -3434,12 +3428,7 @@ export default function App() {
         ...prev,
         playerResources: {
           ...prev.playerResources,
-          [playerSlot]: {
-            ...myRes,
-            food: currentFood,
-            wood: currentWood,
-            gold: currentGold,
-          },
+          [playerSlot]: currentRes,
         },
       }));
       const unitName =
@@ -4067,9 +4056,7 @@ export default function App() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-56 sm:max-h-none overflow-y-auto pr-0.5">
           {buildings.map((type) => {
             const def = BUILDING_CATALOG[type];
-            const canAffordWood = myResources.wood >= def.cost.wood;
-            const canAffordGold = !def.cost.gold || (myResources.gold || 0) >= def.cost.gold;
-            const canAfford = canAffordWood && canAffordGold;
+            const affordable = canAfford(myResources, def.cost);
 
             const icon =
               type === 'house' ? (
@@ -4094,14 +4081,14 @@ export default function App() {
               <button
                 key={type}
                 type="button"
-                disabled={!canAfford}
+                disabled={!affordable}
                 onClick={() => {
                   setBuildMode(type);
                   soundManager.playClickSound();
                   triggerNotification(`Modo de Construção: ${def.name}. Clique no terreno para erguer.`, 'info');
                 }}
                 className={`p-2 rounded-xl border text-left flex flex-col justify-between transition-all group relative overflow-hidden ${
-                  canAfford
+                  affordable
                     ? 'bg-slate-900/90 hover:bg-slate-800/95 border-slate-700/80 hover:border-amber-500/60 text-white shadow-sm hover:shadow-amber-500/10 hover:scale-[1.02]'
                     : 'bg-slate-950/70 border-slate-800/60 text-slate-600 cursor-not-allowed opacity-60'
                 }`}
@@ -4126,23 +4113,23 @@ export default function App() {
 
                 <div className="mt-1.5 pt-1 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono">
                   <div className="flex items-center gap-1">
-                    <span className={canAffordWood ? 'text-amber-400 font-bold' : 'text-red-400 font-bold'}>
-                      M {def.cost.wood}
-                    </span>
-                    {def.cost.gold && (
-                      <span className={canAffordGold ? 'text-yellow-400 font-bold' : 'text-red-400 font-bold'}>
-                        O {def.cost.gold}
-                      </span>
-                    )}
+                    {(['wood', 'food', 'gold', 'stone', 'planks'] as const)
+                      .filter((key) => (def.cost[key] || 0) > 0)
+                      .map((key) => {
+                        const owned = (myResources[key] || 0) >= (def.cost[key] || 0);
+                        return (
+                          <span key={key} className={owned ? COST_CHIP_CLASS[key] : 'text-red-400 font-bold'}>
+                            {COST_SHORT[key]} {def.cost[key]}
+                          </span>
+                        );
+                      })}
                   </div>
                   <span className="text-slate-500 text-[9px]">{def.buildTimeSeconds}s</span>
                 </div>
 
-                {!canAfford && (
+                {!affordable && (
                   <div className="text-[9px] text-red-400 font-medium mt-0.5 truncate">
-                    {!canAffordWood
-                      ? `Falta ${def.cost.wood - Math.floor(myResources.wood)} M`
-                      : `Falta ${def.cost.gold! - Math.floor(myResources.gold)} O`}
+                    {missingCost(myResources, def.cost, 'short')}
                   </div>
                 )}
               </button>
@@ -4269,6 +4256,9 @@ export default function App() {
                   title="Pedra"
                 >
                   P {Math.floor(myResources.stone)}
+                </span>
+                <span className="flex items-center gap-1 text-orange-200 font-bold" title="Tábuas">
+                  T {Math.floor(myResources.planks || 0)}
                 </span>
                 <span className="flex items-center gap-1 text-blue-300 font-bold" title="População">
                   Pop {myResources.pop}/{myResources.maxPop}
@@ -4507,7 +4497,7 @@ export default function App() {
                 </span>
               </div>
               <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-                <span>Custo: <span className="text-amber-400 font-semibold">{BUILDING_CATALOG[buildMode]?.cost.wood} Madeira{BUILDING_CATALOG[buildMode]?.cost.gold ? `, ${BUILDING_CATALOG[buildMode]?.cost.gold} Ouro` : ''}</span></span>
+                <span>Custo: <span className="text-amber-400 font-semibold">{describeCost(BUILDING_CATALOG[buildMode]?.cost ?? {})}</span></span>
                 {buildPreviewInfo && (
                   <>
                     <span>•</span>
@@ -5456,13 +5446,13 @@ export default function App() {
                           <button
                             type="button"
                             disabled={
-                              myResources.wood < 75 ||
+                              !canAfford(myResources, UNIT_COSTS.fishing_boat) ||
                               selectedBuilding.trainingQueue.length >= 5 ||
                               myResources.pop + totalQueuedForPlayer >= myResources.maxPop
                             }
                             onClick={() => handleTrainUnit('fishing_boat', 1)}
                             className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all ${
-                              myResources.wood >= 75 &&
+                              canAfford(myResources, UNIT_COSTS.fishing_boat) &&
                               selectedBuilding.trainingQueue.length < 5 &&
                               myResources.pop + totalQueuedForPlayer < myResources.maxPop
                                 ? 'bg-blue-600 hover:bg-blue-500 text-white font-bold border-blue-400 shadow-md shadow-blue-500/10 hover:scale-[1.01]'
@@ -5473,21 +5463,19 @@ export default function App() {
                               <Compass className="w-4 h-4 text-cyan-300" />
                               <span>Barco de Pesca [P]</span>
                             </div>
-                            <span className="font-mono text-[11px] text-cyan-200">75 Madeira</span>
+                            <span className="font-mono text-[11px] text-cyan-200">{describeCost(UNIT_COSTS.fishing_boat)}</span>
                           </button>
 
                           <button
                             type="button"
                             disabled={
-                              myResources.wood < 100 ||
-                              (myResources.gold || 0) < 30 ||
+                              !canAfford(myResources, UNIT_COSTS.trade_boat) ||
                               selectedBuilding.trainingQueue.length >= 5 ||
                               myResources.pop + totalQueuedForPlayer >= myResources.maxPop
                             }
                             onClick={() => handleTrainUnit('trade_boat', 1)}
                             className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all ${
-                              myResources.wood >= 100 &&
-                              (myResources.gold || 0) >= 30 &&
+                              canAfford(myResources, UNIT_COSTS.trade_boat) &&
                               selectedBuilding.trainingQueue.length < 5 &&
                               myResources.pop + totalQueuedForPlayer < myResources.maxPop
                                 ? 'bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold border-amber-400 shadow-md shadow-amber-500/10 hover:scale-[1.01]'
@@ -5498,7 +5486,7 @@ export default function App() {
                               <Sparkles className="w-4 h-4 text-yellow-200" />
                               <span>Barco Mercante [M]</span>
                             </div>
-                            <span className="font-mono text-[11px] text-yellow-200">100M + 30O</span>
+                            <span className="font-mono text-[11px] text-yellow-200">{describeCost(UNIT_COSTS.trade_boat)}</span>
                           </button>
                         </div>
                       )}
