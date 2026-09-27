@@ -3350,7 +3350,6 @@ export default function App() {
     const b = gameState.buildings.find((bd) => bd.id === buildingId);
     if (!b || b.owner !== playerSlot || b.trainingQueue.length <= index) return;
 
-    const item = b.trainingQueue[index];
     const cmd = { type: 'cancel_train', buildingId, index };
     if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
     else multiRef.current?.sendToHost(cmd);
