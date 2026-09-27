@@ -16,6 +16,9 @@ export interface PathOptions {
   /**
    * Limite de nós expandidos por chamada. O padrão cobre o grid inteiro
    * (60 × 60 = 3600), então uma busca normalmente termina completa.
+   * Quando o orçamento esgota com destino ainda alcançável, devolve um
+   * caminho parcial até o nó mais próximo do objetivo, para a próxima
+   * chamada continuar de onde parou.
    */
   maxExpanded?: number;
 }
@@ -145,6 +148,11 @@ export const findPath = (
   let expanded = 0;
   let found = false;
 
+  // Nó descoberto mais próximo do objetivo (menor heurística). Vira o desfecho
+  // parcial quando o orçamento de expansão esgota antes de alcançar o destino.
+  let bestIndex = startIndex;
+  let bestH = octile(Math.abs(goalX - startX), Math.abs(goalZ - startZ));
+
   while (open.size > 0) {
     if (expanded >= maxExpanded) break;
     const current = open.pop();
@@ -185,21 +193,36 @@ export const findPath = (
       gScore[neighborIndex] = tentative;
       const h = octile(Math.abs(goalX - nx), Math.abs(goalZ - nz));
       open.push(neighborIndex, tentative + h);
+      if (h < bestH) {
+        bestH = h;
+        bestIndex = neighborIndex;
+      }
     }
   }
 
-  if (!found) return [];
+  // Reconstrói a rota vindo de `fromIndex` até o início (inclusive).
+  const buildPath = (fromIndex: number): GridPoint[] => {
+    const path: GridPoint[] = [];
+    let step = fromIndex;
+    while (step !== -1 && step !== startIndex) {
+      const x = step % cells;
+      const z = (step - x) / cells;
+      path.push({ x: toWorld(x), z: toWorld(z) });
+      step = cameFrom[step];
+    }
+    path.reverse();
+    return path;
+  };
 
-  const path: GridPoint[] = [];
-  let step = goalIndex;
-  while (step !== -1 && step !== startIndex) {
-    const x = step % cells;
-    const z = (step - x) / cells;
-    path.push({ x: toWorld(x), z: toWorld(z) });
-    step = cameFrom[step];
-  }
-  path.reverse();
-  return path;
+  if (found) return buildPath(goalIndex);
+
+  // Fronteira vazia: o destino é realmente inalcançável, sem rota parcial.
+  if (open.size === 0) return [];
+
+  // Orçamento esgotado com destino ainda alcançável: devolve o trecho percorrido
+  // até o nó mais próximo do objetivo. O chamador recalcula ao fim da rota e a
+  // busca continua em etapas (cada etapa cabe no orçamento de um tick).
+  return buildPath(bestIndex);
 };
 
 /**

@@ -1924,17 +1924,27 @@ export default function App() {
               const pMap = proceduralMapRef.current;
 
               // A* no grid: cliffs/agua bloqueiam o caminho (cacheado por alvo)
-              const cached = unitPathsRef.current.get(unit.id);
-              if (!cached || cached.goal.x !== goal.x || cached.goal.z !== goal.z) {
+              const pathFor = (from: { x: number; z: number }) => {
                 const isBlocked = pMap
                   ? isBoat
                     ? (x: number, z: number) => !pMap.isWaterAt(x, z)
                     : (x: number, z: number) => pMap.isImpassableAt(x, z)
                   : () => false;
-                const path = findPath(unit.position, goal, isBlocked, { mapSize: MAP_SIZE, maxExpanded: 2400 });
-                unitPathsRef.current.set(unit.id, { goal: { x: goal.x, z: goal.z }, path });
+                return findPath(from, goal, isBlocked, { mapSize: MAP_SIZE, maxExpanded: 2400 });
+              };
+
+              const cached = unitPathsRef.current.get(unit.id);
+              if (!cached || cached.goal.x !== goal.x || cached.goal.z !== goal.z) {
+                unitPathsRef.current.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: pathFor(unit.position) });
               }
-              const cachedPath = unitPathsRef.current.get(unit.id)?.path ?? [];
+
+              // Rota parcial terminou antes do alvo (orcamento do A* esgotado no
+              // caminho): recalcula da posicao atual e segue em trechos ate chegar.
+              let cachedPath = unitPathsRef.current.get(unit.id)?.path ?? [];
+              if (cachedPath.length > 0 && nextWaypoint(unit.position, cachedPath) === null) {
+                cachedPath = pathFor(unit.position);
+                unitPathsRef.current.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: cachedPath });
+              }
 
               // Segue o proximo waypoint; sem rota (ou fim dela) segue reto ao alvo
               const waypoint = cachedPath.length > 0 ? nextWaypoint(unit.position, cachedPath) : null;

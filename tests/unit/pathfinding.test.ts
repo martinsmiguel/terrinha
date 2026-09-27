@@ -71,11 +71,51 @@ describe('findPath', () => {
     expect(path).toEqual([]);
   });
 
-  it('honours the expansion budget', () => {
+  it('returns a partial path when the expansion budget runs out', () => {
     const wall = box(20.5, -0.5, 20.5, MAP);
-    expect(findPath({ x: 5.5, z: 5.5 }, { x: 30.5, z: 5.5 }, wall, { ...options, maxExpanded: 5 })).toEqual(
-      []
-    );
+    const path = findPath({ x: 5.5, z: 5.5 }, { x: 30.5, z: 5.5 }, wall, { ...options, maxExpanded: 5 });
+
+    expect(path.length).toBeGreaterThan(0);
+    expect(path[path.length - 1].x).toBeLessThan(30.5);
+    for (const point of path) {
+      expect(wall(point.x, point.z)).toBe(false);
+    }
+  });
+
+  it('keeps marching when a connected route exceeds the 2.400 expansion budget', () => {
+    const SIZE = 100;
+    const opts = { mapSize: SIZE, cellSize: 1, maxExpanded: 2400 };
+    // Cobaca em serpentina: paredes nas linhas impares com um vao alternado nas
+    // pontas; chegar ao outro canto exige percorrer ~5.000 celulas, acima do
+    // orcamento de 2.400 expansoes usado pelo tick do host.
+    const snake = (x: number, z: number): boolean => {
+      const cx = Math.floor(x);
+      const cz = Math.floor(z);
+      if (cz % 2 === 0) return false;
+      const gap = ((cz - 1) / 2) % 2 === 0 ? SIZE - 1 : 0;
+      return cx !== gap;
+    };
+
+    const goal = { x: 0.5, z: 98.5 };
+    const legs: { x: number; z: number }[] = [];
+    let from = { x: 1.5, z: 0.5 };
+
+    for (let i = 0; i < 8; i++) {
+      const leg = findPath(from, goal, snake, opts);
+      if (leg.length === 0) break;
+      for (const point of leg) {
+        expect(snake(point.x, point.z)).toBe(false);
+      }
+      const end = leg[leg.length - 1];
+      legs.push(end);
+      if (end.x === goal.x && end.z === goal.z) break;
+      from = end;
+    }
+
+    // A primeira chamada esgota o orcamento no meio da cobaca (trecho parcial)
+    // e as chamadas seguintes continuam de onde a anterior parou.
+    expect(legs.length).toBeGreaterThan(1);
+    expect(legs[legs.length - 1]).toEqual(goal);
   });
 
   it('serves 100 searches on the full map within the tick budget', () => {
