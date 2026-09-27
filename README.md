@@ -54,6 +54,8 @@ Documentada com [Diátaxis](https://diataxis.fr/) — veja
 - **Versionamento:** [SemVer 2.0.0](https://semver.org/) — veja [CHANGELOG.md](CHANGELOG.md)
 - **Commits:** [Conventional Commits](https://www.conventionalcommits.org/pt-br/)
 - **Contribuindo:** [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Código de conduta:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- **Lançar uma release:** [docs/how-to/lancar-release.md](docs/how-to/lancar-release.md)
 - **Especificação do produto:** [docs/explanation/especificacao-v2.html](docs/explanation/especificacao-v2.html)
 
 ## Comandos

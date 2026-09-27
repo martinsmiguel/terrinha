@@ -1,5 +1,7 @@
 # Contribuindo com o Terrinha
 
+Ao participar você concorda com o nosso [Código de Conduta](CODE_OF_CONDUCT.md).
+
 Este projeto é 100% open source (MIT) e segue três diretrizes obrigatórias:
 
 1. **Documentação** — [Diátaxis](https://diataxis.fr/) (4 quadrantes)
@@ -51,6 +53,8 @@ Breaking change: use `!` após o tipo ou o rodapé `BREAKING CHANGE:` (bump MAJO
 | Docs/testes/refactor   | sem mudança de comportamento         | —      |
 
 A versão é a do `package.json`. O `CHANGELOG.md` é atualizado em cada release.
+O passo a passo completo (gates, CHANGELOG, tag e `gh release`) está em
+[docs/how-to/lancar-release.md](docs/how-to/lancar-release.md).
 
 ## Estilo
 
