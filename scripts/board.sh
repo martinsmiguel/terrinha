@@ -14,15 +14,16 @@ PROJECT_NUMBER=3
 ISSUE="${1:?Uso: ./scripts/board.sh <issue> <coluna>}"
 COLUNA="${2:?Uso: ./scripts/board.sh <issue> <coluna>}"
 
-declare -A LABEL=(
-  ["backlog"]="Backlog"
-  ["ready"]="Ready"
-  ["in-progress"]="In Progress"
-  ["in-review"]="In Review"
-  ["done"]="Done"
-  ["blocked"]="Blocked"
-)
-[[ -n "${LABEL[$COLUNA]:-}" ]] || { echo "Coluna inválida: $COLUNA"; exit 1; }
+# bash 3.2 (macOS) nao tem arrays associativos — usa case
+case "$COLUNA" in
+  backlog)     LABEL="Backlog" ;;
+  ready)       LABEL="Ready" ;;
+  in-progress) LABEL="In Progress" ;;
+  in-review)   LABEL="In Review" ;;
+  done)        LABEL="Done" ;;
+  blocked)     LABEL="Blocked" ;;
+  *) echo "Coluna inválida: $COLUNA"; exit 1 ;;
+esac
 
 # 1. Descobre o ID do projeto e do campo Status (com as opções)
 read -r PROJECT_ID FIELD_ID OPTION_ID < <(gh api graphql -f query='
@@ -41,16 +42,15 @@ read -r PROJECT_ID FIELD_ID OPTION_ID < <(gh api graphql -f query='
         }
       }
     }
-  }' -F login="$OWNER" -F number="$PROJECT_NUMBER" --jq '
-    .data.user.projectV2 as $p
-    | ($p.fields.nodes[] | select(.name == "Status")) as $f
-    | ($f.options[] | select(.name == $OPT)) as $o
-    | "\($p.id) \($f.id) \($o.id)"
-  ' --arg OPT "${LABEL[$COLUNA]}")
+  }' -F login="$OWNER" -F number="$PROJECT_NUMBER" --jq "
+    .data.user.projectV2 as \$p
+    | (\$p.fields.nodes[] | select(.name == \"Status\")) as \$f
+    | (\$f.options[] | select(.name == \"$LABEL\")) as \$o
+    | \"\(\$p.id) \(\$f.id) \(\$o.id)\"")
 
 # 2. Descobre o ID do item (card) da issue no projeto
 ITEM_ID=$(gh api graphql -f query='
-  query($owner: String!, $repo: String!, $issue: Int!, $project: ID!) {
+  query($owner: String!, $repo: String!, $issue: Int!) {
     repository(owner: $owner, name: $repo) {
       issue(number: $issue) {
         projectItems(first: 10) {
@@ -58,7 +58,7 @@ ITEM_ID=$(gh api graphql -f query='
         }
       }
     }
-  }' -F owner="$OWNER" -F repo="$REPO" -F issue="$ISSUE" -F project="$PROJECT_ID" --jq \
+  }' -F owner="$OWNER" -F repo="$REPO" -F issue="$ISSUE" --jq \
   ".data.repository.issue.projectItems.nodes[] | select(.project.id == \"$PROJECT_ID\") | .id")
 
 if [[ -z "$ITEM_ID" ]]; then
@@ -77,4 +77,4 @@ gh api graphql -f query='
     }) { projectV2Item { id } }
   }' -F project="$PROJECT_ID" -F item="$ITEM_ID" -F field="$FIELD_ID" -F value="$OPTION_ID" > /dev/null
 
-echo "Issue #$ISSUE movida para '${LABEL[$COLUNA]}'"
+echo "Issue #$ISSUE movida para '$LABEL'"
