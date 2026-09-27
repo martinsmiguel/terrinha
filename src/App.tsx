@@ -18,6 +18,10 @@ import { BUILDING_CATALOG, BuildingType, createConstructionScaffold } from './ga
 import { generateProceduralTerrain, ProceduralMapResult } from './game/proceduralMap';
 import { EmpireCatalogModal } from './components/EmpireCatalogModal';
 import { ResourceNavMenu } from './components/ResourceNavMenu';
+import { Tutorial } from './components/Tutorial';
+
+/** Marcador de que o tutorial de primeira partida ja foi exibido. */
+const TUTORIAL_SEEN_KEY = 'terrinha:tutorial-seen';
 import {
   Users,
   Hammer,
@@ -58,6 +62,7 @@ import {
   ChevronUp,
   Layers,
   PawPrint,
+  GraduationCap,
 } from 'lucide-react';
 import * as THREE from 'three';
 import { v4 as uuidv4 } from 'uuid';
@@ -178,6 +183,8 @@ export default function App() {
   const [notification, setNotification] = useState<{ message: string; type: 'info' | 'success' | 'warning'; id: number } | null>(null);
   const notificationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [showControlsModal, setShowControlsModal] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const tutorialSeenCheckedRef = useRef(false);
 
   const triggerNotification = (message: string, type: 'info' | 'success' | 'warning' = 'info') => {
     if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
@@ -4179,6 +4186,29 @@ export default function App() {
     setTimeout(() => setCopiedIp(false), 2500);
   };
 
+  // Tutorial de primeira partida: abre uma unica vez por navegador e pode ser
+  // revisto pelo botao "Controles" no HUD.
+  useEffect(() => {
+    if (!isGameStarted || tutorialSeenCheckedRef.current) return;
+    tutorialSeenCheckedRef.current = true;
+    try {
+      if (window.localStorage.getItem(TUTORIAL_SEEN_KEY) !== '1') {
+        setShowTutorial(true);
+      }
+    } catch {
+      setShowTutorial(true);
+    }
+  }, [isGameStarted]);
+
+  const closeTutorial = () => {
+    setShowTutorial(false);
+    try {
+      window.localStorage.setItem(TUTORIAL_SEEN_KEY, '1');
+    } catch {
+      // armazenamento indisponivel: o tutorial podera abrir de novo
+    }
+  };
+
   // ==========================================
   // RENDER: PRE-GAME LOBBY / MENU
   // ==========================================
@@ -6764,18 +6794,34 @@ export default function App() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowControlsModal(false)}
-              className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors shadow-lg shadow-amber-500/10"
-            >
-              Entendido, Continuar Batalha
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowControlsModal(false);
+                  setShowTutorial(true);
+                  soundManager.playClickSound();
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-colors flex items-center justify-center gap-2"
+              >
+                <GraduationCap className="w-4 h-4 text-cyan-400" /> Abrir Tutorial
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowControlsModal(false)}
+                className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors shadow-lg shadow-amber-500/10"
+              >
+                Entendido, Continuar Batalha
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* WORK ZONE CONFIGURATOR MODAL */}
+      {/* TUTORIAL DE PRIMEIRA PARTICIDA */}
+      {showTutorial && <Tutorial onClose={closeTutorial} />}
+
+      {/* TECH PANEL MODAL */}
       {isTechPanelOpen && (
         <TechPanel
           techState={gameState.techs?.[playerSlot] ?? createTechState()}
@@ -6788,6 +6834,7 @@ export default function App() {
         />
       )}
 
+      {/* WORK ZONE CONFIGURATOR MODAL */}
       {isWorkZoneModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
           <div

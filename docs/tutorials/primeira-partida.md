@@ -12,6 +12,10 @@ npm run dev
 
 Abra <http://localhost:3000>.
 
+> **Dica:** na primeira partida o jogo abre um tutorial de 2 minutos
+> (seleção, movimento, coleta, construção e combate). Ele pode ser pulado e
+> revisto depois pelo botão **Controles** → **Abrir Tutorial**.
+
 ## 2. Escolha o modo
 
 - **Treino Solo** — partida contra a IA, direto no ar.
