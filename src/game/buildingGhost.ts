@@ -281,7 +281,7 @@ export function checkBuildingPlacementValid(
   for (const r of nodes) {
     if (r.type === 'fish_school' && type !== 'dock') continue;
     const dist = Math.hypot(r.position.x - x, r.position.z - z);
-    const rRadius = r.type === 'gold_mine' ? 2.0 : r.type === 'tree' ? 1.6 : 1.4;
+    const rRadius = r.type === 'gold_mine' ? 2.0 : r.type === 'stone' ? 2.0 : r.type === 'tree' ? 1.6 : 1.4;
     const myRadius = Math.max(footprintWidth, footprintDepth) * 0.5;
     const requiredDistance = rRadius + myRadius;
 

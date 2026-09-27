@@ -288,6 +288,14 @@ export const Minimap: React.FC<MinimapProps> = ({
         ctx.strokeStyle = '#854d0e';
         ctx.lineWidth = 0.5;
         ctx.stroke();
+      } else if (res.type === 'stone') {
+        ctx.fillStyle = '#94a3b8'; // Granite Grey
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#475569';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
       } else if (res.type === 'fish_school') {
         ctx.fillStyle = '#38bdf8'; // Fish Cyan in river
         ctx.beginPath();

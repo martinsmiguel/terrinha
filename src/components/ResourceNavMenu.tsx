@@ -19,12 +19,12 @@ import { PlayerResources } from '../game/engine';
 
 interface ResourceNavMenuProps {
   resources: PlayerResources;
-  activeGatherers: { wood: number; food: number; gold: number; fish: number };
+  activeGatherers: { wood: number; food: number; gold: number; fish: number; stone: number };
   idleVillagersCount: number;
   onSelectIdleVillager: () => void;
   onOpenCatalog: () => void;
   onOpenMarket: () => void;
-  onJumpToResource: (type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school') => void;
+  onJumpToResource: (type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school' | 'stone') => void;
   onQuickBuild: (type: 'house' | 'sawmill' | 'mine' | 'farm' | 'dock' | 'market') => void;
   onRegenerateProceduralMap?: () => void;
   isSustainableForestry: boolean;
@@ -315,6 +315,14 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
               A Mineradora dá +40% de rendimento aos veios de ouro e pedra nas colinas.
             </p>
 
+            <div className="flex items-center justify-between px-1 rounded-xl bg-slate-900/80 border border-slate-800">
+              <span className="text-[11px] text-slate-400">Pedra bruta</span>
+              <span className="font-mono font-bold text-slate-200">
+                {Math.floor(resources.stone)}{' '}
+                <span className="text-[10px] text-slate-500">({activeGatherers.stone} pedreiros)</span>
+              </span>
+            </div>
+
             <div className="pt-2 border-t border-slate-800 grid grid-cols-1 gap-1.5">
               <button
                 type="button"
@@ -325,6 +333,18 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
                 className="w-full py-1.5 px-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-yellow-400 text-yellow-200 flex items-center justify-between transition-colors"
               >
                 <span>Focar Veio Mineral</span>
+                <Navigation className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onJumpToResource('stone');
+                  setActiveFlyout(null);
+                }}
+                className="w-full py-1.5 px-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-slate-400 text-slate-200 flex items-center justify-between transition-colors"
+              >
+                <span>Focar Pedreira</span>
                 <Navigation className="w-3.5 h-3.5" />
               </button>
 

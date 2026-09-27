@@ -243,7 +243,7 @@ export default function App() {
         z: number;
         radius: number;
         unitIds: string[];
-        resourceType?: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school';
+        resourceType?: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school' | 'stone';
         clusterName?: string;
       }
     >();
@@ -334,6 +334,7 @@ export default function App() {
     let food = 0;
     let gold = 0;
     let fish = 0;
+    let stone = 0;
     gameState.units.forEach((u) => {
       if (u.owner === playerSlot && u.state === 'gathering' && u.targetEntityId) {
         const node = gameState.resourceNodes.find((n) => n.id === u.targetEntityId);
@@ -341,11 +342,12 @@ export default function App() {
           if (node.type === 'tree') wood++;
           else if (node.type === 'gold_mine') gold++;
           else if (node.type === 'fish_school') fish++;
+          else if (node.type === 'stone') stone++;
           else food++;
         }
       }
     });
-    return { wood, food, gold, fish };
+    return { wood, food, gold, fish, stone };
   }, [gameState.units, gameState.resourceNodes, playerSlot]);
 
   // Fetch local network IP to assist LAN players
@@ -769,8 +771,9 @@ export default function App() {
         group.position.set(node.position.x, nodeY, node.position.z);
 
         // Accurate hit collider avoiding overlap between adjacent grove trees
-        const hitRadius = node.type === 'tree' ? 1.25 : node.type === 'gold_mine' ? 1.5 : 1.1;
-        const hitHeight = node.type === 'tree' ? 4.8 : node.type === 'gold_mine' ? 2.8 : 2.0;
+        const isMineral = node.type === 'gold_mine' || node.type === 'stone';
+        const hitRadius = node.type === 'tree' ? 1.25 : isMineral ? 1.5 : 1.1;
+        const hitHeight = node.type === 'tree' ? 4.8 : isMineral ? 2.8 : 2.0;
         const hitGeo = new THREE.CylinderGeometry(hitRadius, hitRadius, hitHeight, 10);
         const hitMat = new THREE.MeshBasicMaterial({
           transparent: true,
@@ -785,7 +788,14 @@ export default function App() {
         // 3D Selection Ring on ground
         const ringGeo = new THREE.RingGeometry(1.3, 1.5, 24);
         const ringMat = new THREE.MeshBasicMaterial({
-          color: node.type === 'tree' ? 0x22c55e : node.type === 'gold_mine' ? 0xfacc15 : 0xf43f5e,
+          color:
+            node.type === 'tree'
+              ? 0x22c55e
+              : node.type === 'gold_mine'
+              ? 0xfacc15
+              : node.type === 'stone'
+              ? 0x94a3b8
+              : 0xf43f5e,
           side: THREE.DoubleSide,
           transparent: true,
           opacity: 0,
@@ -863,6 +873,28 @@ export default function App() {
           const miniRock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.32, 0), rockMat);
           miniRock.position.set(-0.55, 0.2, -0.4);
           group.add(miniRock);
+        } else if (node.type === 'stone') {
+          // Grey granite quarry outcrop
+          const rockGeo = new THREE.DodecahedronGeometry(0.9, 1);
+          const rockMat = new THREE.MeshStandardMaterial({ color: 0x8f9aa8, metalness: 0.15, roughness: 0.85 });
+          const rock = new THREE.Mesh(rockGeo, rockMat);
+          rock.position.y = 0.55;
+          rock.castShadow = true;
+          group.add(rock);
+
+          const smallRock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), rockMat);
+          smallRock.position.set(0.6, 0.28, 0.5);
+          smallRock.rotation.set(0.4, 0.8, 0.2);
+          group.add(smallRock);
+
+          const miniRock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.34, 0), rockMat);
+          miniRock.position.set(-0.6, 0.22, -0.35);
+          group.add(miniRock);
+
+          const pebbleMat = new THREE.MeshStandardMaterial({ color: 0xb6bec8, roughness: 0.95 });
+          const pebble = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18, 0), pebbleMat);
+          pebble.position.set(0.15, 0.1, -0.7);
+          group.add(pebble);
         } else if (node.type === 'fish_school') {
           // Fish School in river / water
           const fishGroup = new THREE.Group();
@@ -1605,7 +1637,13 @@ export default function App() {
 
       let group = workZoneMeshes.current.get(key);
       const colorHex =
-        zone.resourceType === 'tree' ? 0x10b981 : zone.resourceType === 'gold_mine' ? 0xf59e0b : 0xf43f5e;
+        zone.resourceType === 'tree'
+          ? 0x10b981
+          : zone.resourceType === 'gold_mine'
+          ? 0xf59e0b
+          : zone.resourceType === 'stone'
+          ? 0x94a3b8
+          : 0xf43f5e;
 
       if (!group) {
         group = createWorkZoneMesh(colorHex);
@@ -1623,7 +1661,13 @@ export default function App() {
 
       let group = workZoneMeshes.current.get(previewKey);
       const colorHex =
-        previewZone.resourceType === 'tree' ? 0x34d399 : previewZone.resourceType === 'gold_mine' ? 0xfbbf24 : 0xfb7185;
+        previewZone.resourceType === 'tree'
+          ? 0x34d399
+          : previewZone.resourceType === 'gold_mine'
+          ? 0xfbbf24
+          : previewZone.resourceType === 'stone'
+          ? 0xcbd5e1
+          : 0xfb7185;
 
       if (!group) {
         group = createWorkZoneMesh(colorHex);
@@ -1747,7 +1791,7 @@ export default function App() {
                       (b) => b.owner === unit.owner && b.type === 'sawmill' && b.isComplete
                     );
                     if (hasSawmill) gatherRate *= 1.35;
-                  } else if (targetNode.type === 'gold_mine') {
+                  } else if (targetNode.type === 'gold_mine' || targetNode.type === 'stone') {
                     const hasMine = updatedBuildings.some(
                       (b) => b.owner === unit.owner && b.type === 'mine' && b.isComplete
                     );
@@ -1758,7 +1802,14 @@ export default function App() {
 
                   targetNode.remaining = Math.max(0, targetNode.remaining - gatherRate);
 
-                  const resKey = targetNode.type === 'tree' ? 'wood' : targetNode.type === 'gold_mine' ? 'gold' : 'food';
+                  const resKey =
+                    targetNode.type === 'tree'
+                      ? 'wood'
+                      : targetNode.type === 'gold_mine'
+                      ? 'gold'
+                      : targetNode.type === 'stone'
+                      ? 'stone'
+                      : 'food';
                   if (updatedResources[unit.owner]) {
                     updatedResources[unit.owner] = {
                       ...updatedResources[unit.owner],
@@ -3508,7 +3559,7 @@ export default function App() {
   };
 
   // Jump camera directly to the nearest resource of a given type
-  const handleJumpToResource = (type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school') => {
+  const handleJumpToResource = (type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school' | 'stone') => {
     if (!engineRef.current) return;
     const myTc = gameState.buildings.find((b) => b.owner === playerSlot && b.type === 'town_center');
     const refX = myTc ? myTc.position.x : MAP_SIZE / 2;
@@ -3523,6 +3574,8 @@ export default function App() {
           ? 'Ouro'
           : type === 'fish_school'
           ? 'Peixes'
+          : type === 'stone'
+          ? 'Pedra'
           : 'Alimento';
       triggerNotification(`Nenhum depósito de ${typeLabel} restante no mapa!`, 'warning');
       return;
@@ -4141,6 +4194,12 @@ export default function App() {
                 <span className="flex items-center gap-1 text-yellow-300 font-bold" title="Ouro">
                   O {Math.floor(myResources.gold)}
                 </span>
+                <span
+                  className="flex items-center gap-1 text-slate-300 font-bold"
+                  title="Pedra"
+                >
+                  P {Math.floor(myResources.stone)}
+                </span>
                 <span className="flex items-center gap-1 text-blue-300 font-bold" title="População">
                   Pop {myResources.pop}/{myResources.maxPop}
                 </span>
@@ -4472,9 +4531,24 @@ export default function App() {
                   </>
                 ) : selectedResource ? (
                   <>
-                    {selectedResource.type === 'tree' ? <TreePine className="w-4 h-4 text-emerald-400 shrink-0" /> : selectedResource.type === 'gold_mine' ? <Coins className="w-4 h-4 text-amber-400 shrink-0" /> : <Apple className="w-4 h-4 text-rose-400 shrink-0" />}
+                    {selectedResource.type === 'tree' ? (
+                      <TreePine className="w-4 h-4 text-emerald-400 shrink-0" />
+                    ) : selectedResource.type === 'gold_mine' ? (
+                      <Coins className="w-4 h-4 text-amber-400 shrink-0" />
+                    ) : selectedResource.type === 'stone' ? (
+                      <Pickaxe className="w-4 h-4 text-slate-300 shrink-0" />
+                    ) : (
+                      <Apple className="w-4 h-4 text-rose-400 shrink-0" />
+                    )}
                     <span className="font-bold text-white truncate">
-                      {selectedResource.type === 'tree' ? 'Madeira' : selectedResource.type === 'gold_mine' ? 'Ouro' : 'Frutas'} ({Math.round(selectedResource.remaining)})
+                      {selectedResource.type === 'tree'
+                        ? 'Madeira'
+                        : selectedResource.type === 'gold_mine'
+                        ? 'Ouro'
+                        : selectedResource.type === 'stone'
+                        ? 'Pedra'
+                        : 'Frutas'}{' '}
+                      ({Math.round(selectedResource.remaining)})
                     </span>
                   </>
                 ) : null}
@@ -5432,6 +5506,8 @@ export default function App() {
                           ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                           : selectedResource.type === 'gold_mine'
                           ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                          : selectedResource.type === 'stone'
+                          ? 'bg-slate-500/15 border-slate-400/30 text-slate-300'
                           : 'bg-rose-500/15 border-rose-500/30 text-rose-400'
                       }`}
                     >
@@ -5443,6 +5519,8 @@ export default function App() {
                         )
                       ) : selectedResource.type === 'gold_mine' ? (
                         <Coins className="w-6 h-6" />
+                      ) : selectedResource.type === 'stone' ? (
+                        <Pickaxe className="w-6 h-6" />
                       ) : (
                         <Apple className="w-6 h-6" />
                       )}
@@ -5456,6 +5534,8 @@ export default function App() {
                               : 'Floresta de Madeira (Desmatamento)'
                             : selectedResource.type === 'gold_mine'
                             ? 'Jazida de Minério de Ouro'
+                            : selectedResource.type === 'stone'
+                            ? 'Pedreira de Pedra Bruta'
                             : 'Arbusto de Frutas Silvestres'}
                         </h3>
                         {selectedResource.isRegrowing && (
@@ -5472,6 +5552,8 @@ export default function App() {
                             ? 'Madeira para habitações, quartéis e torres'
                             : selectedResource.type === 'gold_mine'
                             ? 'Ouro nobre para infantaria e fortificações'
+                            : selectedResource.type === 'stone'
+                            ? 'Pedra bruta para pedreiras, torres e muralhas'
                             : 'Alimento rápido para recrutar novos colonos'}
                         </span>
                         <span>•</span>
@@ -5490,12 +5572,14 @@ export default function App() {
                           ? 'text-emerald-400'
                           : selectedResource.type === 'gold_mine'
                           ? 'text-amber-400'
+                          : selectedResource.type === 'stone'
+                          ? 'text-slate-300'
                           : 'text-rose-400'
                       }`}
                     >
                       {selectedResource.isRegrowing
                         ? `${Math.round(selectedResource.regrowthProgress || 0)}%`
-                        : `${Math.round(selectedResource.remaining)}/${selectedResource.maxCapacity || (selectedResource.type === 'tree' ? 150 : selectedResource.type === 'gold_mine' ? 600 : 350)}`}
+                        : `${Math.round(selectedResource.remaining)}/${selectedResource.maxCapacity || (selectedResource.type === 'tree' ? 150 : selectedResource.type === 'gold_mine' ? 600 : selectedResource.type === 'stone' ? 700 : 350)}`}
                     </div>
                   </div>
                 </div>
@@ -5850,6 +5934,52 @@ export default function App() {
                         <strong className="text-amber-300 font-semibold block">Exploração Mineral Contínua:</strong>
                         <span>
                           Ao esgotar esta jazida de ouro, os aldeões automaticamente procuram e migram para o próximo filão mineral mais próximo.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Specific Stone Quarry Controls */}
+                {selectedResource.type === 'stone' && (
+                  <div className="space-y-3 pt-3 border-t border-slate-800">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleAssignVillagersToResource(selectedResource.id, 1)}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <Users className="w-3.5 h-3.5 text-slate-300" />
+                        <span>+1 Pedreiro</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleAssignVillagersToResource(selectedResource.id, 3)}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <Users className="w-3.5 h-3.5 text-slate-300" />
+                        <span>+3 Pedreiros</span>
+                      </button>
+
+                      {selectedUnitsList.length > 0 && villagerCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleAssignSelectedSquadToResource(selectedResource.id)}
+                          className="p-2 rounded-xl bg-slate-400 hover:bg-slate-300 text-slate-950 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          <span>Pelotão ({villagerCount})</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-slate-700/20 border border-slate-600/40 text-xs text-slate-300/90 flex items-start gap-2">
+                      <Pickaxe className="w-4 h-4 text-slate-300 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="text-slate-200 font-semibold block">Extração Contínua de Pedra:</strong>
+                        <span>
+                          A Mineradora &amp; Pedreira dá +40% de rendimento. Ao esgotar esta pedreira, os aldeões migram para a próxima automaticamente.
                         </span>
                       </div>
                     </div>

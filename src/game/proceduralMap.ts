@@ -474,6 +474,32 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
     });
   });
 
+  // B2. Stone Quarries (Rugged outcrops at the foot of the mountain ridges)
+  const quarrySpots = [
+    { x: 36, z: 14, name: 'Pedreira da Cornija Norte' },
+    { x: 47, z: 33, name: 'Pedreira da Crag Oriental' },
+    { x: 24, z: 46, name: 'Pedreira da Espinha Sul' },
+    { x: 16, z: 37, name: 'Pedreira dos Penhascos Ocidentais' },
+  ];
+
+  quarrySpots.forEach((spot, idx) => {
+    const ed = calculateElevationData(spot.x, spot.z);
+    if (ed.isWater || ed.isCliff || ed.height < 0.15) return;
+    const dP1 = Math.hypot(spot.x - p1Spawn.x, spot.z - p1Spawn.z);
+    const dP2 = Math.hypot(spot.x - p2Spawn.x, spot.z - p2Spawn.z);
+    if (dP1 <= 4.5 || dP2 <= 4.5) return;
+    resourceNodes.push({
+      id: `stone-${idx}`,
+      type: 'stone',
+      name: spot.name,
+      position: { x: spot.x, z: spot.z },
+      remaining: 700,
+      maxCapacity: 700,
+      clusterId: `quarry-cluster-${idx}`,
+      clusterName: spot.name,
+    });
+  });
+
   // C. Berry Bushes in fertile village plains
   const berrySpots = [
     { x: 22, z: 23, name: 'Pomar de Frutas Silvestres da Vila 1' },

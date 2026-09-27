@@ -53,7 +53,7 @@ export interface Building {
 
 export interface ResourceNode {
   id: string;
-  type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school';
+  type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school' | 'stone';
   name?: string;
   position: { x: number; z: number };
   remaining: number;

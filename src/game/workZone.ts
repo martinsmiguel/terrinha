@@ -7,7 +7,7 @@ export interface WorkZoneData {
   radius: number;
   unitCount: number;
   unitIds: string[];
-  resourceType?: 'tree' | 'gold_mine' | 'food_bush';
+  resourceType?: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school' | 'stone';
   treesRemaining?: number;
   isHighlighted?: boolean;
   isPreview?: boolean;
