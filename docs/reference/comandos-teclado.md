@@ -54,6 +54,7 @@
 | Quartel Militar | `G` | Cavalaria |
 | Cais Naval | `P` | Barco de Pesca |
 | Cais Naval | `M` | Barco Mercante |
+| Cais Naval | `G` | Barco de Guerra |
 
 > Atenção: `C` e `M` também são atalhos globais do HUD (HUD completo/compacto
 > e mini-mapa), portanto só funcionam quando o edifício não está selecionado.

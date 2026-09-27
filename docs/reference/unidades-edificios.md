@@ -24,8 +24,12 @@
 | Cavalaria | 60 comida + 80 ouro | Quartel Militar | Choque rápido (0.3 m/tick, 32 dmg, alcance 2.5) |
 | Barco de Pesca | 75 madeira + 25 tábuas | Cais Naval | Coleta de peixe |
 | Barco Mercante | 100 madeira + 30 ouro + 30 tábuas | Cais Naval | +3 ouro/s |
+| Barco de Guerra | 120 madeira + 80 ouro + 40 tábuas | Cais Naval | Combate naval (300 HP, 20 dmg, alcance 7) |
 
 - Fila de treino: máx. **5** por edifício; cancelamento reembolsa 100%.
+- **Combate naval**: barcos só enfrentam embarcações inimigas (nunca atacam
+  terra); tropas de terra podem atirar em barcos da margem. Barcos destruídos
+  afundam com efeito de respingo e casco submerso.
 - Custo único de verdade: `UNIT_COSTS` em `src/game/economy.ts` (`canAfford`,
   `applyCost`, `refundCost`, `missingCost`, `describeCost`).
 
