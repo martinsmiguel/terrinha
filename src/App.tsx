@@ -10,6 +10,7 @@ import { resolveSeparation } from './game/movement/separation';
 import { createVisionGrid, expireVision, revealVision, visionRadiusFor, isVisibleAt } from './game/visibility';
 import { MultiplayerManager, ChatMessage } from './game/multiplayer';
 import { Minimap } from './components/Minimap';
+import { TechPanel } from './components/TechPanel';
 import { soundManager } from './game/audio';
 import { create3DHealthBar, update3DHealthBar, align3DHealthBarToCamera } from './game/healthBar';
 import { createBuildingGhost, updateBuildingGhost, checkBuildingPlacementValid } from './game/buildingGhost';
@@ -79,6 +80,16 @@ import {
 } from './game/economy';
 import { PLAYER_SLOTS, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, soloMatchSlots, type PlayerSlot } from './game/networkCommands';
 import { evaluateMatch, localOutcome, type LocalOutcome } from './game/victory';
+import {
+  TECH_DEFS,
+  advanceResearch,
+  createTechState,
+  gatherMultiplier,
+  researchTarget,
+  startResearch,
+  unitDamageMultiplier,
+  type TechState,
+} from './game/tech';
 
 /** Reparo: HP por tick (50 ms) e madeira consumida por HP reparado. */
 const REPAIR_HP_PER_TICK = 4;
@@ -150,6 +161,7 @@ export default function App() {
 
   // Work Zone Visual Overlay & Management Modal
   const [isWorkZoneModalOpen, setIsWorkZoneModalOpen] = useState(false);
+  const [isTechPanelOpen, setIsTechPanelOpen] = useState(false);
   const [showWorkZones3D, setShowWorkZones3D] = useState(true);
   const [isStrictZoneLeash, setIsStrictZoneLeash] = useState(true);
   const isStrictZoneLeashRef = useRef(true);
@@ -740,6 +752,7 @@ export default function App() {
       buildings: [...prev.buildings, townCenter],
       units: [...prev.units, ...units],
       playerResources: { ...prev.playerResources, [slot]: startingColonyResources(units.length) },
+      techs: { ...prev.techs, [slot]: prev.techs?.[slot] ?? createTechState() },
     }));
     triggerNotification(`${FACTION_COLORS[slot]?.name ?? slot} recebeu uma base inicial!`, 'success');
   };
@@ -766,9 +779,11 @@ export default function App() {
     const buildings: Building[] = [];
     const units: Unit[] = [];
     const playerResources: Record<string, PlayerResources> = {};
+    const techs: Record<string, ReturnType<typeof createTechState>> = {};
 
     PLAYER_SLOTS.forEach((slot) => {
       playerResources[slot] = startingColonyResources(0);
+      techs[slot] = createTechState();
     });
 
     slots.forEach((slot) => {
@@ -788,6 +803,7 @@ export default function App() {
       buildings,
       resourceNodes: nodes,
       playerResources,
+      techs,
     });
   };
 
@@ -1838,6 +1854,7 @@ export default function App() {
         let updatedNodes = [...prev.resourceNodes];
         let updatedBuildings = [...prev.buildings];
         let updatedResources = { ...prev.playerResources };
+        const updatedTechs: Record<string, TechState> = { ...(prev.techs ?? {}) };
 
         // 1. Process Units (Movement, Gathering, Attacking)
         updatedUnits = updatedUnits
@@ -2008,6 +2025,9 @@ export default function App() {
                   } else if (targetNode.type === 'fish_school') {
                     gatherRate = unit.type === 'fishing_boat' ? 1.0 : 0.65;
                   }
+
+                  // Tecnologias de economia aceleram a coleta
+                  gatherRate *= gatherMultiplier(updatedTechs[unit.owner], targetNode.type);
 
                   targetNode.remaining = Math.max(0, targetNode.remaining - gatherRate);
 
@@ -2193,7 +2213,10 @@ export default function App() {
                   // Apply damage with rhythmic attack cadence
                   const cooldown = unit.attackCooldown ?? 0;
                   if (cooldown <= 0) {
-                    const damage = unit.type === 'soldier' ? 24 : unit.type === 'cavalry' ? 32 : 8;
+                    const baseDamage = unit.type === 'soldier' ? 24 : unit.type === 'cavalry' ? 32 : 8;
+                    const damage = Math.round(
+                      baseDamage * unitDamageMultiplier(updatedTechs[unit.owner], unit.type)
+                    );
                     const prevHealth = target.health;
                     target.health = Math.max(0, target.health - damage);
 
@@ -2497,6 +2520,24 @@ export default function App() {
           });
         }
 
+        // 3b. Filas de pesquisa: tecnologias e avancos de era (20 ticks/s)
+        Object.keys(updatedTechs).forEach((slot) => {
+          const before = updatedTechs[slot];
+          if (!before) return;
+          const after = advanceResearch(before, 0.05);
+          updatedTechs[slot] = after;
+          if (slot !== playerSlotRef.current || after === before) return;
+          if (after.completed.length > before.completed.length) {
+            const techId = after.completed[after.completed.length - 1];
+            const tech = TECH_DEFS.find((candidate) => candidate.id === techId);
+            triggerNotification(`Tecnologia pesquisada: ${tech?.name ?? techId}! (${tech?.description ?? ''})`, 'success');
+            soundManager.playBuildingCompletedSound('market');
+          } else if (after.era !== before.era) {
+            triggerNotification(`Avanço de era concluído: ${after.era}!`, 'success');
+            soundManager.playBuildingCompletedSound('town_center');
+          }
+        });
+
         // 4. Separacao de corpos: empurra unidades sobrepostas (grid espacial, ~O(n) por tick)
         const separationMap = proceduralMapRef.current;
         if (separationMap && updatedUnits.length > 1) {
@@ -2530,6 +2571,7 @@ export default function App() {
           buildings: updatedBuildings,
           resourceNodes: updatedNodes,
           playerResources: updatedResources,
+          techs: updatedTechs,
           match:
             activeSlotsRef.current.length >= 2
               ? evaluateMatch(updatedBuildings, activeSlotsRef.current)
@@ -2726,6 +2768,28 @@ export default function App() {
             ...prev.playerResources,
             [b.owner]: refundCost(pRes, unitCost),
           },
+        };
+      });
+    } else if (cmd.type === 'research') {
+      // Pesquisa de tecnologia ou avanco de era: custo debitado e fila validada no host
+      setGameState((prev) => {
+        const owner = cmd.playerSlot || playerSlot;
+        const techState = prev.techs?.[owner];
+        const resources = prev.playerResources[owner];
+        if (!techState || !resources) return prev;
+
+        const started = startResearch(techState, cmd.id, resources);
+        if (!started) return prev;
+
+        if (owner === playerSlotRef.current) {
+          soundManager.playClickSound();
+          triggerNotification(`Pesquisa iniciada: ${researchTarget(cmd.id)?.name ?? cmd.id}`, 'info');
+        }
+
+        return {
+          ...prev,
+          techs: { ...prev.techs, [owner]: started.techState },
+          playerResources: { ...prev.playerResources, [owner]: started.resources },
         };
       });
     } else if (cmd.type === 'repair') {
@@ -4291,6 +4355,12 @@ export default function App() {
   }
 
   // Reparo e demolicao de edificios proprios (validados no host)
+  const handleResearch = (id: string) => {
+    const cmd = { type: 'research', id };
+    if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+    else multiRef.current?.sendToHost(cmd);
+  };
+
   const handleRepairBuilding = (unitId: string, buildingId: string) => {
     const cmd = { type: 'repair', unitId, buildingId };
     if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
@@ -4798,6 +4868,31 @@ export default function App() {
                     {gatherRadiusLimit >= 999 ? 'Livre' : `${gatherRadiusLimit}m`}
                   </span>
                   <kbd className="hidden lg:inline px-1 py-0.5 bg-slate-900 rounded font-mono text-[9px] text-slate-400">Z</kbd>
+                </button>
+
+                {/* Research & Eras Panel Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsTechPanelOpen((prev) => !prev);
+                    soundManager.playClickSound();
+                  }}
+                  className={`p-1.5 px-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                    isTechPanelOpen
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm shadow-amber-500/20'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                  }`}
+                  title="Tecnologias e Eras: pesquique melhorias de economia e militar"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden md:inline">Tecnologias</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold bg-slate-900 text-amber-200">
+                    {gameState.techs?.[playerSlot]?.era === 'commercial'
+                      ? 'E2'
+                      : gameState.techs?.[playerSlot]?.era === 'industrial'
+                      ? 'E3'
+                      : 'E1'}
+                  </span>
                 </button>
 
                 {/* Controls Guide Modal Button */}
@@ -6681,6 +6776,18 @@ export default function App() {
       )}
 
       {/* WORK ZONE CONFIGURATOR MODAL */}
+      {isTechPanelOpen && (
+        <TechPanel
+          techState={gameState.techs?.[playerSlot] ?? createTechState()}
+          resources={myResources}
+          onResearch={handleResearch}
+          onClose={() => {
+            setIsTechPanelOpen(false);
+            soundManager.playClickSound();
+          }}
+        />
+      )}
+
       {isWorkZoneModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
           <div

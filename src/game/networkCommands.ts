@@ -1,5 +1,6 @@
 import type { Building, BuildingType, GameState, PlayerResources, ResourceNode, Unit, UnitType } from './engine';
 import { BUILDING_CATALOG } from './buildingDefs';
+import { researchBlock } from './tech';
 
 export const PLAYER_SLOTS = ['player1', 'player2', 'player3', 'player4'] as const;
 export type PlayerSlot = (typeof PLAYER_SLOTS)[number];
@@ -66,6 +67,7 @@ export type NetworkCommand = CommandMetadata & (
   | { type: 'build'; buildingType: BuildableType; owner: PlayerSlot; position: Position; builderIds?: string[] }
   | { type: 'train'; buildingId: string; unitType: TrainableType }
   | { type: 'cancel_train'; buildingId: string; index: number }
+  | { type: 'research'; id: string }
   | { type: 'repair'; unitId: string; buildingId: string }
   | { type: 'demolish'; buildingId: string }
   | { type: 'set_resource_mode'; resourceId: string; mode: 'clear_cut' | 'sustainable' }
@@ -173,6 +175,8 @@ export function isValidNetworkCommand(value: unknown): value is NetworkCommand {
       return allowedKeys('buildingId', 'unitType') && isId(value.buildingId) && typeof value.unitType === 'string' && UNIT_TYPES.includes(value.unitType);
     case 'cancel_train':
       return allowedKeys('buildingId', 'index') && isId(value.buildingId) && Number.isSafeInteger(value.index) && Number(value.index) >= 0 && Number(value.index) < 5;
+    case 'research':
+      return allowedKeys('id') && typeof value.id === 'string' && value.id.length > 0 && value.id.length <= 48;
     case 'repair':
       return allowedKeys('unitId', 'buildingId') && isId(value.unitId) && isId(value.buildingId);
     case 'demolish':
@@ -289,6 +293,12 @@ export function isAuthorizedPlayerCommand(
       const trees = treeIds?.every((id) => state.resourceNodes.some((resource) => resource.id === id && resource.type === 'tree')) ?? true;
       const clusterExists = value.clusterId === undefined || state.resourceNodes.some((resource) => resource.clusterId === value.clusterId);
       return trees && clusterExists;
+    }
+    case 'research': {
+      const techState = state.techs?.[owner];
+      const resources = state.playerResources[owner];
+      if (!techState || !resources) return false;
+      return researchBlock(techState, value.id, resources) === null;
     }
     case 'set_colony_forestry':
       return true;

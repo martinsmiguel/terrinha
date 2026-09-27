@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { ParticleSystem } from './particles';
 import type { MatchStatus } from './victory';
+import type { TechState } from './tech';
 import { VISION_EXPLORED, VISION_UNEXPLORED, VISION_VISIBLE } from './visibility';
 
 export type UnitType = 'villager' | 'soldier' | 'cavalry' | 'fishing_boat' | 'trade_boat';
@@ -84,6 +85,8 @@ export interface GameState {
   playerResources: Record<string, PlayerResources>;
   /** Estado da partida segundo a condicao de vitoria (calculado pelo host). */
   match?: MatchStatus;
+  /** Era, tecnologias concluidas e fila de pesquisa de cada jogador (host). */
+  techs?: Record<string, TechState>;
 }
 
 export const MAP_SIZE = 60;

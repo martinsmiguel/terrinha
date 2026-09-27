@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isAuthorizedPlayerCommand, isValidJoinRequest, isValidNetworkCommand, roomJoinError, soloMatchSlots } from '../../src/game/networkCommands';
 import { BUILDING_CATALOG } from '../../src/game/buildingDefs';
+import { createTechState } from '../../src/game/tech';
 import type { GameState } from '../../src/game/engine';
 
 const state: GameState = {
@@ -224,5 +225,39 @@ describe('soloMatchSlots', () => {
     expect(soloMatchSlots('player1', 4)).toEqual(['player1', 'player2', 'player3', 'player4']);
     expect(soloMatchSlots('player3', 3)).toEqual(['player3', 'player1', 'player2']);
     expect(soloMatchSlots('player4', 2)).toEqual(['player4', 'player1']);
+  });
+});
+
+describe('research commands', () => {
+  const withTechs: GameState = {
+    ...state,
+    techs: { player1: createTechState(), player2: createTechState() },
+  };
+
+  it('validates research payloads', () => {
+    expect(isValidNetworkCommand({ type: 'research', id: 'irrigation' })).toBe(true);
+    expect(isValidNetworkCommand({ type: 'research' })).toBe(false);
+    expect(isValidNetworkCommand({ type: 'research', id: '' })).toBe(false);
+    expect(isValidNetworkCommand({ type: 'research', id: 'irrigation', unexpected: 1 })).toBe(false);
+  });
+
+  it('authorizes only affordable research of the current era', () => {
+    expect(isAuthorizedPlayerCommand(withTechs, { type: 'research', id: 'irrigation' }, 'player1')).toBe(true);
+    expect(isAuthorizedPlayerCommand(withTechs, { type: 'research', id: 'cartography' }, 'player1')).toBe(false);
+    expect(isAuthorizedPlayerCommand(withTechs, { type: 'research', id: 'nope' }, 'player1')).toBe(false);
+    expect(
+      isAuthorizedPlayerCommand({ ...withTechs, techs: undefined }, { type: 'research', id: 'irrigation' }, 'player1')
+    ).toBe(false);
+  });
+
+  it('rejects research the player cannot pay for', () => {
+    const broke: GameState = {
+      ...withTechs,
+      playerResources: {
+        ...withTechs.playerResources,
+        player1: { ...withTechs.playerResources.player1, wood: 0, gold: 0 },
+      },
+    };
+    expect(isAuthorizedPlayerCommand(broke, { type: 'research', id: 'irrigation' }, 'player1')).toBe(false);
   });
 });
