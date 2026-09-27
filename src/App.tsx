@@ -58,6 +58,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { createWorkZoneMesh, updateWorkZoneMesh } from './game/workZone';
 import { applyPopDelta, countDeathsByOwner } from './game/population';
 import { tradeResource, MARKET_LABELS, MarketResourceType } from './game/economy';
+import { canAffordResources, deductResourceCost, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, type PlayerSlot } from './game/networkCommands';
 
 const FACTION_COLORS: Record<string, { name: string; hex: number; colorClass: string; border: string }> = {
   player1: { name: 'Império Português (Azul)', hex: 0x2563eb, colorClass: 'bg-blue-600', border: 'border-blue-500' },
@@ -76,7 +77,8 @@ export default function App() {
   const [role, setRole] = useState<'host' | 'client' | 'single'>('host');
   const [roomId, setRoomId] = useState('vila-principal');
   const [playerName, setPlayerName] = useState('Comandante');
-  const [playerSlot, setPlayerSlot] = useState<'player1' | 'player2' | 'player3' | 'player4'>('player1');
+  const [playerSlot, setPlayerSlot] = useState<PlayerSlot>('player1');
+  const [lobbyError, setLobbyError] = useState<string | null>(null);
   const [lanIps, setLanIps] = useState<string[]>([]);
   const [copiedIp, setCopiedIp] = useState(false);
   const [, setConnectedPlayers] = useState(1);
@@ -536,8 +538,13 @@ export default function App() {
 
     // Handle Multiplayer Connection
     if (role !== 'single') {
-      const multi = new MultiplayerManager(roomId, role === 'host', playerName);
+      const multi = new MultiplayerManager(roomId, role === 'host', playerName, playerSlot);
       multiRef.current = multi;
+
+      multi.onJoinError = (message) => {
+        setLobbyError(message);
+        setIsGameStarted(false);
+      };
 
       multi.onPlayerJoined = (data) => {
         setConnectedPlayers(data.playerCount);
@@ -2269,7 +2276,26 @@ export default function App() {
   }, [role]);
 
   // Handle incoming network command from peer
-  const handleIncomingCommand = (cmd: any) => {
+  const handleIncomingCommand = (cmd: unknown) => {
+    if (!isValidNetworkCommand(cmd)) return;
+    const commandOwner = cmd.playerSlot === undefined ? playerSlot : isPlayerSlot(cmd.playerSlot) ? cmd.playerSlot : null;
+    if (!commandOwner || !isAuthorizedPlayerCommand(gameStateRef.current, cmd, commandOwner)) return;
+
+    if (cmd.type === 'build') {
+      const placement = checkBuildingPlacementValid(
+        cmd.buildingType,
+        cmd.position.x,
+        cmd.position.z,
+        gameStateRef.current.buildings,
+        gameStateRef.current.resourceNodes,
+        MAP_SIZE,
+        proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
+        proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
+        proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined
+      );
+      if (!placement.isValid) return;
+    }
+
     if (cmd.type === 'move') {
       setGameState((prev) => ({
         ...prev,
@@ -2336,8 +2362,8 @@ export default function App() {
       if (cmd.owner === playerSlot) {
         soundManager.playBuildingConstructStartedSound(cmd.buildingType);
       }
-      const def = BUILDING_CATALOG[cmd.buildingType as 'house' | 'barracks' | 'tower'];
-      const maxHp = def ? def.maxHealth : 500;
+      const def = BUILDING_CATALOG[cmd.buildingType];
+      const maxHp = def.maxHealth;
       const newBuilding: Building = {
         id: uuidv4(),
         type: cmd.buildingType,
@@ -2351,8 +2377,19 @@ export default function App() {
       };
       setGameState((prev) => {
         const pRes = prev.playerResources[cmd.owner];
-        const costW = def ? def.cost.wood : 60;
-        const costG = def && def.cost.gold ? def.cost.gold : 0;
+        if (!pRes || !canAffordResources(pRes, def.cost)) return prev;
+        const placement = checkBuildingPlacementValid(
+          cmd.buildingType,
+          cmd.position.x,
+          cmd.position.z,
+          prev.buildings,
+          prev.resourceNodes,
+          MAP_SIZE,
+          proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
+          proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
+          proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined
+        );
+        if (!placement.isValid) return prev;
 
         // Auto-assign any selected villagers from the builder to start hammering
         const updatedUnits = prev.units.map((u) => {
@@ -2373,21 +2410,45 @@ export default function App() {
           units: updatedUnits,
           playerResources: {
             ...prev.playerResources,
-            [cmd.owner]: {
-              ...pRes,
-              wood: Math.max(0, pRes.wood - costW),
-              gold: Math.max(0, (pRes.gold || 0) - costG),
-            },
+            [cmd.owner]: deductResourceCost(pRes, def.cost),
           },
         };
       });
     } else if (cmd.type === 'train') {
-      setGameState((prev) => ({
-        ...prev,
-        buildings: prev.buildings.map((b) =>
-          b.id === cmd.buildingId ? { ...b, trainingQueue: [...b.trainingQueue, { unitType: cmd.unitType, progress: 0 }] } : b
-        ),
-      }));
+      setGameState((prev) => {
+        const building = prev.buildings.find((candidate) => candidate.id === cmd.buildingId);
+        const owner = cmd.playerSlot || building?.owner;
+        const resources = owner ? prev.playerResources[owner] : undefined;
+        if (!building || !isPlayerSlot(owner) || !resources || !building.isComplete || building.trainingQueue.length >= 5) return prev;
+
+        const queuedForOwner = prev.buildings
+          .filter((candidate) => candidate.owner === owner)
+          .reduce((total, candidate) => total + candidate.trainingQueue.length, 0);
+        if (resources.pop + queuedForOwner >= resources.maxPop) return prev;
+        const trainingCost = cmd.unitType === 'villager'
+          ? { food: 50 }
+          : cmd.unitType === 'soldier'
+            ? { food: 80, gold: 40 }
+            : cmd.unitType === 'fishing_boat'
+              ? { wood: 75 }
+              : { wood: 100, gold: 30 };
+        if (cmd.playerSlot && !canAffordResources(resources, trainingCost)) return prev;
+
+        return {
+          ...prev,
+          buildings: prev.buildings.map((candidate) =>
+            candidate.id === cmd.buildingId
+              ? { ...candidate, trainingQueue: [...candidate.trainingQueue, { unitType: cmd.unitType, progress: 0 }] }
+              : candidate
+          ),
+          ...(cmd.playerSlot ? {
+            playerResources: {
+              ...prev.playerResources,
+              [owner]: deductResourceCost(resources, trainingCost),
+            },
+          } : {}),
+        };
+      });
     } else if (cmd.type === 'cancel_train') {
       setGameState((prev) => {
         const b = prev.buildings.find((bd) => bd.id === cmd.buildingId);
@@ -3860,7 +3921,7 @@ export default function App() {
                   <button
                     key={slot}
                     type="button"
-                    onClick={() => setPlayerSlot(slot as any)}
+                    onClick={() => setPlayerSlot(slot as PlayerSlot)}
                     className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-medium transition-all text-left ${
                       playerSlot === slot
                         ? `${info.border} bg-slate-800 ring-2 ring-amber-500/40 text-white`
@@ -3875,12 +3936,19 @@ export default function App() {
             </div>
           </div>
 
+          {lobbyError && (
+            <p role="alert" className="rounded-xl border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-200">
+              {lobbyError}
+            </p>
+          )}
+
           {/* Action Buttons */}
           <div className="space-y-2 pt-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => {
+                  setLobbyError(null);
                   setRole('host');
                   setIsGameStarted(true);
                 }}
@@ -3892,6 +3960,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => {
+                  setLobbyError(null);
                   setRole('client');
                   setIsGameStarted(true);
                 }}
@@ -3904,6 +3973,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => {
+                setLobbyError(null);
                 setRole('single');
                 setIsGameStarted(true);
               }}
