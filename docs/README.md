@@ -10,8 +10,23 @@ quadrantes. Escolha pelo que você quer fazer:
 | **Referência** | "Preciso de dados técnicos exatos" | [`reference/`](reference/) |
 | **Explicação** | "Quero entender o porquê e o como" | [`explanation/`](explanation/) |
 
+Páginas mais consultadas:
+
+- [Comandos de teclado](reference/comandos-teclado.md) ·
+  [Unidades e edifícios](reference/unidades-edificios.md) ·
+  [Eras e tecnologias](reference/tecnologias-eras.md)
+- [Hospedar na Wi-Fi](how-to/hospedar-partida-wifi.md) ·
+  [Lançar uma release](how-to/lancar-release.md) ·
+  [Fluxo de desenvolvimento](how-to/fluxo-de-desenvolvimento.md)
+
 Decisões arquiteturais são registradas como **ADRs** em
-[`explanation/adr/`](explanation/adr/).
+[`explanation/adr/`](explanation/adr/):
+[0001](explanation/adr/0001-evoluir-prototipo.md) ·
+[0002](explanation/adr/0002-manter-socket-io.md) ·
+[0003](explanation/adr/0003-modulos-puros-testaveis.md) ·
+[0004](explanation/adr/0004-nevoa-por-cliente-no-shader.md) ·
+[0005](explanation/adr/0005-participantes-dinamicos-da-partida.md) ·
+[0006](explanation/adr/0006-fila-unica-de-pesquisa-validada-no-host.md)
 
 A especificação completa do produto está em
 [`explanation/especificacao-v2.html`](explanation/especificacao-v2.html) (CC BY 4.0).

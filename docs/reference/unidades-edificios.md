@@ -52,3 +52,9 @@ consta no catálogo de construção.
 | Dano | 24 | 8 | 16 |
 | Alcance | 4.5–5.5 | 1.2–2.5 | 12 |
 | Recarga | ~1 s | ~1 s | ~1.1 s |
+
+## Progressão
+
+Eras, tecnologias e seus efeitos sobre coleta e dano estão em
+[tecnologias-eras](tecnologias-eras.md). Os multiplicadores aplicam-se sobre
+os valores desta página no momento do tick.
