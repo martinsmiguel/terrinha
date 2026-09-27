@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { ParticleSystem } from './particles';
 import type { MatchStatus } from './victory';
+import { VISION_EXPLORED, VISION_UNEXPLORED, VISION_VISIBLE } from './visibility';
 
 export type UnitType = 'villager' | 'soldier' | 'cavalry' | 'fishing_boat' | 'trade_boat';
 export type BuildingType =
@@ -117,6 +118,15 @@ export class GameEngine {
   particles: ParticleSystem;
   onRenderFrame?: (time: number, delta: number) => void;
 
+  // Nevoa de guerra: textura 60x60 (RGBA) aplicada ao material do terreno
+  fogTexture: THREE.DataTexture;
+  private fogPixels: Uint8Array;
+  private static readonly FOG_LEVELS: Record<number, number> = {
+    [VISION_UNEXPLORED]: 0,
+    [VISION_EXPLORED]: 110,
+    [VISION_VISIBLE]: 255,
+  };
+
   constructor(container: HTMLElement) {
     this.container = container;
     this.scene = new THREE.Scene();
@@ -158,12 +168,21 @@ export class GameEngine {
     this.scene.add(sunLight);
 
     // Base Terrain
+    this.fogPixels = new Uint8Array(MAP_SIZE * MAP_SIZE * 4);
+    this.fogTexture = new THREE.DataTexture(this.fogPixels, MAP_SIZE, MAP_SIZE, THREE.RGBAFormat, THREE.UnsignedByteType);
+    this.fogTexture.magFilter = THREE.LinearFilter;
+    this.fogTexture.minFilter = THREE.LinearFilter;
+    this.fogTexture.wrapS = THREE.ClampToEdgeWrapping;
+    this.fogTexture.wrapT = THREE.ClampToEdgeWrapping;
+    this.fogTexture.name = 'fog_of_war_grid';
+
     const groundGeo = new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE, 48, 48);
     const groundMat = new THREE.MeshStandardMaterial({
       color: 0x4f8f3b,
       roughness: 0.85,
       metalness: 0.05,
     });
+    this.applyFogToTerrain(groundMat);
     this.groundMesh = new THREE.Mesh(groundGeo, groundMat);
     this.groundMesh.rotation.x = -Math.PI / 2;
     this.groundMesh.position.set(MAP_SIZE / 2, 0, MAP_SIZE / 2);
@@ -185,6 +204,7 @@ export class GameEngine {
       this.scene.remove(this.groundMesh);
     }
     this.groundMesh = newTerrainMesh;
+    this.applyFogToTerrain(newTerrainMesh.material as THREE.Material);
     this.scene.add(this.groundMesh);
 
     if (this.waterMesh) {
@@ -197,6 +217,51 @@ export class GameEngine {
     if (decorationsGroup) {
       this.scene.add(decorationsGroup);
     }
+  }
+
+  /**
+   * Nevoa de guerra no terreno: multiplica a cor final pela textura da névoa.
+   * Mundo (x, z) -> UV; nível 0 = nunca visto (preto), 110 = explorado
+   * (semi-fog), 255 = sob visão atual.
+   */
+  private applyFogToTerrain(material: THREE.Material) {
+    const mat = material as THREE.MeshStandardMaterial;
+    const fogTexture = this.fogTexture;
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uFogMap = { value: fogTexture };
+      shader.uniforms.uFogScale = { value: 1 / MAP_SIZE };
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec2 vFogWorld;\nuniform float uFogScale;')
+        .replace(
+          '#include <begin_vertex>',
+          '#include <begin_vertex>\nvFogWorld = (modelMatrix * vec4(transformed, 1.0)).xz * uFogScale;'
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec2 vFogWorld;\nuniform sampler2D uFogMap;')
+        .replace(
+          '#include <color_fragment>',
+          '#include <color_fragment>\ndiffuseColor.rgb *= texture2D(uFogMap, vFogWorld).r;'
+        );
+    };
+    mat.needsUpdate = true;
+  }
+
+  /**
+   * Atualiza a névoa a partir do grid do jogador local (ordem `x * size + z`,
+   * a mesma do Minimap). Upload de 60×60×4 bytes por chamada.
+   */
+  setFogGrid(grid: Uint8Array) {
+    const levels = GameEngine.FOG_LEVELS;
+    const cells = MAP_SIZE * MAP_SIZE;
+    for (let i = 0; i < cells; i++) {
+      const level = levels[grid[i]] ?? 255;
+      const offset = i * 4;
+      this.fogPixels[offset] = level;
+      this.fogPixels[offset + 1] = level;
+      this.fogPixels[offset + 2] = level;
+      this.fogPixels[offset + 3] = 255;
+    }
+    this.fogTexture.needsUpdate = true;
   }
 
   setupEventListeners() {
@@ -424,6 +489,7 @@ export class GameEngine {
     this.container.removeEventListener('touchcancel', this.handleTouchEnd);
 
     this.particles.dispose();
+    this.fogTexture.dispose();
 
     if (this.renderer.domElement && this.renderer.domElement.parentNode) {
       this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);

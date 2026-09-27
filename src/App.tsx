@@ -7,6 +7,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GameEngine, GameState, Unit, Building, ResourceNode, MAP_SIZE, UnitType } from './game/engine';
 import { findPath, nextWaypoint } from './game/movement/pathfinding';
 import { resolveSeparation } from './game/movement/separation';
+import { createVisionGrid, expireVision, revealVision, visionRadiusFor, isVisibleAt } from './game/visibility';
 import { MultiplayerManager, ChatMessage } from './game/multiplayer';
 import { Minimap } from './components/Minimap';
 import { soundManager } from './game/audio';
@@ -248,6 +249,8 @@ export default function App() {
   const unitMeshes = useRef<Map<string, THREE.Group>>(new Map());
   // Caminho A* por unidade: recalculado so quando o alvo muda (custo por tick = O(tamanho do caminho))
   const unitPathsRef = useRef<Map<string, { goal: { x: number; z: number }; path: { x: number; z: number }[] }>>(new Map());
+  // Nevoa de guerra do jogador local: 0 = nunca visto, 1 = explorado, 2 = visivel
+  const visionGridRef = useRef<Uint8Array>(createVisionGrid());
   const buildingMeshes = useRef<Map<string, THREE.Group>>(new Map());
   const resourceMeshes = useRef<Map<string, THREE.Group>>(new Map());
   const ghostBuildingMesh = useRef<THREE.Group | null>(null);
@@ -1203,6 +1206,11 @@ export default function App() {
       if (healthBar) {
         update3DHealthBar(healthBar, unit.health, unit.maxHealth, isSelected);
       }
+
+      // Nevoa: inimigos fora da visao atual nao aparecem na cena
+      group.visible =
+        unit.owner === playerSlot ||
+        isVisibleAt(visionGridRef.current, Math.floor(unit.position.x), Math.floor(unit.position.z));
     });
 
     // 3. Sync Buildings
@@ -1636,6 +1644,11 @@ export default function App() {
       // Maintain exact terrain elevation so buildings never sink or hover
       const bGroundY = proceduralMapRef.current ? proceduralMapRef.current.getHeightAt(b.position.x, b.position.z) : 0;
       group.position.y = bGroundY;
+
+      // Nevoa: edificios inimigos fora da visao atual nao aparecem na cena
+      group.visible =
+        b.owner === playerSlot ||
+        isVisibleAt(visionGridRef.current, Math.floor(b.position.x), Math.floor(b.position.z));
     });
 
     // Host broadcasts simulation state to connected clients in LAN
@@ -1643,6 +1656,17 @@ export default function App() {
       multiRef.current.broadcast(gameState);
     }
   }, [gameState, selectedEntity, selectedUnitIds, role]);
+
+  // Nevoa de guerra: expira a visao do tick anterior e revela a visao atual
+  // das unidades/edificios do jogador local (raios iguais aos do Minimap)
+  useEffect(() => {
+    const sources = [...gameState.units, ...gameState.buildings]
+      .filter((entity) => entity.owner === playerSlot)
+      .map((entity) => ({ x: entity.position.x, z: entity.position.z, radius: visionRadiusFor(entity) }));
+    const grid = revealVision(expireVision(visionGridRef.current), sources);
+    visionGridRef.current = grid;
+    engineRef.current?.setFogGrid(grid);
+  }, [gameState, playerSlot]);
 
   // Synchronize 3D Work Zone ground overlays with active zones and preview
   useEffect(() => {
