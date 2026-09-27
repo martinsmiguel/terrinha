@@ -52,6 +52,7 @@ export const UNIT_COSTS: Record<UnitType, ResourceCost> = {
   cavalry: { food: 60, gold: 80 },
   fishing_boat: { wood: 75, planks: 25 },
   trade_boat: { wood: 100, gold: 30, planks: 30 },
+  warship: { wood: 120, gold: 80, planks: 40 },
 };
 
 /** 2 madeira refinadas viram 1 tábua por tick de cada Serralheria concluída. */

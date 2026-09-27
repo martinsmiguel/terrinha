@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { GameEngine, GameState, PlayerResources, Unit, Building, ResourceNode, MAP_SIZE, UnitType } from './game/engine';
+import { GameEngine, GameState, PlayerResources, Unit, Building, ResourceNode, MAP_SIZE, UnitType, isBoatUnit } from './game/engine';
 import { findPath, nextWaypoint } from './game/movement/pathfinding';
 import { resolveSeparation } from './game/movement/separation';
 import { createVisionGrid, expireVision, revealVision, visionRadiusFor, isVisibleAt } from './game/visibility';
@@ -63,6 +63,7 @@ import {
   Layers,
   PawPrint,
   GraduationCap,
+  Anchor,
 } from 'lucide-react';
 import * as THREE from 'three';
 import { v4 as uuidv4 } from 'uuid';
@@ -443,7 +444,7 @@ export default function App() {
 
         const seed = index * 1.73;
         const groundY = proceduralMapRef.current ? proceduralMapRef.current.getHeightAt(unit.position.x, unit.position.z) : 0;
-        const isBoat = unit.type === 'fishing_boat' || unit.type === 'trade_boat';
+        const isBoat = isBoatUnit(unit.type);
         const baseElevation = isBoat ? Math.min(0.04, groundY) : groundY;
 
         if (unit.state === 'attacking') {
@@ -1255,6 +1256,46 @@ export default function App() {
           );
           crate.position.set(0, 0.45, -0.4);
           group.add(crate);
+        } else if (unit.type === 'warship') {
+          // Barco de Guerra (casco blindado com canhoes e vela negra)
+          const hull = new THREE.Mesh(
+            new THREE.BoxGeometry(1.1, 0.55, 2.5),
+            new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.55, metalness: 0.25 })
+          );
+          hull.position.y = 0.2;
+          hull.castShadow = true;
+          group.add(hull);
+
+          const mast = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.06, 0.06, 2.1, 6),
+            new THREE.MeshStandardMaterial({ color: 0x57534e })
+          );
+          mast.position.set(0, 1.15, 0.15);
+          group.add(mast);
+
+          const sail = new THREE.Mesh(
+            new THREE.BoxGeometry(1.15, 0.95, 0.06),
+            new THREE.MeshStandardMaterial({ color: ownerColor, roughness: 0.6 })
+          );
+          sail.position.set(0, 1.4, 0.3);
+          group.add(sail);
+
+          const crown = new THREE.Mesh(
+            new THREE.ConeGeometry(0.22, 0.3, 6),
+            new THREE.MeshStandardMaterial({ color: 0x0f172a })
+          );
+          crown.position.set(0, 2.3, 0.15);
+          group.add(crown);
+
+          for (const side of [-1, 1]) {
+            const cannon = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.11, 0.13, 0.75, 8),
+              new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7, roughness: 0.35 })
+            );
+            cannon.rotation.z = Math.PI / 2;
+            cannon.position.set(side * 0.62, 0.42, -0.35);
+            group.add(cannon);
+          }
         } else {
           // Villager
           const body = new THREE.Mesh(
@@ -1282,7 +1323,7 @@ export default function App() {
         }
 
         // Floating 3D Health Bar (only visible when selected or damaged)
-        const isBoat = unit.type === 'fishing_boat' || unit.type === 'trade_boat';
+        const isBoat = isBoatUnit(unit.type);
         const healthBar = create3DHealthBar({
           width: isBoat ? 1.2 : unit.type === 'cavalry' ? 1.2 : unit.type === 'soldier' ? 1.0 : 0.9,
           height: unit.type === 'soldier' || unit.type === 'cavalry' ? 0.13 : 0.12,
@@ -1296,7 +1337,7 @@ export default function App() {
       }
 
       // Update position according to terrain elevation
-      const isBoat = unit.type === 'fishing_boat' || unit.type === 'trade_boat';
+      const isBoat = isBoatUnit(unit.type);
       const unitY = isBoat
         ? 0.02
         : proceduralMapRef.current
@@ -1879,7 +1920,7 @@ export default function App() {
               }
 
               const speed = unit.type === 'soldier' ? 0.2 : unit.type === 'cavalry' ? 0.3 : 0.16;
-              const isBoat = unit.type === 'fishing_boat' || unit.type === 'trade_boat';
+              const isBoat = isBoatUnit(unit.type);
               const pMap = proceduralMapRef.current;
 
               // A* no grid: cliffs/agua bloqueiam o caminho (cacheado por alvo)
@@ -2206,9 +2247,24 @@ export default function App() {
                 const dz = target.position.z - unit.position.z;
                 const dist = Math.sqrt(dx * dx + dz * dz);
 
-                const attackRange = unit.type === 'soldier' ? (targetBuilding ? 5.5 : 4.5) : unit.type === 'cavalry' ? (targetBuilding ? 3.5 : 2.5) : (targetBuilding ? 2.5 : 1.2);
+                const attackRange =
+                  unit.type === 'soldier'
+                    ? targetBuilding
+                      ? 5.5
+                      : 4.5
+                    : unit.type === 'cavalry'
+                    ? targetBuilding
+                      ? 3.5
+                      : 2.5
+                    : unit.type === 'warship'
+                    ? targetBuilding
+                      ? 5
+                      : 7
+                    : targetBuilding
+                    ? 2.5
+                    : 1.2;
                 if (dist > attackRange) {
-                  const speed = unit.type === 'cavalry' ? 0.26 : 0.18;
+                  const speed = unit.type === 'cavalry' ? 0.26 : unit.type === 'warship' ? 0.2 : 0.18;
                   return {
                     ...unit,
                     position: {
@@ -2220,7 +2276,8 @@ export default function App() {
                   // Apply damage with rhythmic attack cadence
                   const cooldown = unit.attackCooldown ?? 0;
                   if (cooldown <= 0) {
-                    const baseDamage = unit.type === 'soldier' ? 24 : unit.type === 'cavalry' ? 32 : 8;
+                    const baseDamage =
+                      unit.type === 'soldier' ? 24 : unit.type === 'cavalry' ? 32 : unit.type === 'warship' ? 20 : 8;
                     const damage = Math.round(
                       baseDamage * unitDamageMultiplier(updatedTechs[unit.owner], unit.type)
                     );
@@ -2240,20 +2297,24 @@ export default function App() {
                     // Combat audio feedback
                     soundManager.playCombatHitSound(isMusket);
 
-                    // If fatal hit, spawn defeat burst
+                    // If fatal hit, spawn defeat burst (barcos afundam com efeito proprio)
                     if (prevHealth > 0 && target.health <= 0) {
-                      engineRef.current?.spawnHitEffect(
-                        target.position.x,
-                        targetBuilding ? 1.0 : 0.3,
-                        target.position.z,
-                        false
-                      );
+                      if (targetEnemy && isBoatUnit(targetEnemy.type)) {
+                        engineRef.current?.spawnBoatSinking(target.position.x, target.position.z);
+                      } else {
+                        engineRef.current?.spawnHitEffect(
+                          target.position.x,
+                          targetBuilding ? 1.0 : 0.3,
+                          target.position.z,
+                          false
+                        );
+                      }
                     }
 
                     // Reset attack cooldown (Soldier fires every ~12 ticks = 0.6s, Villager strikes every ~8 ticks = 0.4s)
                     return {
                       ...unit,
-                      attackCooldown: isMusket ? 12 : 8,
+                      attackCooldown: isMusket ? 12 : unit.type === 'warship' ? 16 : 8,
                     };
                   } else {
                     return {
@@ -2366,8 +2427,17 @@ export default function App() {
 
             if (currentItem.progress >= 100) {
               // Spawn unit
-              const isBoat = currentItem.unitType === 'fishing_boat' || currentItem.unitType === 'trade_boat';
-              const maxHp = isBoat ? 220 : currentItem.unitType === 'soldier' ? 150 : currentItem.unitType === 'cavalry' ? 180 : 100;
+              const isBoat = isBoatUnit(currentItem.unitType);
+              const maxHp =
+                currentItem.unitType === 'warship'
+                  ? 300
+                  : isBoat
+                  ? 220
+                  : currentItem.unitType === 'soldier'
+                  ? 150
+                  : currentItem.unitType === 'cavalry'
+                  ? 180
+                  : 100;
               const newUnit: Unit = {
                 id: uuidv4(),
                 type: currentItem.unitType,
@@ -2380,7 +2450,14 @@ export default function App() {
                 targetEntityId: null,
                 health: maxHp,
                 maxHealth: maxHp,
-                attackDamage: currentItem.unitType === 'soldier' ? 18 : currentItem.unitType === 'cavalry' ? 20 : 5,
+                attackDamage:
+                  currentItem.unitType === 'soldier'
+                    ? 18
+                    : currentItem.unitType === 'cavalry'
+                    ? 20
+                    : currentItem.unitType === 'warship'
+                    ? 24
+                    : 5,
                 state: 'idle',
               };
               updatedUnits.push(newUnit);
@@ -2562,7 +2639,7 @@ export default function App() {
               }
             });
           };
-          const isSeaUnit = (u: Unit) => u.type === 'fishing_boat' || u.type === 'trade_boat';
+          const isSeaUnit = (u: Unit) => isBoatUnit(u.type);
           relax(updatedUnits.filter((u) => !isSeaUnit(u)), (x, z) => separationMap.isImpassableAt(x, z));
           relax(updatedUnits.filter(isSeaUnit), (x, z) => !separationMap.isWaterAt(x, z));
           if (movedPositions.size > 0) {
@@ -3024,6 +3101,8 @@ export default function App() {
               handleTrainUnit('fishing_boat', 1);
             } else if (b.type === 'dock' && key === 'm') {
               handleTrainUnit('trade_boat', 1);
+            } else if (b.type === 'dock' && key === 'g') {
+              handleTrainUnit('warship', 1);
             }
           }
         }
@@ -3568,11 +3647,20 @@ export default function App() {
       if (hits.length > 0) {
         const target = gameState.units.find((u) => u.id === id);
         if (target && target.owner !== playerSlot) {
+          let navalSkipped = false;
           myUnits.forEach((u) => {
+            // Barcos so enfrentam embarcacoes: nunca saem da agua atras de terra firme
+            if (isBoatUnit(u.type) && !isBoatUnit(target.type)) {
+              navalSkipped = true;
+              return;
+            }
             const cmd = { type: 'attack', unitId: u.id, targetId: id };
             if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
             else multiRef.current?.sendToHost(cmd);
           });
+          if (navalSkipped) {
+            triggerNotification('Barcos só enfrentam embarcações inimigas!', 'warning');
+          }
           engineRef.current.spawnClickMarker(target.position.x, target.position.z, 'attack');
           soundManager.playClickSound();
           return;
@@ -3587,12 +3675,20 @@ export default function App() {
         const targetB = gameState.buildings.find((b) => b.id === id);
         if (targetB) {
           if (targetB.owner !== playerSlot) {
-            // Attack enemy building
+            // Attack enemy building (barcos ficam na agua)
+            let navalSkipped = false;
             myUnits.forEach((u) => {
+              if (isBoatUnit(u.type)) {
+                navalSkipped = true;
+                return;
+              }
               const cmd = { type: 'attack', unitId: u.id, targetId: id };
               if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
               else multiRef.current?.sendToHost(cmd);
             });
+            if (navalSkipped) {
+              triggerNotification('Barcos só enfrentam embarcações inimigas!', 'warning');
+            }
             engineRef.current.spawnClickMarker(targetB.position.x, targetB.position.z, 'attack');
             soundManager.playClickSound();
             return;
@@ -3690,7 +3786,7 @@ export default function App() {
       const point = groundHits[0].point;
 
       // Check if clicked location is an impassable Skyrim rocky cliff
-      const isLandUnit = myUnits.some((u) => u.type !== 'fishing_boat' && u.type !== 'trade_boat');
+      const isLandUnit = myUnits.some((u) => !isBoatUnit(u.type));
       if (isLandUnit && proceduralMapRef.current?.isCliffAt(point.x, point.z)) {
         triggerNotification('Pico rochoso íngreme intransitável (Estilo Skyrim)! As tropas não podem subir.', 'warning');
         soundManager.playClickSound();
@@ -3760,6 +3856,8 @@ export default function App() {
             ? 'Cavalaria'
             : unitType === 'fishing_boat'
             ? 'Barco de Pesca'
+            : unitType === 'warship'
+            ? 'Barco de Guerra'
             : 'Barco Mercante';
         triggerNotification(
           `Recursos insuficientes para ${unitName}! ${missingCost(currentRes, unitCost) || ''}`,
@@ -3793,6 +3891,8 @@ export default function App() {
           ? 'Cavalaria'
           : unitType === 'fishing_boat'
           ? 'Barco de Pesca'
+          : unitType === 'warship'
+          ? 'Barco de Guerra'
           : 'Barco Mercante';
       triggerNotification(
         `+${successfullyQueued} ${unitName}(s) adicionado(s) à fila de construção!`,
@@ -5739,6 +5839,10 @@ export default function App() {
                                   <div className="p-1.5 rounded-xl bg-amber-600/20 text-amber-400 border border-amber-500/30">
                                     <PawPrint className="w-4 h-4" />
                                   </div>
+                                ) : selectedBuilding.trainingQueue[0].unitType === 'warship' ? (
+                                  <div className="p-1.5 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                                    <Anchor className="w-4 h-4" />
+                                  </div>
                                 ) : selectedBuilding.trainingQueue[0].unitType === 'fishing_boat' ||
                                   selectedBuilding.trainingQueue[0].unitType === 'trade_boat' ? (
                                   <div className="p-1.5 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
@@ -5759,6 +5863,8 @@ export default function App() {
                                       ? 'Barco de Pesca Fluvial'
                                       : selectedBuilding.trainingQueue[0].unitType === 'trade_boat'
                                       ? 'Barco Mercante de Rio'
+                                      : selectedBuilding.trainingQueue[0].unitType === 'warship'
+                                      ? 'Barco de Guerra'
                                       : 'Aldeão Construtor'}
                                   </div>
                                   <div className="text-[10px] text-slate-400">
@@ -6030,6 +6136,29 @@ export default function App() {
                               <span>Barco Mercante [M]</span>
                             </div>
                             <span className="font-mono text-[11px] text-yellow-200">{describeCost(UNIT_COSTS.trade_boat)}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={
+                              !canAfford(myResources, UNIT_COSTS.warship) ||
+                              selectedBuilding.trainingQueue.length >= 5 ||
+                              myResources.pop + totalQueuedForPlayer >= myResources.maxPop
+                            }
+                            onClick={() => handleTrainUnit('warship', 1)}
+                            className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all ${
+                              canAfford(myResources, UNIT_COSTS.warship) &&
+                              selectedBuilding.trainingQueue.length < 5 &&
+                              myResources.pop + totalQueuedForPlayer < myResources.maxPop
+                                ? 'bg-rose-700 hover:bg-rose-600 text-white font-bold border-rose-400 shadow-md shadow-rose-500/10 hover:scale-[1.01]'
+                                : 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Anchor className="w-4 h-4 text-rose-200" />
+                              <span>Barco de Guerra [G]</span>
+                            </div>
+                            <span className="font-mono text-[11px] text-rose-200">{describeCost(UNIT_COSTS.warship)}</span>
                           </button>
                         </div>
                       )}

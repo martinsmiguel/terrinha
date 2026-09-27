@@ -1,4 +1,5 @@
 import type { Building, BuildingType, GameState, PlayerResources, ResourceNode, Unit, UnitType } from './engine';
+import { isBoatUnit } from './engine';
 import { BUILDING_CATALOG } from './buildingDefs';
 import { researchBlock } from './tech';
 
@@ -8,13 +9,14 @@ export type PlayerSlot = (typeof PLAYER_SLOTS)[number];
 const MAP_LIMIT = 60;
 const MAX_ID_LENGTH = 128;
 const BUILDING_TYPES = Object.keys(BUILDING_CATALOG).filter((type) => type !== 'town_center');
-const UNIT_TYPES = ['villager', 'soldier', 'cavalry', 'fishing_boat', 'trade_boat'];
+const UNIT_TYPES = ['villager', 'soldier', 'cavalry', 'fishing_boat', 'trade_boat', 'warship'];
 const UNIT_COSTS: Record<TrainableType, Partial<PlayerResources>> = {
   villager: { food: 50 },
   soldier: { food: 80, gold: 40 },
   cavalry: { food: 60, gold: 80 },
   fishing_boat: { wood: 75 },
   trade_boat: { wood: 100, gold: 30 },
+  warship: { wood: 120, gold: 80, planks: 40 },
 };
 const RESOURCE_KEYS = ['wood', 'food', 'gold', 'stone', 'planks'] as const;
 
@@ -245,10 +247,15 @@ export function isAuthorizedPlayerCommand(
       });
     case 'attack': {
       const attacker = ownsUnit(state, value.unitId, owner);
+      if (!attacker) return false;
       const targetId = value.targetId;
       const targetUnit = state.units.find((unit) => unit.id === targetId);
       const targetBuilding = state.buildings.find((building) => building.id === targetId);
-      return Boolean(attacker && ((targetUnit && targetUnit.owner !== owner) || (targetBuilding && targetBuilding.owner !== owner)));
+      // Barcos so enfrentam embarcacoes inimigas: nunca encostam em terra.
+      if (isBoatUnit(attacker.type)) {
+        return Boolean(targetUnit && targetUnit.owner !== owner && isBoatUnit(targetUnit.type));
+      }
+      return Boolean((targetUnit && targetUnit.owner !== owner) || (targetBuilding && targetBuilding.owner !== owner));
     }
     case 'build_order': {
       const unit = ownsUnit(state, value.unitId, owner);
@@ -268,7 +275,7 @@ export function isAuthorizedPlayerCommand(
       return (
         (building.type === 'town_center' && value.unitType === 'villager') ||
         (building.type === 'barracks' && (value.unitType === 'soldier' || value.unitType === 'cavalry')) ||
-        (building.type === 'dock' && (value.unitType === 'fishing_boat' || value.unitType === 'trade_boat'))
+        (building.type === 'dock' && isBoatUnit(value.unitType))
       );
     }
     case 'cancel_train': {

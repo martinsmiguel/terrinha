@@ -261,3 +261,81 @@ describe('research commands', () => {
     expect(isAuthorizedPlayerCommand(broke, { type: 'research', id: 'irrigation' }, 'player1')).toBe(false);
   });
 });
+
+describe('naval combat', () => {
+  const navalState: GameState = {
+    ...state,
+    playerResources: {
+      ...state.playerResources,
+      player1: { ...state.playerResources.player1, planks: 100 },
+    },
+    units: [
+      ...state.units,
+      {
+        id: 'warship-1', type: 'warship', owner: 'player1', position: { x: 30, z: 30 },
+        targetPosition: null, targetEntityId: null, health: 300, maxHealth: 300, attackDamage: 24, state: 'idle',
+      },
+      {
+        id: 'trade-2', type: 'trade_boat', owner: 'player2', position: { x: 32, z: 30 },
+        targetPosition: null, targetEntityId: null, health: 220, maxHealth: 220, attackDamage: 5, state: 'idle',
+      },
+    ],
+    buildings: [
+      ...state.buildings,
+      {
+        id: 'dock-1', type: 'dock', owner: 'player1', position: { x: 30, z: 34 },
+        health: 900, maxHealth: 900, isComplete: true, trainingQueue: [],
+      },
+      {
+        id: 'barracks-1', type: 'barracks', owner: 'player1', position: { x: 8, z: 8 },
+        health: 800, maxHealth: 800, isComplete: true, trainingQueue: [],
+      },
+    ],
+  };
+
+  it('trains warships only at the dock', () => {
+    const cmd = { type: 'train', buildingId: 'dock-1', unitType: 'warship' as const };
+    expect(isValidNetworkCommand(cmd)).toBe(true);
+    expect(isAuthorizedPlayerCommand(navalState, cmd, 'player1')).toBe(true);
+    expect(isAuthorizedPlayerCommand(navalState, { ...cmd, buildingId: 'barracks-1' }, 'player1')).toBe(false);
+    expect(isAuthorizedPlayerCommand(navalState, { ...cmd, buildingId: 'town-center-1' }, 'player1')).toBe(false);
+    expect(isAuthorizedPlayerCommand(navalState, cmd, 'player2')).toBe(false);
+  });
+
+  it('charges the 120 wood + 80 gold + 40 planks warship cost', () => {
+    const cmd = { type: 'train', buildingId: 'dock-1', unitType: 'warship' as const };
+    const noPlanks = {
+      ...navalState,
+      playerResources: {
+        ...navalState.playerResources,
+        player1: { ...navalState.playerResources.player1, planks: 39 },
+      },
+    };
+    expect(isAuthorizedPlayerCommand(noPlanks, cmd, 'player1')).toBe(false);
+
+    const noGold = {
+      ...navalState,
+      playerResources: {
+        ...navalState.playerResources,
+        player1: { ...navalState.playerResources.player1, gold: 79 },
+      },
+    };
+    expect(isAuthorizedPlayerCommand(noGold, cmd, 'player1')).toBe(false);
+  });
+
+  it('lets warships fight enemy boats and nothing else', () => {
+    expect(
+      isAuthorizedPlayerCommand(navalState, { type: 'attack', unitId: 'warship-1', targetId: 'trade-2' }, 'player1')
+    ).toBe(true);
+    expect(
+      isAuthorizedPlayerCommand(navalState, { type: 'attack', unitId: 'warship-1', targetId: 'soldier-2' }, 'player1')
+    ).toBe(false);
+    expect(
+      isAuthorizedPlayerCommand(navalState, { type: 'attack', unitId: 'warship-1', targetId: 'town-center-1' }, 'player1')
+    ).toBe(false);
+    // Tropas de terra podem atirar em barcos da margem
+    expect(
+      isAuthorizedPlayerCommand(navalState, { type: 'attack', unitId: 'soldier-2', targetId: 'warship-1' }, 'player2')
+    ).toBe(true);
+  });
+});

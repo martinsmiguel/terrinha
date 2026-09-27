@@ -9,7 +9,12 @@ import type { MatchStatus } from './victory';
 import type { TechState } from './tech';
 import { VISION_EXPLORED, VISION_UNEXPLORED, VISION_VISIBLE } from './visibility';
 
-export type UnitType = 'villager' | 'soldier' | 'cavalry' | 'fishing_boat' | 'trade_boat';
+export type UnitType = 'villager' | 'soldier' | 'cavalry' | 'fishing_boat' | 'trade_boat' | 'warship';
+
+/** Unidades navais: navegam apenas na agua e enfrentam outras embarcacoes. */
+export const BOAT_UNIT_TYPES: readonly UnitType[] = ['fishing_boat', 'trade_boat', 'warship'];
+
+export const isBoatUnit = (type: UnitType): boolean => BOAT_UNIT_TYPES.includes(type);
 export type BuildingType =
   | 'town_center'
   | 'house'
@@ -443,6 +448,11 @@ export class GameEngine {
 
   spawnConstructionParticles(x: number, y: number, z: number) {
     this.particles.spawnConstructionParticles(x, y, z);
+  }
+
+  /** Efeito de barco afundando: respingo, gotas e casco submerso. */
+  spawnBoatSinking(x: number, z: number) {
+    this.particles.spawnBoatSinking(x, z);
   }
 
   lastTime: number = performance.now();
