@@ -63,6 +63,7 @@ import {
 import * as THREE from 'three';
 import { v4 as uuidv4 } from 'uuid';
 import { createWorkZoneMesh, updateWorkZoneMesh } from './game/workZone';
+import { applyPopDelta, countDeathsByOwner } from './game/population';
 
 const FACTION_COLORS: Record<string, { name: string; hex: number; colorClass: string; border: string }> = {
   player1: { name: 'Império Português (Azul)', hex: 0x2563eb, colorClass: 'bg-blue-600', border: 'border-blue-500' },
@@ -2036,8 +2037,13 @@ export default function App() {
             }
 
             return unit;
-          })
-          .filter((u) => u.health > 0); // Remove dead units
+          });
+        // Free population slots of every unit that died this tick
+        const deathsByOwner = countDeathsByOwner(updatedUnits);
+        updatedUnits = updatedUnits.filter((u) => u.health > 0); // Remove dead units
+        for (const owner of Object.keys(deathsByOwner)) {
+          updatedResources = applyPopDelta(updatedResources, owner, -deathsByOwner[owner]);
+        }
 
         // Remove destroyed buildings
         updatedBuildings = updatedBuildings.filter((b) => b.health > 0);
@@ -2091,7 +2097,7 @@ export default function App() {
               updatedUnits.push(newUnit);
 
               if (updatedResources[building.owner]) {
-                updatedResources[building.owner].pop += 1;
+                updatedResources = applyPopDelta(updatedResources, building.owner, 1);
               }
 
               // Audio feedback: Unit finished training!
