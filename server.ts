@@ -6,6 +6,7 @@ import fs from 'fs';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
+import { GAME_STATE_COMPRESSION_OPTIONS } from './src/game/networkSync';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -64,6 +65,7 @@ async function startServer() {
   const app = express();
   const httpServer = createServer(app);
   const io = new Server(httpServer, {
+    ...GAME_STATE_COMPRESSION_OPTIONS,
     cors: {
       origin: '*',
     },
@@ -128,7 +130,7 @@ async function startServer() {
     socket.on('sync-game-state', (gameState: unknown) => {
       const roomId = socket.data.roomId;
       if (roomId && socket.data.isHost) {
-        socket.to(roomId).emit('game-state-update', gameState);
+        socket.to(roomId).compress(true).emit('game-state-update', gameState);
       }
     });
 
