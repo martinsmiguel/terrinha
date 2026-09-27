@@ -5,6 +5,5 @@ coverage/
 .DS_Store
 *.log
 .env*
-!.env.example
 bun.lock
 graphify-out/

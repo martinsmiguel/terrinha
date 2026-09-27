@@ -42,4 +42,23 @@ describe('generateProceduralTerrain', () => {
       second.resourceNodes.map(({ position }) => position)
     );
   });
+
+  it('produces the same terrain mesh geometry for the same seed', () => {
+    const first = generateProceduralTerrain(60, 12345);
+    const second = generateProceduralTerrain(60, 12345);
+
+    expect(first.seed).toBe(second.seed);
+    expect(Array.from(first.terrainMesh.geometry.attributes.position.array)).toEqual(
+      Array.from(second.terrainMesh.geometry.attributes.position.array)
+    );
+  });
+
+  it('changes the terrain mesh when the seed changes', () => {
+    const first = generateProceduralTerrain(60, 12345);
+    const second = generateProceduralTerrain(60, 54321);
+
+    expect(Array.from(first.terrainMesh.geometry.attributes.position.array)).not.toEqual(
+      Array.from(second.terrainMesh.geometry.attributes.position.array)
+    );
+  });
 });

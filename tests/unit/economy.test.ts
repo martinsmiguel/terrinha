@@ -75,6 +75,14 @@ describe('tradeResource', () => {
     expect(tradeResource(resources(), 'food', 'buy', 0).ok).toBe(false);
     expect(tradeResource(resources(), 'food', 'sell', Number.NaN).ok).toBe(false);
   });
+
+  it('does not mutate the original resources', () => {
+    const initial = resources();
+    tradeResource(initial, 'wood', 'buy', 100);
+
+    expect(initial.wood).toBe(200);
+    expect(initial.gold).toBe(500);
+  });
 });
 
 describe('canAfford', () => {

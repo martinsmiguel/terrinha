@@ -28,8 +28,17 @@ docker compose up --build
 ```
 
 Abra `http://localhost:3000` nesta máquina. Para jogar na rede local, compartilhe
-`http://<ip-da-maquina>:3000` com os demais jogadores. Encerre com
-`docker compose down`.
+`http://<ip-da-maquina>:3000` com os demais jogadores.
+
+Para manter o container atualizado enquanto edita o código, use Compose Watch
+(Docker Compose 2.22 ou superior):
+
+```bash
+docker compose up --watch
+```
+
+Alterações em `src/`, `server.ts`, `index.html` e na configuração de build
+reconstroem o serviço automaticamente. Encerre com `docker compose down`.
 
 Multiplayer: seus amigos abrem `http://<seu-ip>:3000` — use o botão
 **Criar Partida** / **Entrar via Código**. Detalhes em
