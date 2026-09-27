@@ -1,0 +1,8 @@
+{
+  "name": "Age of Empires: Browser Clone",
+  "description": "A real-time strategy game inspired by AoE3, featuring base building, resource gathering, and LAN multiplayer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
