@@ -5,6 +5,8 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GameEngine, GameState, Unit, Building, ResourceNode, MAP_SIZE, UnitType } from './game/engine';
+import { findPath, nextWaypoint } from './game/movement/pathfinding';
+import { resolveSeparation } from './game/movement/separation';
 import { MultiplayerManager, ChatMessage } from './game/multiplayer';
 import { Minimap } from './components/Minimap';
 import { soundManager } from './game/audio';
@@ -244,6 +246,8 @@ export default function App() {
 
   // 3D Object Render references
   const unitMeshes = useRef<Map<string, THREE.Group>>(new Map());
+  // Caminho A* por unidade: recalculado so quando o alvo muda (custo por tick = O(tamanho do caminho))
+  const unitPathsRef = useRef<Map<string, { goal: { x: number; z: number }; path: { x: number; z: number }[] }>>(new Map());
   const buildingMeshes = useRef<Map<string, THREE.Group>>(new Map());
   const resourceMeshes = useRef<Map<string, THREE.Group>>(new Map());
   const ghostBuildingMesh = useRef<THREE.Group | null>(null);
@@ -1730,21 +1734,48 @@ export default function App() {
           .map((unit) => {
             // A. Move to Target Position
             if (unit.targetPosition) {
-              const dx = unit.targetPosition.x - unit.position.x;
-              const dz = unit.targetPosition.z - unit.position.z;
+              const goal = unit.targetPosition;
+              const dx = goal.x - unit.position.x;
+              const dz = goal.z - unit.position.z;
               const dist = Math.sqrt(dx * dx + dz * dz);
 
               if (dist < 0.25) {
+                unitPathsRef.current.delete(unit.id);
                 return { ...unit, targetPosition: null, state: 'idle' as const };
               }
 
               const speed = unit.type === 'soldier' ? 0.2 : 0.16;
-              const nextX = unit.position.x + (dx / dist) * speed;
-              const nextZ = unit.position.z + (dz / dist) * speed;
-
-              // Collision check with impassable Skyrim cliffs and ocean
               const isBoat = unit.type === 'fishing_boat' || unit.type === 'trade_boat';
               const pMap = proceduralMapRef.current;
+
+              // A* no grid: cliffs/agua bloqueiam o caminho (cacheado por alvo)
+              const cached = unitPathsRef.current.get(unit.id);
+              if (!cached || cached.goal.x !== goal.x || cached.goal.z !== goal.z) {
+                const isBlocked = pMap
+                  ? isBoat
+                    ? (x: number, z: number) => !pMap.isWaterAt(x, z)
+                    : (x: number, z: number) => pMap.isImpassableAt(x, z)
+                  : () => false;
+                const path = findPath(unit.position, goal, isBlocked, { mapSize: MAP_SIZE, maxExpanded: 2400 });
+                unitPathsRef.current.set(unit.id, { goal: { x: goal.x, z: goal.z }, path });
+              }
+              const cachedPath = unitPathsRef.current.get(unit.id)?.path ?? [];
+
+              // Segue o proximo waypoint; sem rota (ou fim dela) segue reto ao alvo
+              const waypoint = cachedPath.length > 0 ? nextWaypoint(unit.position, cachedPath) : null;
+              const heading = waypoint ?? goal;
+              const hx = heading.x - unit.position.x;
+              const hz = heading.z - unit.position.z;
+              const headingDist = Math.sqrt(hx * hx + hz * hz);
+              if (headingDist < 1e-6) {
+                unitPathsRef.current.delete(unit.id);
+                return { ...unit, targetPosition: null, state: 'idle' as const };
+              }
+
+              const nextX = unit.position.x + (hx / headingDist) * speed;
+              const nextZ = unit.position.z + (hz / headingDist) * speed;
+
+              // Collision check with impassable Skyrim cliffs and ocean
               if (pMap) {
                 if (isBoat) {
                   if (!pMap.isWaterAt(nextX, nextZ)) {
@@ -2113,6 +2144,11 @@ export default function App() {
         // Free population slots of every unit that died this tick
         const deathsByOwner = countDeathsByOwner(updatedUnits);
         updatedUnits = updatedUnits.filter((u) => u.health > 0); // Remove dead units
+        // Descarta caminhos A* de unidades que ja sairam da partida
+        const liveUnitIds = new Set(updatedUnits.map((u) => u.id));
+        unitPathsRef.current.forEach((_, id) => {
+          if (!liveUnitIds.has(id)) unitPathsRef.current.delete(id);
+        });
         for (const owner of Object.keys(deathsByOwner)) {
           updatedResources = applyPopDelta(updatedResources, owner, -deathsByOwner[owner]);
         }
@@ -2289,6 +2325,34 @@ export default function App() {
               }
             }
           });
+        }
+
+        // 4. Separacao de corpos: empurra unidades sobrepostas (grid espacial, ~O(n) por tick)
+        const separationMap = proceduralMapRef.current;
+        if (separationMap && updatedUnits.length > 1) {
+          const movedPositions = new Map<string, { x: number; z: number }>();
+          const relax = (units: Unit[], isBlocked: (x: number, z: number) => boolean) => {
+            if (units.length < 2) return;
+            const resolved = resolveSeparation(
+              units.map((u) => ({ id: u.id, x: u.position.x, z: u.position.z })),
+              { mapSize: MAP_SIZE, isBlocked }
+            );
+            resolved.forEach((pos, index) => {
+              const unit = units[index];
+              if (pos.x !== unit.position.x || pos.z !== unit.position.z) {
+                movedPositions.set(unit.id, { x: pos.x, z: pos.z });
+              }
+            });
+          };
+          const isSeaUnit = (u: Unit) => u.type === 'fishing_boat' || u.type === 'trade_boat';
+          relax(updatedUnits.filter((u) => !isSeaUnit(u)), (x, z) => separationMap.isImpassableAt(x, z));
+          relax(updatedUnits.filter(isSeaUnit), (x, z) => !separationMap.isWaterAt(x, z));
+          if (movedPositions.size > 0) {
+            updatedUnits = updatedUnits.map((u) => {
+              const pos = movedPositions.get(u.id);
+              return pos ? { ...u, position: pos } : u;
+            });
+          }
         }
 
         return {
