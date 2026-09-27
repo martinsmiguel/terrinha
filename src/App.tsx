@@ -3011,7 +3011,7 @@ export default function App() {
               handleTrainUnit('villager', 1);
             } else if (b.type === 'barracks' && key === 's') {
               handleTrainUnit('soldier', 1);
-            } else if (b.type === 'barracks' && key === 'c') {
+            } else if (b.type === 'barracks' && key === 'g') {
               handleTrainUnit('cavalry', 1);
             } else if (b.type === 'dock' && key === 'p') {
               handleTrainUnit('fishing_boat', 1);
@@ -5926,7 +5926,7 @@ export default function App() {
                             }`}
                           >
                             <PawPrint className="w-4 h-4" />
-                            <span>Treinar Cavalaria (60 Alim + 80 Ouro) [C]</span>
+                            <span>Treinar Cavalaria (60 Alim + 80 Ouro) [G]</span>
                           </button>
 
                           <button
@@ -6743,7 +6743,7 @@ export default function App() {
                   <li>• <kbd className="font-mono text-slate-200">Z</kbd>: <strong className="text-emerald-300">Zonas de Trabalho Delimitadas</strong>: Configura o raio limite de extração (8m, 14m, 22m, etc.). Ao enviar aldeões para um recurso, eles fixam o local como centro e nunca saem desmatando o mapa inteiro descontroladamente!</li>
                   <li>• <kbd className="font-mono text-slate-200">V</kbd>: Recrutar Aldeão (Com Centro da Vila selecionado)</li>
                   <li>• <kbd className="font-mono text-slate-200">S</kbd>: Recrutar Mosqueteiro (Com Quartel selecionado)</li>
-                  <li>• <kbd className="font-mono text-slate-200">C</kbd>: Recrutar Cavalaria (Com Quartel selecionado)</li>
+                  <li>• <kbd className="font-mono text-slate-200">G</kbd>: Recrutar Cavalaria (Com Quartel selecionado)</li>
                   <li>• <strong className="text-slate-200">Fila de Produção de 5 Slots</strong>: Enfileire até 5 unidades; clique no ✕ de qualquer slot para cancelar e reembolsar 100% dos recursos!</li>
                   <li>• <strong className="text-slate-200">Manejo Sustentável vs Desmatamento</strong>: Selecione árvores para escolher entre remoção definitiva ou plantio automático de mudas com renovação contínua.</li>
                   <li>• <strong className="text-slate-200">Encadeamento Contínuo</strong>: Aldeões e mineradores buscam a próxima árvore ou mina próxima dentro da zona ao esgotar o alvo!</li>
