@@ -28,7 +28,7 @@ Servidor sobe em <http://localhost:3000> (Express + Vite em modo middleware).
 
 ## 3. Primeiro card
 
-1. Abra o [quadro de atividades](https://github.com/users/miguelrjmartins9/projects/1)
+1. Abra o [quadro de atividades](https://github.com/users/martinsmiguel/projects/1)
    e escolha um card em Ready.
 2. Crie um branch: `git checkout -b feat/<escopo>-<issue>`.
 3. Trabalhe, commite com Conventional Commits citando `#<issue>`.

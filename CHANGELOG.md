@@ -24,5 +24,5 @@ referenciados nos cards do quadro de atividades do GitHub.
 - Workflows do GitHub Actions: issues no quadro, sincronização com PRs,
   CI de lint/teste e bump de versão.
 
-[Unreleased]: https://github.com/miguelrjmartins9/terrinha/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/miguelrjmartins9/terrinha/releases/tag/v0.1.0
+[Unreleased]: https://github.com/martinsmiguel/terrinha/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/martinsmiguel/terrinha/releases/tag/v0.1.0

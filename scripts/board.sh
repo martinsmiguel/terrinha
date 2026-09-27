@@ -7,7 +7,7 @@ set -euo pipefail
 # Colunas aceitas: backlog | ready | in-progress | in-review | done | blocked
 # Requer: gh CLI autenticado (gh auth login)
 
-OWNER="miguelrjmartins9"
+OWNER="martinsmiguel"
 REPO="terrinha"
 PROJECT_NUMBER=1
 
