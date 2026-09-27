@@ -10,7 +10,7 @@ Se não cabe em um card, o card ainda não está pronto.
 ## Passo a passo
 
 ```bash
-# 1. Pegue um card em 🎯 Ready no quadro de atividades (issue #N)
+# 1. Pegue um card em Ready no quadro de atividades (issue #N)
 
 # 2. Branch
 git checkout -b feat/<escopo>-#N     # ou fix/…, docs/…, test/…
@@ -22,14 +22,14 @@ git commit -m "feat(combat): adiciona checagem de vitória [#14]"
 git push -u origin HEAD
 gh pr create --fill
 
-# 5. CI verde → review → merge → card em ✅ Done
+# 5. CI verde → review → merge → card em Done
 # 6. Release: bump SemVer + CHANGELOG (automatizado pelo workflow)
 ```
 
 ## Mover cards na API do GitHub
 
 ```bash
-./scripts/board.sh 14 in-progress   # move o card para 🚧 In Progress
+./scripts/board.sh 14 in-progress   # move o card para In Progress
 ```
 
 Colunas aceitas: `backlog`, `ready`, `in-progress`, `in-review`, `done`, `blocked`.

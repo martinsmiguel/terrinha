@@ -77,4 +77,4 @@ gh api graphql -f query='
     }) { projectV2Item { id } }
   }' -F project="$PROJECT_ID" -F item="$ITEM_ID" -F field="$FIELD_ID" -F value="$OPTION_ID" > /dev/null
 
-echo "✅ Issue #$ISSUE movida para '${LABEL[$COLUNA]}'"
+echo "Issue #$ISSUE movida para '${LABEL[$COLUNA]}'"

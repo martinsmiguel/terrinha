@@ -946,11 +946,11 @@ Implementar um Plugin Host próprio com menos de 300 linhas de TypeScript,
 usando um EventBus simples em vez do modelo de serviços do Cordis.
 
 ## Consequências
-- ✅ Kernel mais simples, mais fácil de entender e depurar.
-- ✅ Sem dependência pesada; menor superfície de ataque.
-- ✅ Curva de aprendizado menor para contribuidores.
-- ❌ Sem hot-reload automático (mitigado pelo HMR do Vite).
-- ❌ Sem injeção de dependência automática (resolvida por ordem topológica).</code></pre>
+- Pro: Kernel mais simples, mais fácil de entender e depurar.
+- Pro: Sem dependência pesada; menor superfície de ataque.
+- Pro: Curva de aprendizado menor para contribuidores.
+- Contra: Sem hot-reload automático (mitigado pelo HMR do Vite).
+- Contra: Sem injeção de dependência automática (resolvida por ordem topológica).</code></pre>
 
 <h3>10.3 Estrutura Completa da Documentação</h3>
 <pre><code>docs/
@@ -990,12 +990,12 @@ vira um card rastreável, e cada commit é uma prova de execução.
 <h3>11.1 Estrutura do Board (Colunas)</h3>
 <table>
   <tr><th>Coluna</th><th>Significado</th><th>Gatilho</th></tr>
-  <tr><td>📋 Backlog</td><td>Ideias não priorizadas.</td><td>Issue criada.</td></tr>
-  <tr><td>🎯 Ready</td><td>Priorizada com critérios definidos.</td><td>Label <code>ready</code>.</td></tr>
-  <tr><td>🚧 In Progress</td><td>Desenvolvimento ativo.</td><td>Label <code>in-progress</code>.</td></tr>
-  <tr><td>👀 In Review</td><td>Aguardando validação E2E.</td><td>PR aberto referenciando issue.</td></tr>
-  <tr><td>✅ Done</td><td>Teste E2E aprovado, PR mergeado.</td><td>PR mergeado.</td></tr>
-  <tr><td>🚫 Blocked</td><td>Impedimento externo.</td><td>Label <code>blocked</code>.</td></tr>
+  <tr><td>Backlog</td><td>Ideias não priorizadas.</td><td>Issue criada.</td></tr>
+  <tr><td>Ready</td><td>Priorizada com critérios definidos.</td><td>Label <code>ready</code>.</td></tr>
+  <tr><td>In Progress</td><td>Desenvolvimento ativo.</td><td>Label <code>in-progress</code>.</td></tr>
+  <tr><td>In Review</td><td>Aguardando validação E2E.</td><td>PR aberto referenciando issue.</td></tr>
+  <tr><td>Done</td><td>Teste E2E aprovado, PR mergeado.</td><td>PR mergeado.</td></tr>
+  <tr><td>Blocked</td><td>Impedimento externo.</td><td>Label <code>blocked</code>.</td></tr>
 </table>
 
 <h3>11.2 Campos Customizados dos Cards</h3>
@@ -1014,27 +1014,27 @@ about: Template padrão para itens do backlog
 labels: ['backlog']
 ---
 
-## 📖 História de Usuário
+## História de Usuário
 &lt;!-- Ex: Como jogador, quero coletar madeira para construir uma casa --&gt;
 
-## 🎯 Critério de Aceite (Teste E2E)
+## Critério de Aceite (Teste E2E)
 - [ ] Critério 1
 - [ ] Critério 2
 - [ ] Critério 3
 
-## 🧩 Épico
+## Épico
 &lt;!-- Preenchido pelo campo customizado --&gt;
 
-## 🔌 Plugin Afetado
+## Plugin Afetado
 &lt;!-- Ex: gathering, movement, network --&gt;
 
-## 📦 Versão Alvo
+## Versão Alvo
 &lt;!-- Ex: 0.2.0 --&gt;
 
-## 🔗 Dependências
+## Dependências
 &lt;!-- Issues que precisam estar Done antes desta --&gt;
 
-## 📝 Notas Técnicas
+## Notas Técnicas
 &lt;!-- Decisões de arquitetura, links para docs/explanation/ --&gt;</code></pre>
 
 <h3>11.4 Fluxo Completo de uma Tarefa</h3>
@@ -1234,7 +1234,7 @@ gh api graphql -f query='
     }) { projectV2Item { id } }
   }' -F project=$PROJECT_ID -F item=$ITEM_ID -F field=$FIELD_ID -F value=${STATUS[$COLUNA]}
 
-echo "✅ Issue #$ISSUE movida para '$COLUNA'"</code></pre>
+echo "Issue #$ISSUE movida para '$COLUNA'"</code></pre>
 
 <!-- ============ SEÇÃO 13 ============ -->
 <h2 id="s13">13. Blueprint de Implementação em 8 Semanas</h2>
@@ -1430,52 +1430,52 @@ adaptado ou descartado, com justificativa.
   <tr><th>Padrão do Harness</th><th>Decisão</th><th>Como/Justificativa</th></tr>
   <tr>
     <td>Everything-is-a-plugin</td>
-    <td>✅ <strong>Adotado</strong> (em escala reduzida)</td>
+    <td><strong>Adotado</strong> (em escala reduzida)</td>
     <td>Plugin Host mínimo + interface <code>GamePlugin</code>. Cada sistema do jogo é um plugin.</td>
   </tr>
   <tr>
     <td>Vendorização de dependências</td>
-    <td>✅ <strong>Adotado</strong></td>
+    <td><strong>Adotado</strong></td>
     <td><code>peerjs</code>, <code>three</code>, <code>ws</code> em <code>vendor/</code>.</td>
   </tr>
   <tr>
     <td>ADRs no repositório</td>
-    <td>✅ <strong>Adotado</strong></td>
+    <td><strong>Adotado</strong></td>
     <td><code>docs/explanation/adr/</code> integrado ao Diátaxis.</td>
   </tr>
   <tr>
     <td>Snapshot testing</td>
-    <td>✅ <strong>Adotado</strong></td>
+    <td><strong>Adotado</strong></td>
     <td><code>vitest.snapshot.config.ts</code> para verificar determinismo.</td>
   </tr>
   <tr>
     <td>Múltiplas configs de teste</td>
-    <td>✅ <strong>Adotado</strong></td>
+    <td><strong>Adotado</strong></td>
     <td>6 arquivos <code>vitest.*.config.ts</code> para diferentes camadas.</td>
   </tr>
   <tr>
     <td>Cordis completo</td>
-    <td>❌ <strong>Descartado</strong></td>
+    <td><strong>Descartado</strong></td>
     <td>Overkill; Kernel próprio com ~150 linhas cobre o caso.</td>
   </tr>
   <tr>
     <td>Monorepo pnpm</td>
-    <td>❌ <strong>Descartado</strong></td>
+    <td><strong>Descartado</strong></td>
     <td>Repositório único com pastas bem organizadas é suficiente.</td>
   </tr>
   <tr>
     <td>Multi-linguagem (Python, Rust)</td>
-    <td>❌ <strong>Descartado</strong></td>
+    <td><strong>Descartado</strong></td>
     <td>Tudo TypeScript/JavaScript no navegador.</td>
   </tr>
   <tr>
     <td>Múltiplas apps (Web + Desktop)</td>
-    <td>❌ <strong>Descartado</strong></td>
+    <td><strong>Descartado</strong></td>
     <td>Apenas Web (navegador) como alvo.</td>
   </tr>
   <tr>
     <td>Desenvolvimento via IA (AGENTS.md)</td>
-    <td>✅ <strong>Adotado parcialmente</strong></td>
+    <td><strong>Adotado parcialmente</strong></td>
     <td>Uso de OpenCode + Ollama; <code>AGENTS.md</code> como guia para assistentes.</td>
   </tr>
 </table>

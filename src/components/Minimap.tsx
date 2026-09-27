@@ -670,8 +670,8 @@ export const Minimap: React.FC<MinimapProps> = ({
               onClick={onToggleCameraLock}
               title={
                 isCameraLocked
-                  ? '🔒 Movimento Automático Travado (Câmera Fixa - Tecla L)'
-                  : '🔓 Movimento Automático Ativo (Rolagem de Borda - Tecla L)'
+                  ? 'Movimento Automático Travado (Câmera Fixa - Tecla L)'
+                  : 'Movimento Automático Ativo (Rolagem de Borda - Tecla L)'
               }
               className={`p-1 rounded-lg transition-colors ${
                 isCameraLocked

@@ -11,7 +11,7 @@ Este projeto é 100% open source (MIT) e segue três diretrizes obrigatórias:
 Todo trabalho é um **card no quadro de atividades** do GitHub Projects:
 
 ```
-Issue criada (card) → 🎯 Ready → 🚧 In Progress → 👀 In Review → ✅ Done
+Issue criada (card) → Ready → In Progress → In Review → Done
 ```
 
 1. **Crie/pegue um card** — cada issue tem história de usuário, critério de
@@ -21,7 +21,7 @@ Issue criada (card) → 🎯 Ready → 🚧 In Progress → 👀 In Review → �
    citar `#<número da issue>` — um commit = uma parte descritível de um card.
 4. **Abra um PR** apontando para `main`, citando `#<número>` no corpo.
 5. **CI deve passar** (`npm run lint`, testes).
-6. **Merge** → card vai para ✅ Done → bump de versão SemVer + CHANGELOG.
+6. **Merge** → card vai para Done → bump de versão SemVer + CHANGELOG.
 
 ### Formato dos commits
 
@@ -52,6 +52,11 @@ Breaking change: use `!` após o tipo ou o rodapé `BREAKING CHANGE:` (bump MAJO
 
 A versão é a do `package.json`. O `CHANGELOG.md` é atualizado em cada release.
 
+## Estilo
+
+- Não use emojis no código, nos commits nem na documentação — texto puro.
+- Interface do jogo em português (pt-BR).
+
 ## Documentação (Diátaxis)
 
 Antes de documentar qualquer coisa, escolha o quadrante certo:
@@ -77,6 +82,6 @@ Multiplayer na LAN: compartilhe `http://<ip-da-máquina>:3000` com os amigos.
 
 ## Padrões do quadro
 
-- Colunas: 📋 Backlog · 🎯 Ready · 🚧 In Progress · 👀 In Review · ✅ Done · 🚫 Blocked
+- Colunas: Backlog · Ready · In Progress · In Review · Done · Blocked
 - Campos: Épico, Versão Alvo, Critério de Aceite, Estimativa, Módulo
 - `./scripts/board.sh <issue> <coluna>` move um card via API do GitHub

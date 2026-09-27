@@ -10,9 +10,9 @@
 | Madeira (`wood`) | Árvores/florestas | Serralheria: +35% de eficiência; reflorestamento sustentável (~18 s) |
 | Comida (`food`) | Arbustos, peixes, fazendas | Fazenda: +2/s passivo |
 | Ouro (`gold`) | Jazidas | Mineradora: +40%; Mercado: +1/s; barco mercante: +3/s |
-| Pedra (`stone`) | — | ⚠️ Sem nó de recurso no mapa; ver card de correção de recursos |
-| População (`pop`) | Casas (+5 cada) | ⚠️ Vazamento ao perder unidades; ver card de correção |
-| Tábuas (`planks`) | — | ⚠️ Planejado, ainda não produzido (valor sempre 0) |
+| Pedra (`stone`) | — | Sem nó de recurso no mapa; ver card de correção de recursos |
+| População (`pop`) | Casas (+5 cada) | Vazamento ao perder unidades; ver card de correção |
+| Tábuas (`planks`) | — | Planejado, ainda não produzido (valor sempre 0) |
 
 ## Unidades
 

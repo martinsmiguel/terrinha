@@ -6,7 +6,7 @@ Aceito — 2026-09-27 · Em revisão no card de sincronização multiplayer
 
 ## Contexto
 
-A [especificação](../../especificacao-v2.html) propõe P2P via WebRTC
+A [especificação](../especificacao-v2.html) propõe P2P via WebRTC
 (PeerJS) com **lockstep determinístico** (ticks coordenados entre pares,
 comandos com tick alvo, checksum anti-divergência).
 
@@ -22,13 +22,13 @@ virar problema real, ou (b) o jogo precisar de partidas pela internet.
 
 ## Consequências
 
-- ✅ Funciona em qualquer rede local sem descoberta NAT/ICE — ideal para
+- Pro: funciona em qualquer rede local sem descoberta NAT/ICE — ideal para
   "amigos vindo visitar".
-- ✅ Sem necessidade de determinismo: o host é a única fonte de verdade.
-- ✅ Servidor único (`server.ts`) já expõe `/api/lan-info` e sala por ID.
-- ❌ Estado completo a cada mutação (~20×/s) — sem diff nem compressão.
-- ❌ Partida morre se o host sair; sem predição de movimento no cliente.
-- ❌ Cliente confia em comandos sem validação de posse/limites (ver card de
+- Pro: sem necessidade de determinismo — o host é a única fonte de verdade.
+- Pro: servidor único (`server.ts`) já expõe `/api/lan-info` e sala por ID.
+- Contra: estado completo a cada mutação (~20×/s) — sem diff nem compressão.
+- Contra: a partida morre se o host sair; sem predição de movimento no cliente.
+- Contra: o cliente confia em comandos sem validação de posse/limites (ver card de
   validação de comandos).
 
 ## Alternativas descartadas

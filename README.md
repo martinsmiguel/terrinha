@@ -1,4 +1,4 @@
-# Terrinha 🏡
+# Terrinha
 
 RTS de navegador **100% open source** para jogar com os seus amigos na sua
 rede local — inspirado em *Age of Empires*. Sem internet, sem downloads: seu
@@ -30,10 +30,10 @@ Documentada com [Diátaxis](https://diataxis.fr/) — veja
 
 | | |
 | --- | --- |
-| 🎓 Aprender | [docs/tutorials/](docs/tutorials/) |
-| 🔧 Resolver | [docs/how-to/](docs/how-to/) |
-| 📊 Dados técnicos | [docs/reference/](docs/reference/) |
-| 💡 Entender | [docs/explanation/](docs/explanation/) |
+| Aprender | [docs/tutorials/](docs/tutorials/) |
+| Resolver | [docs/how-to/](docs/how-to/) |
+| Dados técnicos | [docs/reference/](docs/reference/) |
+| Entender | [docs/explanation/](docs/explanation/) |
 
 ## Processo
 

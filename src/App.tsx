@@ -151,8 +151,8 @@ export default function App() {
       soundManager.playClickSound();
       triggerNotification(
         next
-          ? '🔒 Movimento automático travado: câmera fixa (use WASD ou arraste para mover).'
-          : '🔓 Movimento automático liberado: rolagem suave pelas bordas ativa.',
+          ? 'Movimento automático travado: câmera fixa (use WASD ou arraste para mover).'
+          : 'Movimento automático liberado: rolagem suave pelas bordas ativa.',
         'info'
       );
       return next;
@@ -742,7 +742,7 @@ export default function App() {
       resourceNodes: procMap.resourceNodes,
     }));
     soundManager.playClickSound();
-    triggerNotification(`🎲 Novo mapa procedural gerado! Rio meandro, vales férteis e cardumes renovados (Semente: ${newSeed}).`, 'success');
+    triggerNotification(`Novo mapa procedural gerado! Rio meandro, vales férteis e cardumes renovados (Semente: ${newSeed}).`, 'success');
   };
 
   // Synchronize 3D Scene Objects with Simulation State
@@ -2025,7 +2025,7 @@ export default function App() {
                     }
                     if (targetB.owner === playerSlot) {
                       soundManager.playBuildingCompletedSound(targetB.type);
-                      triggerNotification(`🏰 Construção Concluída: ${bDef ? bDef.name : 'Edifício'}!`, 'success');
+                      triggerNotification(`Construção Concluída: ${bDef ? bDef.name : 'Edifício'}!`, 'success');
                     }
                     return { ...unit, state: 'idle' as const, targetEntityId: null };
                   }
@@ -2622,7 +2622,7 @@ export default function App() {
 
       if (!check.isValid) {
         soundManager.playClickSound();
-        triggerNotification(`🚫 Não é possível construir aqui: ${check.reason || 'Local inválido'}`, 'warning');
+        triggerNotification(`Não é possível construir aqui: ${check.reason || 'Local inválido'}`, 'warning');
         return;
       }
 
@@ -2666,7 +2666,7 @@ export default function App() {
           soundManager.playBuildingConstructStartedSound(buildMode);
           multiRef.current?.sendToHost(cmd);
         }
-        triggerNotification(`🏗️ Fundação iniciada: ${def ? def.name : 'Edifício'}!`, 'info');
+        triggerNotification(`Fundação iniciada: ${def ? def.name : 'Edifício'}!`, 'info');
         setBuildMode(null);
       } else {
         soundManager.playClickSound();
@@ -2726,12 +2726,12 @@ export default function App() {
           if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
           else multiRef.current?.sendToHost(cmd);
           triggerNotification(
-            `🎯 Novo centro da Zona de Trabalho definido em X:${Math.round(targetPos.x)} Z:${Math.round(targetPos.z)} (Raio: ${radius}m)!`,
+            `Novo centro da Zona de Trabalho definido em X:${Math.round(targetPos.x)} Z:${Math.round(targetPos.z)} (Raio: ${radius}m)!`,
             'success'
           );
         } else {
           triggerNotification(
-            `🎯 Centro da Zona configurado em X:${Math.round(targetPos.x)} Z:${Math.round(targetPos.z)}. Envie aldeões para colher aqui!`,
+            `Centro da Zona configurado em X:${Math.round(targetPos.x)} Z:${Math.round(targetPos.z)}. Envie aldeões para colher aqui!`,
             'info'
           );
         }
@@ -3208,7 +3208,7 @@ export default function App() {
       soundManager.playClickSound();
       if (sentCount > 0) {
         triggerNotification(
-          `🎯 Zona de Trabalho estabelecida! ${sentCount} aldeão(ões) vinculados a este local (raio: ${radius >= 999 ? 'busca livre' : `${radius}m`}).`,
+          `Zona de Trabalho estabelecida! ${sentCount} aldeão(ões) vinculados a este local (raio: ${radius >= 999 ? 'busca livre' : `${radius}m`}).`,
           'info'
         );
       }
@@ -3223,7 +3223,7 @@ export default function App() {
       // Check if clicked location is an impassable Skyrim rocky cliff
       const isLandUnit = myUnits.some((u) => u.type !== 'fishing_boat' && u.type !== 'trade_boat');
       if (isLandUnit && proceduralMapRef.current?.isCliffAt(point.x, point.z)) {
-        triggerNotification('⛰️ Pico rochoso íngreme intransitável (Estilo Skyrim)! As tropas não podem subir.', 'warning');
+        triggerNotification('Pico rochoso íngreme intransitável (Estilo Skyrim)! As tropas não podem subir.', 'warning');
         soundManager.playClickSound();
         return;
       }
@@ -3386,8 +3386,8 @@ export default function App() {
 
     triggerNotification(
       mode === 'sustainable'
-        ? '🌲 Manejo Florestal Sustentável: A árvore renascerá automaticamente com nova muda após colheita!'
-        : '🪓 Desmatamento Permanente: A árvore será removida para desobstruir e limpar o terreno.',
+        ? 'Manejo Florestal Sustentável: A árvore renascerá automaticamente com nova muda após colheita!'
+        : 'Desmatamento Permanente: A árvore será removida para desobstruir e limpar o terreno.',
       'info'
     );
   };
@@ -3421,8 +3421,8 @@ export default function App() {
 
     triggerNotification(
       mode === 'sustainable'
-        ? `🌲 Bosque "${centerNode.clusterName || 'Local'}" (${targetTrees.length} árvores) configurado para Reflorestamento Sustentável! Todas as árvores replantarão mudas automaticamente.`
-        : `🪓 Bosque "${centerNode.clusterName || 'Local'}" (${targetTrees.length} árvores) configurado para Desmatamento Permanente!`,
+        ? `Bosque "${centerNode.clusterName || 'Local'}" (${targetTrees.length} árvores) configurado para Reflorestamento Sustentável! Todas as árvores replantarão mudas automaticamente.`
+        : `Bosque "${centerNode.clusterName || 'Local'}" (${targetTrees.length} árvores) configurado para Desmatamento Permanente!`,
       'info'
     );
   };
@@ -3442,8 +3442,8 @@ export default function App() {
 
     triggerNotification(
       nextState
-        ? '🌿 Política Colonial de Reflorestamento ATIVADA! Toda árvore colhida no mapa renascerá automaticamente com nova muda.'
-        : '🪓 Política Colonial de Reflorestamento DESATIVADA. O manejo volta às configurações individuais de cada bosque.',
+        ? 'Política Colonial de Reflorestamento ATIVADA! Toda árvore colhida no mapa renascerá automaticamente com nova muda.'
+        : 'Política Colonial de Reflorestamento DESATIVADA. O manejo volta às configurações individuais de cada bosque.',
       nextState ? 'success' : 'info'
     );
   };
@@ -3674,7 +3674,7 @@ export default function App() {
       else multiRef.current?.sendToHost(cmd);
 
       triggerNotification(
-        `🎯 Raio da Zona ajustado para ${newRadius >= 999 ? 'Sem Limite (Livre)' : `${newRadius}m`} (${unitIds.length} aldeão[ões])!`,
+        `Raio da Zona ajustado para ${newRadius >= 999 ? 'Sem Limite (Livre)' : `${newRadius}m`} (${unitIds.length} aldeão[ões])!`,
         'success'
       );
     }
@@ -3699,12 +3699,12 @@ export default function App() {
       else multiRef.current?.sendToHost(cmd);
 
       triggerNotification(
-        `🎯 Raio de ${newRadius >= 999 ? 'Sem Limite' : `${newRadius}m`} aplicado a todos os ${activeVillagers.length} aldeões em trabalho!`,
+        `Raio de ${newRadius >= 999 ? 'Sem Limite' : `${newRadius}m`} aplicado a todos os ${activeVillagers.length} aldeões em trabalho!`,
         'success'
       );
     } else {
       triggerNotification(
-        `🎯 Raio padrão configurado para ${newRadius >= 999 ? 'Sem Limite' : `${newRadius}m`}. Envie aldeões para colher.`,
+        `Raio padrão configurado para ${newRadius >= 999 ? 'Sem Limite' : `${newRadius}m`}. Envie aldeões para colher.`,
         'info'
       );
     }
@@ -3817,7 +3817,7 @@ export default function App() {
               </button>
             </div>
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              💡 <strong>Dica Multiplayer:</strong> Qualquer pessoa conectada no mesmo Wi-Fi pode abrir este link no navegador do celular ou PC para entrar na sua partida sem precisar de internet!
+              <strong>Dica Multiplayer:</strong> Qualquer pessoa conectada no mesmo Wi-Fi pode abrir este link no navegador do celular ou PC para entrar na sua partida sem precisar de internet!
             </p>
           </div>
 
@@ -4049,15 +4049,15 @@ export default function App() {
                 <div className="mt-1.5 pt-1 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono">
                   <div className="flex items-center gap-1">
                     <span className={canAffordWood ? 'text-amber-400 font-bold' : 'text-red-400 font-bold'}>
-                      🪵 {def.cost.wood}
+                      M {def.cost.wood}
                     </span>
                     {def.cost.gold && (
                       <span className={canAffordGold ? 'text-yellow-400 font-bold' : 'text-red-400 font-bold'}>
-                        🪙 {def.cost.gold}
+                        O {def.cost.gold}
                       </span>
                     )}
                   </div>
-                  <span className="text-slate-500 text-[9px]">⏱️ {def.buildTimeSeconds}s</span>
+                  <span className="text-slate-500 text-[9px]">{def.buildTimeSeconds}s</span>
                 </div>
 
                 {!canAfford && (
@@ -4178,16 +4178,16 @@ export default function App() {
               {/* Compact Resource Ticker */}
               <div className="flex items-center gap-2 sm:gap-4 text-xs font-mono">
                 <span className="flex items-center gap-1 text-amber-300 font-bold" title="Madeira">
-                  🪵 {Math.floor(myResources.wood)}
+                  M {Math.floor(myResources.wood)}
                 </span>
                 <span className="flex items-center gap-1 text-red-300 font-bold" title="Alimento">
-                  🍖 {Math.floor(myResources.food)}
+                  C {Math.floor(myResources.food)}
                 </span>
                 <span className="flex items-center gap-1 text-yellow-300 font-bold" title="Ouro">
-                  🪙 {Math.floor(myResources.gold)}
+                  O {Math.floor(myResources.gold)}
                 </span>
                 <span className="flex items-center gap-1 text-blue-300 font-bold" title="População">
-                  👥 {myResources.pop}/{myResources.maxPop}
+                  Pop {myResources.pop}/{myResources.maxPop}
                 </span>
               </div>
 
@@ -4264,8 +4264,8 @@ export default function App() {
                   }`}
                   title={
                     isCameraAutoMoveLocked
-                      ? '🔒 Câmera Fixa: rolagem automática pelas bordas travada (Tecla L). Clique para destravar.'
-                      : '🔓 Câmera Livre: rolagem automática pelas bordas ativa (Tecla L). Clique para travar.'
+                      ? 'Câmera Fixa: rolagem automática pelas bordas travada (Tecla L). Clique para destravar.'
+                      : 'Câmera Livre: rolagem automática pelas bordas ativa (Tecla L). Clique para travar.'
                   }
                 >
                   {isCameraAutoMoveLocked ? <Lock className="w-3.5 h-3.5 text-amber-400" /> : <Unlock className="w-3.5 h-3.5 text-slate-400" />}
@@ -4878,8 +4878,8 @@ export default function App() {
                           </span>
                           <span className="font-mono text-emerald-400">
                             {selectedUnit.gatherShiftSecondsRemaining !== undefined
-                              ? `⏱️ ${Math.round(selectedUnit.gatherShiftSecondsRemaining)}s turno`
-                              : '⏳ Contínuo'}
+                              ? `${Math.round(selectedUnit.gatherShiftSecondsRemaining)}s turno`
+                              : 'Contínuo'}
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-[10px] pt-1 border-t border-slate-800/80">
@@ -4949,7 +4949,7 @@ export default function App() {
                           setIsSettingZoneCenter(true);
                           soundManager.playClickSound();
                           triggerNotification(
-                            '🎯 Clique em qualquer árvore ou terreno para definir o novo centro da Zona de Trabalho.',
+                            'Clique em qualquer árvore ou terreno para definir o novo centro da Zona de Trabalho.',
                             'info'
                           );
                         }}
@@ -5505,14 +5505,14 @@ export default function App() {
                         </h3>
                         {selectedResource.isRegrowing && (
                           <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30 animate-pulse">
-                            🌱 Em Crescimento
+                            Em Crescimento
                           </span>
                         )}
                       </div>
                       <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
                         <span>
                           {selectedResource.isRegrowing
-                            ? `🌱 Muda em desenvolvimento (${Math.round(selectedResource.regrowthProgress || 0)}% completo)`
+                            ? `Muda em desenvolvimento (${Math.round(selectedResource.regrowthProgress || 0)}% completo)`
                             : selectedResource.type === 'tree'
                             ? 'Madeira para habitações, quartéis e torres'
                             : selectedResource.type === 'gold_mine'
@@ -5693,11 +5693,11 @@ export default function App() {
                         {/* Presets */}
                         <div className="grid grid-cols-2 sm:grid-cols-5 gap-1">
                           {[
-                            { r: 8, label: '🌲 8m', title: 'Bosque Estrito' },
-                            { r: 14, label: '🌳 14m', title: 'Bosque Médio' },
-                            { r: 22, label: '🗺️ 22m', title: 'Área Local' },
-                            { r: 35, label: '🌐 35m', title: 'Setor Amplo' },
-                            { r: 999, label: '♾️ Livre', title: 'Todo Mapa' },
+                            { r: 8, label: '8m', title: 'Bosque Estrito' },
+                            { r: 14, label: '14m', title: 'Bosque Médio' },
+                            { r: 22, label: '22m', title: 'Área Local' },
+                            { r: 35, label: '35m', title: 'Setor Amplo' },
+                            { r: 999, label: 'Livre', title: 'Todo Mapa' },
                           ].map((preset) => (
                             <button
                               key={preset.r}
@@ -5706,7 +5706,7 @@ export default function App() {
                                 setGatherRadiusLimit(preset.r);
                                 soundManager.playClickSound();
                                 triggerNotification(
-                                  `🎯 Raio da Zona de Trabalho definido para ${preset.r >= 999 ? 'Sem Limite' : `${preset.r}m`} (${preset.title}).`,
+                                  `Raio da Zona de Trabalho definido para ${preset.r >= 999 ? 'Sem Limite' : `${preset.r}m`} (${preset.title}).`,
                                   'info'
                                 );
                               }}
@@ -5734,7 +5734,7 @@ export default function App() {
                             </span>
                           </span>
                           <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-800/40 font-mono">
-                            🔒 Trava Estrita no Raio
+                            Trava Estrita no Raio
                           </span>
                         </div>
                       </div>
@@ -5787,7 +5787,7 @@ export default function App() {
                           />
                         </div>
                         <div className="text-[11px] text-slate-400">
-                          🌱 A muda está se desenvolvendo. Em poucos segundos a árvore estará adulta para nova extração!
+                          A muda está se desenvolvendo. Em poucos segundos a árvore estará adulta para nova extração!
                         </div>
                       </div>
                     ) : (
@@ -6140,11 +6140,11 @@ export default function App() {
 
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
                 {[
-                  { r: 8, label: '🌲 8m', title: 'Bosque Estrito', desc: 'Apenas árvores imediatas' },
-                  { r: 14, label: '🌳 14m', title: 'Padrão', desc: 'Bosque completo' },
-                  { r: 22, label: '🗺️ 22m', title: 'Área Local', desc: 'Bosque e margens' },
-                  { r: 35, label: '🌐 35m', title: 'Amplo', desc: 'Setor expandido' },
-                  { r: 999, label: '♾️ Livre', title: 'Sem Limite', desc: 'Todo o mapa' },
+                  { r: 8, label: '8m', title: 'Bosque Estrito', desc: 'Apenas árvores imediatas' },
+                  { r: 14, label: '14m', title: 'Padrão', desc: 'Bosque completo' },
+                  { r: 22, label: '22m', title: 'Área Local', desc: 'Bosque e margens' },
+                  { r: 35, label: '35m', title: 'Amplo', desc: 'Setor expandido' },
+                  { r: 999, label: 'Livre', title: 'Sem Limite', desc: 'Todo o mapa' },
                 ].map((preset) => (
                   <button
                     key={preset.r}

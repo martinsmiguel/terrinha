@@ -74,7 +74,7 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
           <div className="text-left">
             <div className="text-[9px] text-amber-400/80 font-semibold uppercase tracking-wider flex items-center gap-1">
               <span>Madeira</span>
-              <span className="text-[8px] font-mono text-slate-400">({activeGatherers.wood}👨‍🌾)</span>
+              <span className="text-[8px] font-mono text-slate-400">({activeGatherers.wood} coletando)</span>
             </div>
             <div className="text-xs sm:text-sm font-mono font-bold text-amber-300">
               {Math.floor(resources.wood)}
@@ -161,7 +161,7 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
           <div className="text-left">
             <div className="text-[9px] text-red-400/80 font-semibold uppercase tracking-wider flex items-center gap-1">
               <span>Alimento</span>
-              <span className="text-[8px] font-mono text-slate-400">({activeGatherers.food}🌾)</span>
+              <span className="text-[8px] font-mono text-slate-400">({activeGatherers.food} coletando)</span>
             </div>
             <div className="text-xs sm:text-sm font-mono font-bold text-red-300">
               {Math.floor(resources.food)}
@@ -230,7 +230,7 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
           <div className="text-left">
             <div className="text-[9px] text-blue-400/80 font-semibold uppercase tracking-wider flex items-center gap-1">
               <span>Rio & Pesca</span>
-              <span className="text-[8px] font-mono text-slate-400">({activeGatherers.fish}⛵)</span>
+              <span className="text-[8px] font-mono text-slate-400">({activeGatherers.fish} coletando)</span>
             </div>
             <div className="text-xs sm:text-sm font-mono font-bold text-blue-300">
               Cardumes
@@ -299,7 +299,7 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
           <div className="text-left">
             <div className="text-[9px] text-yellow-400/80 font-semibold uppercase tracking-wider flex items-center gap-1">
               <span>Ouro & Minério</span>
-              <span className="text-[8px] font-mono text-slate-400">({activeGatherers.gold}⛏️)</span>
+              <span className="text-[8px] font-mono text-slate-400">({activeGatherers.gold} coletando)</span>
             </div>
             <div className="text-xs sm:text-sm font-mono font-bold text-yellow-300">
               {Math.floor(resources.gold)}
@@ -400,7 +400,7 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
           type="button"
           onClick={onRegenerateProceduralMap}
           className="p-2 rounded-2xl bg-slate-900 hover:bg-slate-800 text-emerald-300 hover:text-emerald-200 border border-emerald-500/30 hover:border-emerald-400 transition-all"
-          title="🎲 Gerar Novo Mapa Procedural (Novo Rio & Vales)"
+          title="Gerar Novo Mapa Procedural (Novo Rio & Vales)"
         >
           <RefreshCw className="w-4 h-4" />
         </button>

@@ -92,9 +92,9 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
           <div className="flex items-center gap-3">
             {/* Quick Resource Balance */}
             <div className="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-xl bg-black/40 border border-amber-500/30 font-mono text-xs">
-              <span className="text-amber-300">🪵 {Math.floor(playerResources.wood)}</span>
-              <span className="text-red-300">🌾 {Math.floor(playerResources.food)}</span>
-              <span className="text-yellow-300">🪙 {Math.floor(playerResources.gold)}</span>
+              <span className="text-amber-300">M {Math.floor(playerResources.wood)}</span>
+              <span className="text-red-300">C {Math.floor(playerResources.food)}</span>
+              <span className="text-yellow-300">O {Math.floor(playerResources.gold)}</span>
             </div>
 
             <button
@@ -223,14 +223,14 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
                     <div className="pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
                       <div className="flex items-center gap-2 text-xs font-mono">
                         <span className={canAffordWood ? 'text-amber-400 font-bold' : 'text-red-400 font-bold'}>
-                          🪵 {def.cost.wood}
+                          M {def.cost.wood}
                         </span>
                         {def.cost.gold && (
                           <span className={canAffordGold ? 'text-yellow-400 font-bold' : 'text-red-400 font-bold'}>
-                            🪙 {def.cost.gold}
+                            O {def.cost.gold}
                           </span>
                         )}
-                        <span className="text-slate-500 text-[10px]">⏱️ {def.buildTimeSeconds}s</span>
+                        <span className="text-slate-500 text-[10px]">{def.buildTimeSeconds}s</span>
                       </div>
 
                       <button
@@ -277,19 +277,19 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <div className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-amber-200">
-                      🌲 Bosques / Árvores
+                      Bosques / Árvores
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-500" />
                     <div className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-amber-300">
-                      🪓 Corte pelo Aldeão (+1x)
+                      Corte pelo Aldeão (+1x)
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-500" />
                     <div className="px-3 py-1.5 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 font-bold">
-                      🪚 Serralheria & Madeireira (+35% Velocidade)
+                      Serralheria & Madeireira (+35% Velocidade)
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-500" />
                     <div className="px-3 py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-bold">
-                      📦 Tábuas Nobres para Navios e Torres
+                      Tábuas Nobres para Navios e Torres
                     </div>
                   </div>
                 </div>
@@ -304,19 +304,19 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <div className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-red-200">
-                      🌾 Trigo da Fazenda / 🐟 Cardumes do Rio
+                      Trigo da Fazenda / Cardumes do Rio
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-500" />
                     <div className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-red-300">
-                      🚜 Aldeão Agrícola / ⛵ Barco de Pesca
+                      Aldeão Agrícola / Barco de Pesca
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-500" />
                     <div className="px-3 py-1.5 rounded-xl bg-red-950/60 border border-red-500/40 text-red-200 font-bold">
-                      🥖 Produção Contínua e Renovável
+                      Produção Contínua e Renovável
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-500" />
                     <div className="px-3 py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-bold">
-                      👥 Sustento de Colonos & Exércitos
+                      Sustento de Colonos & Exércitos
                     </div>
                   </div>
                 </div>
@@ -331,19 +331,19 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <div className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-yellow-200">
-                      ⛏️ Veios de Minério & Ouro
+                      Veios de Minério & Ouro
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-500" />
                     <div className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-yellow-300">
-                      ⚒️ Extração por Picareta (+1x)
+                      Extração por Picareta (+1x)
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-500" />
                     <div className="px-3 py-1.5 rounded-xl bg-yellow-950/60 border border-yellow-500/40 text-yellow-200 font-bold">
-                      🏭 Mineradora & Forja (+40% Rendimento)
+                      Mineradora & Forja (+40% Rendimento)
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-500" />
                     <div className="px-3 py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-bold">
-                      🪙 Moedas & Mosquetes Avançados
+                      Moedas & Mosquetes Avançados
                     </div>
                   </div>
                 </div>
@@ -388,7 +388,7 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
                 <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900/80 flex flex-col justify-between">
                   <div className="flex items-center justify-between mb-3">
                     <span className="flex items-center gap-1.5 font-bold text-sm text-amber-300">
-                      🪵 Madeira Nobre
+                      Madeira Nobre
                     </span>
                     <span className="text-xs font-mono text-slate-400">
                       Estoque: {Math.floor(playerResources.wood)}
@@ -424,7 +424,7 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
                 <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900/80 flex flex-col justify-between">
                   <div className="flex items-center justify-between mb-3">
                     <span className="flex items-center gap-1.5 font-bold text-sm text-red-300">
-                      🌾 Cereais & Peixes
+                      Cereais & Peixes
                     </span>
                     <span className="text-xs font-mono text-slate-400">
                       Estoque: {Math.floor(playerResources.food)}

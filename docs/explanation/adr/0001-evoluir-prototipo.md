@@ -24,11 +24,11 @@ refatorações incrementais, cada uma coberta por card com critério de aceite.
 
 ## Consequências
 
-- ✅ Jogo jogável desde o primeiro commit; progresso visível card a card.
-- ✅ Risco baixo: cada refactor é pequeno e verificável manualmente.
-- ✅ Multiplayer LAN já funciona — objetivo central do produto.
-- ❌ Convivemos temporariamente com o "god component" `App.tsx` (~6300 linhas).
-- ❌ A spec não é obedecida literalmente em ordem (há dívidas mapeadas em cards).
+- Pro: jogo jogável desde o primeiro commit; progresso visível card a card.
+- Pro: risco baixo — cada refactor é pequeno e verificável manualmente.
+- Pro: multiplayer LAN já funciona — objetivo central do produto.
+- Contra: convivemos temporariamente com o "god component" `App.tsx` (~6300 linhas).
+- Contra: a spec não é obedecida literalmente em ordem (há dívidas mapeadas em cards).
 
 ## Alternativas descartadas
 

@@ -4,32 +4,32 @@ about: Template padrão para cards do quadro de atividades
 labels: ['backlog']
 ---
 
-## 📖 História de Usuário
+## História de Usuário
 
 <!-- Como <papel>, quero <ação> para <benefício>. -->
 
-## 🎯 Critério de Aceite (verificável)
+## Critério de Aceite (verificável)
 
 - [ ] Critério 1 (teste manual ou automatizado)
 - [ ] Critério 2
 - [ ] `npm run lint` passa
 
-## 📦 Versão Alvo (SemVer)
+## Versão Alvo (SemVer)
 
 <!-- 0.1.0 / 0.2.0 / … — qual bump este card representa -->
 
-## 🧩 Épico
+## Épico
 
 <!-- Fundação · Sistemas Centrais · Multiplayer · Polimento -->
 
-## 🔧 Módulo Afetado
+## Módulo Afetado
 
 <!-- ex: src/game/combat.ts, docs/, server.ts -->
 
-## 🔗 Dependências
+## Dependências
 
 <!-- Issues que precisam estar Done antes desta -->
 
-## 📝 Notas Técnicas
+## Notas Técnicas
 
 <!-- Links para docs/explanation/, ADRs, decisões -->
