@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import { isValidNetworkCommand, type NetworkCommand, type PlayerSlot } from './networkCommands';
 
 export interface ChatMessage {
   sender: string;
@@ -11,18 +12,21 @@ export class MultiplayerManager {
   roomId: string;
   isHost: boolean;
   playerName: string;
+  playerSlot: PlayerSlot;
   connected: boolean = false;
   onStateUpdate?: (state: any) => void;
-  onCommand?: (cmd: any) => void;
+  onCommand?: (cmd: NetworkCommand) => void;
   onPlayerJoined?: (data: { id: string; playerName: string; playerCount: number }) => void;
   onPlayerLeft?: (data: { id: string; playerName: string; playerCount: number }) => void;
   onChatMessage?: (chat: ChatMessage) => void;
   onConnectionStatus?: (connected: boolean) => void;
+  onJoinError?: (message: string) => void;
 
-  constructor(roomId: string, isHost: boolean, playerName: string = 'Comandante') {
+  constructor(roomId: string, isHost: boolean, playerName: string, playerSlot: PlayerSlot) {
     this.roomId = roomId;
     this.isHost = isHost;
     this.playerName = playerName;
+    this.playerSlot = playerSlot;
 
     // Connects to origin host directly (works offline on LAN via IP or localhost)
     this.socket = io({
@@ -42,8 +46,14 @@ export class MultiplayerManager {
       this.socket.emit('join-room', {
         roomId: this.roomId,
         playerName: this.playerName,
+        playerSlot: this.playerSlot,
         isHost: this.isHost,
       });
+    });
+
+    this.socket.on('join-error', (message: unknown) => {
+      this.onJoinError?.(typeof message === 'string' ? message : 'Não foi possível entrar na sala.');
+      this.socket.disconnect();
     });
 
     this.socket.on('disconnect', () => {
@@ -67,8 +77,8 @@ export class MultiplayerManager {
     });
 
     // Host receives commands from Clients
-    this.socket.on('client-command', (command) => {
-      if (this.isHost) {
+    this.socket.on('client-command', (command: unknown) => {
+      if (this.isHost && isValidNetworkCommand(command)) {
         this.onCommand?.(command);
       }
     });
