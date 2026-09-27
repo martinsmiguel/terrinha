@@ -92,7 +92,7 @@ export class MultiplayerManager {
   // Host sends state to all clients
   broadcast(gameState: any) {
     if (this.isHost && this.socket.connected) {
-      this.socket.emit('sync-game-state', gameState);
+      this.socket.compress(true).emit('sync-game-state', gameState);
     }
   }
 

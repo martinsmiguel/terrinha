@@ -1,0 +1,67 @@
+import { deflateSync } from 'node:zlib';
+import { describe, expect, it } from 'vitest';
+import {
+  GAME_STATE_COMPRESSION_OPTIONS,
+  GAME_STATE_COMPRESSION_THRESHOLD_BYTES,
+} from '../../src/game/networkSync';
+
+describe('game state network compression', () => {
+  it('enables thresholded compression for both supported Socket.IO transports', () => {
+    expect(GAME_STATE_COMPRESSION_OPTIONS).toEqual({
+      httpCompression: { threshold: GAME_STATE_COMPRESSION_THRESHOLD_BYTES },
+      perMessageDeflate: { threshold: GAME_STATE_COMPRESSION_THRESHOLD_BYTES },
+    });
+  });
+
+  it('substantially reduces a representative four-player state payload', () => {
+    const gameState = {
+      units: Array.from({ length: 160 }, (_, index) => ({
+        id: `unit-${index}`,
+        type: index % 2 === 0 ? 'villager' : 'soldier',
+        owner: `player${(index % 4) + 1}`,
+        position: { x: (index * 17) % 60, z: (index * 29) % 60 },
+        targetPosition: { x: (index * 31) % 60, z: (index * 11) % 60 },
+        targetEntityId: null,
+        health: 100,
+        maxHealth: 100,
+        attackDamage: 10,
+        state: 'moving',
+        gatheringResource: null,
+      })),
+      buildings: Array.from({ length: 24 }, (_, index) => ({
+        id: `building-${index}`,
+        type: index % 3 === 0 ? 'town_center' : 'house',
+        owner: `player${(index % 4) + 1}`,
+        position: { x: (index * 13) % 60, z: (index * 23) % 60 },
+        health: 400,
+        maxHealth: 450,
+        isComplete: true,
+        trainingQueue: [],
+      })),
+      resourceNodes: Array.from({ length: 180 }, (_, index) => ({
+        id: `resource-${index}`,
+        type: index % 2 === 0 ? 'tree' : 'gold_mine',
+        position: { x: (index * 7) % 60, z: (index * 19) % 60 },
+        remaining: 150,
+        maxCapacity: 160,
+      })),
+      playerResources: Object.fromEntries(
+        Array.from({ length: 4 }, (_, index) => [`player${index + 1}`, {
+          wood: 500,
+          food: 500,
+          gold: 300,
+          stone: 250,
+          planks: 100,
+          pop: 20,
+          maxPop: 30,
+        }])
+      ),
+    };
+
+    const serialized = Buffer.from(JSON.stringify(gameState));
+    const compressed = deflateSync(serialized);
+
+    expect(serialized.byteLength).toBeGreaterThan(GAME_STATE_COMPRESSION_THRESHOLD_BYTES);
+    expect(compressed.byteLength).toBeLessThan(serialized.byteLength * 0.5);
+  });
+});
