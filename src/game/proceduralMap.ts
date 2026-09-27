@@ -4,8 +4,7 @@
  */
 
 import * as THREE from 'three';
-import { ResourceNode, Building, Unit } from './engine';
-import { v4 as uuidv4 } from 'uuid';
+import { ResourceNode } from './engine';
 
 export interface MapCell {
   x: number;
@@ -32,6 +31,8 @@ export interface ProceduralMapResult {
   resourceNodes: ResourceNode[];
   player1Spawn: { x: number; z: number };
   player2Spawn: { x: number; z: number };
+  player3Spawn: { x: number; z: number };
+  player4Spawn: { x: number; z: number };
   getCellAt: (x: number, z: number) => MapCell;
   getHeightAt: (x: number, z: number) => number;
   isWaterAt: (x: number, z: number) => boolean;
@@ -119,7 +120,12 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
   // Starting village spawn plateaus (Level plains where buildings never sink)
   const p1Spawn = { x: 18, z: 20 };
   const p2Spawn = { x: 42, z: 40 };
+  const p3Spawn = { x: 18, z: 40 };
+  const p4Spawn = { x: 42, z: 20 };
   const villageFlatRadius = 12.0; // expansive, perfectly flat building plains for colonies
+  const allSpawns = [p1Spawn, p2Spawn, p3Spawn, p4Spawn];
+  const distToAnySpawn = (x: number, z: number): number =>
+    Math.min(...allSpawns.map((spawn) => Math.hypot(x - spawn.x, z - spawn.z)));
 
   // Meandering River: flows across island from upper center to lower right
   const riverCurve = (z: number): number => {
@@ -193,9 +199,7 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
     const isBeach = distFromCoast < 2.2;
 
     // 3. STARTING VILLAGE PLATFORM (Flat fertile plateau, zero sinking!)
-    const dP1 = Math.hypot(wx - p1Spawn.x, wz - p1Spawn.z);
-    const dP2 = Math.hypot(wx - p2Spawn.x, wz - p2Spawn.z);
-    const spawnDist = Math.min(dP1, dP2);
+    const spawnDist = distToAnySpawn(wx, wz);
 
     if (spawnDist < villageFlatRadius) {
       // 100% perfectly flat ground for starting base
@@ -385,8 +389,6 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
 
   const reedGeo = new THREE.CylinderGeometry(0.04, 0.06, 0.8, 4);
   const reedMat = new THREE.MeshStandardMaterial({ color: 0x65a30d, roughness: 0.8 });
-  const pebbleGeo = new THREE.DodecahedronGeometry(0.24, 0);
-  const pebbleMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9 });
   const boulderGeo = new THREE.DodecahedronGeometry(0.55, 1);
   const boulderMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.95 });
 
@@ -437,9 +439,8 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
       const pz = spot.z + (rng.next() * 7 - 3.5);
       const ed = calculateElevationData(px, pz);
       // Valid if land, not in water, not a cliff, not right on town center
-      const dP1 = Math.hypot(px - p1Spawn.x, pz - p1Spawn.z);
-      const dP2 = Math.hypot(px - p2Spawn.x, pz - p2Spawn.z);
-      if (!ed.isWater && !ed.isCliff && dP1 > 4.5 && dP2 > 4.5 && ed.height >= 0.15) {
+      const spawnDist = distToAnySpawn(px, pz);
+      if (!ed.isWater && !ed.isCliff && spawnDist > 4.5 && ed.height >= 0.15) {
         resourceNodes.push({
           id: `tree-${idx}-${i}`,
           type: 'tree',
@@ -465,7 +466,6 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
   ];
 
   mineSpots.forEach((spot, idx) => {
-    const ed = calculateElevationData(spot.x, spot.z);
     resourceNodes.push({
       id: `gold-mine-${idx}`,
       type: 'gold_mine',
@@ -474,6 +474,30 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
       remaining: 900,
       maxCapacity: 900,
       clusterId: `mine-cluster-${idx}`,
+      clusterName: spot.name,
+    });
+  });
+
+  // B2. Stone Quarries (Rugged outcrops at the foot of the mountain ridges)
+  const quarrySpots = [
+    { x: 36, z: 14, name: 'Pedreira da Cornija Norte' },
+    { x: 47, z: 33, name: 'Pedreira da Crag Oriental' },
+    { x: 24, z: 46, name: 'Pedreira da Espinha Sul' },
+    { x: 16, z: 37, name: 'Pedreira dos Penhascos Ocidentais' },
+  ];
+
+  quarrySpots.forEach((spot, idx) => {
+    const ed = calculateElevationData(spot.x, spot.z);
+    if (ed.isWater || ed.isCliff || ed.height < 0.15) return;
+    if (distToAnySpawn(spot.x, spot.z) <= 4.5) return;
+    resourceNodes.push({
+      id: `stone-${idx}`,
+      type: 'stone',
+      name: spot.name,
+      position: { x: spot.x, z: spot.z },
+      remaining: 700,
+      maxCapacity: 700,
+      clusterId: `quarry-cluster-${idx}`,
       clusterName: spot.name,
     });
   });
@@ -580,6 +604,8 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
     resourceNodes,
     player1Spawn: p1Spawn,
     player2Spawn: p2Spawn,
+    player3Spawn: p3Spawn,
+    player4Spawn: p4Spawn,
     getCellAt,
     getHeightAt,
     isWaterAt,

@@ -4,8 +4,9 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { GameEngine, GameState, Unit, Building, ResourceNode, MAP_SIZE } from '../game/engine';
-import { Eye, EyeOff, Home, Compass, MapPin, Maximize2, Minimize2, Lock, Unlock, ChevronDown, ChevronUp } from 'lucide-react';
+import { GameEngine, GameState, Unit, Building, MAP_SIZE } from '../game/engine';
+import { visionRadiusFor } from '../game/visibility';
+import { Eye, EyeOff, Home, Compass, Lock, Unlock, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface MinimapProps {
   engine: GameEngine | null;
@@ -60,18 +61,8 @@ export const Minimap: React.FC<MinimapProps> = ({
   // Canvas pixel size (compact on mobile screens)
   const SIZE = 210;
 
-  // Vision radius definitions (in world units)
-  const getVisionRadius = (entity: Unit | Building): number => {
-    if ('attackDamage' in entity) {
-      // Unit
-      return entity.type === 'soldier' ? 11 : 8;
-    } else {
-      // Building
-      if (entity.type === 'town_center') return 16;
-      if (entity.type === 'barracks') return 12;
-      return 9; // House
-    }
-  };
+  // Vision radius definitions (in world units) — fonte unica em game/visibility
+  const getVisionRadius = visionRadiusFor;
 
   // Convert canvas pixel (cx, cy) to world coords (wx, wz)
   const canvasToWorld = (cx: number, cy: number) => {
@@ -286,6 +277,14 @@ export const Minimap: React.FC<MinimapProps> = ({
         ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#854d0e';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      } else if (res.type === 'stone') {
+        ctx.fillStyle = '#94a3b8'; // Granite Grey
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#475569';
         ctx.lineWidth = 0.5;
         ctx.stroke();
       } else if (res.type === 'fish_school') {

@@ -21,7 +21,7 @@ export interface BuildingDef {
   category: 'civil' | 'militar' | 'defesa' | 'economia' | 'naval';
   description: string;
   benefit: string;
-  cost: { wood: number; food?: number; gold?: number };
+  cost: { wood: number; food?: number; gold?: number; stone?: number; planks?: number };
   buildTimeSeconds: number;
   maxHealth: number;
   hotkey: string;
@@ -63,7 +63,7 @@ export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
     category: 'defesa',
     description: 'Posto avançado fortificado que atira automaticamente contra invasores.',
     benefit: 'Ataque Automático (16 Dano, Alcance 12)',
-    cost: { wood: 100, gold: 40 },
+    cost: { wood: 80, stone: 40, planks: 20 },
     buildTimeSeconds: 12,
     maxHealth: 650,
     hotkey: 'E',

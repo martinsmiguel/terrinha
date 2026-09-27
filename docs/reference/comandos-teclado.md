@@ -51,8 +51,30 @@
 | --- | --- | --- |
 | Centro da Vila | `V` | Aldeão |
 | Quartel Militar | `S` | Soldado |
+| Quartel Militar | `G` | Cavalaria |
 | Cais Naval | `P` | Barco de Pesca |
 | Cais Naval | `M` | Barco Mercante |
+| Cais Naval | `G` | Barco de Guerra |
+
+> Atenção: `C` e `M` também são atalhos globais do HUD (HUD completo/compacto
+> e mini-mapa), portanto só funcionam quando o edifício não está selecionado.
+
+## Tecnologias
+
+| Ação | Comando |
+| --- | --- |
+| Abrir o painel de tecnologias | Botão **Tecnologias** na barra do HUD |
+| Pesquisar tecnologia/avanço de era | Clique no card do `TechPanel` |
+
+Fila única por jogador, máx. 3 itens. Detalhes em
+[tecnologias-eras](tecnologias-eras.md).
+
+## Manutenção de edifícios (no painel do edifício próprio selecionado)
+
+| Ação | Comando |
+| --- | --- |
+| Reparar | Botão **Reparar (80 HP/s · 5 M por 100 HP)** — só aparece com dano; usa o aldeão próprio mais próximo |
+| Demolir | Botão **Demolir (devolve 50%)** — Centro da Vila não pode ser demolida |
 
 ## Formações (grupo selecionado)
 

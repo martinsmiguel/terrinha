@@ -6,3 +6,4 @@ coverage/
 *.log
 .env*
 bun.lock
+graphify-out/

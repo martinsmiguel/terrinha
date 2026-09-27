@@ -22,6 +22,9 @@ curl http://localhost:3000/api/lan-info
 - **Mesma rede:** seus amigos abrem `http://<ip-do-host>:3000` no navegador.
 - Host clica em **Criar Partida**; os demais digitam o mesmo **ID da sala**
   e clicam em **Entrar**.
+- Antes de iniciar, o host escolhe quantos jogadores entram na partida
+  (**Treino Solo: jogadores na partida** ou o seletor do lobby): 2, 3 ou 4
+  slots — cada um nasce com a própria base.
 
 ## 4. Firewall
 
