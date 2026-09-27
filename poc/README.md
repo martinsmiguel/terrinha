@@ -2,8 +2,9 @@
 
 ## Pergunta
 
-O Terrinha consegue evoluir da partida numa ilha procedural para um ciclo de
-exploração entre ilhas sem trocar o motor 3D nem reescrever o jogo atual?
+Uma fatia jogável em estilo voxel, com assentamento, barco e ilhas vizinhas de
+estados diferentes (outra civilização, aldeia abandonada e ruínas), consegue
+comunicar a fantasia de expansão por arquipélago sem reescrever o jogo atual?
 
 ## Hipótese
 
@@ -21,11 +22,11 @@ do estudo usando Three.js e uma simulação local pequena.
 
 ## Roteiro de avaliação
 
-1. Identificar qual ilha favorece comida, madeira ou pedra.
-2. Construir um cais na ilha inicial.
-3. Pesquisar Navegação.
-4. Selecionar e descobrir uma ilha vizinha.
-5. Avaliar se a decisão econômica e a recompensa de exploração ficam claras.
+1. Observar a ilha inicial, as construções e o barco no cais.
+2. Construir o cais e pesquisar Navegação.
+3. Escolher uma rota e acompanhar o barco até a ilha próxima.
+4. Ler a descoberta: povo vizinho, lugar abandonado ou ruínas.
+5. Avaliar se a viagem e o tipo de descoberta despertam vontade de continuar.
 
 ## Executar
 
