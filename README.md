@@ -37,7 +37,7 @@ Documentada com [Diátaxis](https://diataxis.fr/) — veja
 
 ## Processo
 
-- **Quadro de atividades:** https://github.com/users/martinsmiguel/projects/1
+- **Quadro de atividades:** https://github.com/users/martinsmiguel/projects/3
   — cada card é uma issue; cada commit é uma parte descritível de um card.
 - **Versionamento:** [SemVer 2.0.0](https://semver.org/) — veja [CHANGELOG.md](CHANGELOG.md)
 - **Commits:** [Conventional Commits](https://www.conventionalcommits.org/pt-br/)

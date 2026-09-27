@@ -9,7 +9,7 @@ set -euo pipefail
 
 OWNER="martinsmiguel"
 REPO="terrinha"
-PROJECT_NUMBER=1
+PROJECT_NUMBER=3
 
 ISSUE="${1:?Uso: ./scripts/board.sh <issue> <coluna>}"
 COLUNA="${2:?Uso: ./scripts/board.sh <issue> <coluna>}"
