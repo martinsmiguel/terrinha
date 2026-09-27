@@ -64,6 +64,7 @@ import * as THREE from 'three';
 import { v4 as uuidv4 } from 'uuid';
 import { createWorkZoneMesh, updateWorkZoneMesh } from './game/workZone';
 import { applyPopDelta, countDeathsByOwner } from './game/population';
+import { tradeResource } from './game/economy';
 import { canAffordResources, deductResourceCost, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, type PlayerSlot } from './game/networkCommands';
 
 const FACTION_COLORS: Record<string, { name: string; hex: number; colorClass: string; border: string }> = {
@@ -3629,63 +3630,34 @@ export default function App() {
 
   // Trade resource at the Grand Market (Ikariam / AoE market exchange)
   const handleTradeResource = (type: 'wood' | 'food' | 'stone', action: 'buy' | 'sell', amount: number) => {
-    const marketRates = {
-      wood: { buyPrice: 50, sellPrice: 35 },
-      food: { buyPrice: 55, sellPrice: 38 },
-      stone: { buyPrice: 70, sellPrice: 48 },
-    };
-    const rate = marketRates[type];
     const myRes = gameState.playerResources[playerSlot];
     if (!myRes) return;
-
-    if (action === 'buy') {
-      const totalGoldCost = Math.round((amount / 100) * rate.buyPrice);
-      if ((myRes.gold || 0) < totalGoldCost) {
-        triggerNotification(`Ouro insuficiente! Necessário ${totalGoldCost} ouro.`, 'warning');
-        return;
-      }
-      setGameState((prev) => {
-        const pRes = prev.playerResources[playerSlot];
-        const resKey = type === 'wood' ? 'wood' : 'food';
-        return {
-          ...prev,
-          playerResources: {
-            ...prev.playerResources,
-            [playerSlot]: {
-              ...pRes,
-              gold: (pRes.gold || 0) - totalGoldCost,
-              [resKey]: (pRes[resKey] || 0) + amount,
-            },
-          },
-        };
-      });
-      soundManager.playClickSound();
-      triggerNotification(`Mercadão: Comprado ${amount} de ${type} por ${totalGoldCost} ouro!`, 'success');
-    } else {
-      const resKey = type === 'wood' ? 'wood' : 'food';
-      const currentSupply = myRes[resKey] || 0;
-      if (currentSupply < amount) {
+    const trade = tradeResource(myRes, type, action, amount);
+    if (!trade.ok) {
+      if (trade.reason === 'insufficient-gold') {
+        triggerNotification(`Ouro insuficiente! Necessário ${trade.requiredGold} ouro.`, 'warning');
+      } else if (trade.reason === 'insufficient-resource') {
         triggerNotification(`${type} insuficiente no armazém para vender!`, 'warning');
-        return;
       }
-      const totalGoldGain = Math.round((amount / 100) * rate.sellPrice);
-      setGameState((prev) => {
-        const pRes = prev.playerResources[playerSlot];
-        return {
-          ...prev,
-          playerResources: {
-            ...prev.playerResources,
-            [playerSlot]: {
-              ...pRes,
-              [resKey]: (pRes[resKey] || 0) - amount,
-              gold: (pRes.gold || 0) + totalGoldGain,
-            },
-          },
-        };
-      });
-      soundManager.playClickSound();
-      triggerNotification(`Mercadão: Vendido ${amount} de ${type} por ${totalGoldGain} ouro!`, 'success');
+      return;
     }
+
+    setGameState((prev) => {
+      const currentResources = prev.playerResources[playerSlot];
+      if (!currentResources) return prev;
+      const currentTrade = tradeResource(currentResources, type, action, amount);
+      if (!currentTrade.ok) return prev;
+      return {
+        ...prev,
+        playerResources: { ...prev.playerResources, [playerSlot]: currentTrade.resources },
+      };
+    });
+    soundManager.playClickSound();
+    const verb = action === 'buy' ? 'Comprado' : 'Vendido';
+    triggerNotification(
+      `Mercadão: ${verb} ${amount} de ${type} por ${Math.abs(trade.goldChange)} ouro!`,
+      'success'
+    );
   };
 
   // Assign currently selected squad (or part of it) to a resource
