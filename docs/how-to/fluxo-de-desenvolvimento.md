@@ -34,6 +34,14 @@ gh pr create --fill
 
 Colunas aceitas: `backlog`, `ready`, `in-progress`, `in-review`, `done`, `blocked`.
 
+## Configurar a automação de issues
+
+O workflow `.github/workflows/add-to-board.yml` adiciona issues novas ao projeto 3.
+Para habilitar a automação, configure o segredo `ADD_TO_PROJECT_PAT` em
+**Settings → Secrets and variables → Actions** no repositório. O token precisa
+ter permissão de escrita no projeto pessoal. O valor do token deve ficar apenas
+no segredo do GitHub, nunca em arquivos do repositório.
+
 ## Commits pequenos
 
 Um card pode gerar vários commits, mas cada um deve ser uma unidade

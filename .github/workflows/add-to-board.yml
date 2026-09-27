@@ -7,8 +7,18 @@ on:
 jobs:
   add-to-project:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/add-to-project@v1
+      - name: Verificar token do quadro
+        env:
+          ADD_TO_PROJECT_PAT: ${{ secrets.ADD_TO_PROJECT_PAT }}
+        run: |
+          if [ -z "$ADD_TO_PROJECT_PAT" ]; then
+            echo "::error::Configure o segredo ADD_TO_PROJECT_PAT nas configurações do repositório para permitir acesso ao projeto 3."
+            exit 1
+          fi
+      - uses: actions/add-to-project@5afcf98fcd03f1c2f92c3c83f58ae24323cc57fd # v2.0.0
         with:
           project-url: https://github.com/users/martinsmiguel/projects/3
           github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
