@@ -232,12 +232,10 @@ export function checkBuildingPlacementValid(
     if (type === 'dock') {
       // Docks must be placed at the water boundary or in shallow water
       let nearbyWater = false;
-      let nearbyLand = false;
       const testOffsets = [-2, 0, 2];
       for (const ox of testOffsets) {
         for (const oz of testOffsets) {
           if (isWaterAt(x + ox, z + oz)) nearbyWater = true;
-          else nearbyLand = true;
         }
       }
       if (!nearbyWater) {
@@ -283,7 +281,7 @@ export function checkBuildingPlacementValid(
   for (const r of nodes) {
     if (r.type === 'fish_school' && type !== 'dock') continue;
     const dist = Math.hypot(r.position.x - x, r.position.z - z);
-    const rRadius = r.type === 'gold_mine' ? 2.0 : r.type === 'tree' ? 1.6 : 1.4;
+    const rRadius = r.type === 'gold_mine' ? 2.0 : r.type === 'stone' ? 2.0 : r.type === 'tree' ? 1.6 : 1.4;
     const myRadius = Math.max(footprintWidth, footprintDepth) * 0.5;
     const requiredDistance = rRadius + myRadius;
 

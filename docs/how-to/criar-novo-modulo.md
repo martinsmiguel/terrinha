@@ -40,6 +40,10 @@ export function tick(state: GameState, dt: number): void {}
 ## 5. Teste
 
 ```bash
-npm run lint
-npm run test        # quando existir suíte (ver card de testes)
+npm run lint   # typecheck
+npm test       # suíte Vitest em tests/unit/
 ```
+
+Todo módulo de simulação novo entra com pelo menos um teste em
+`tests/unit/<modulo>.test.ts` — a suíte já cobre economia, vitória, movimento,
+névoa, tecnologias e validação de comandos.

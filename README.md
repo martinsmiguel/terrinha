@@ -19,6 +19,27 @@ npm install
 npm run dev        # http://localhost:3000
 ```
 
+### Docker (produção/LAN)
+
+Com Docker Compose instalado, construa e inicie o servidor:
+
+```bash
+docker compose up --build
+```
+
+Abra `http://localhost:3000` nesta máquina. Para jogar na rede local, compartilhe
+`http://<ip-da-maquina>:3000` com os demais jogadores.
+
+Para manter o container atualizado enquanto edita o código, use Compose Watch
+(Docker Compose 2.22 ou superior):
+
+```bash
+docker compose up --watch
+```
+
+Alterações em `src/`, `server.ts`, `index.html` e na configuração de build
+reconstroem o serviço automaticamente. Encerre com `docker compose down`.
+
 Multiplayer: seus amigos abrem `http://<seu-ip>:3000` — use o botão
 **Criar Partida** / **Entrar via Código**. Detalhes em
 [docs/how-to/hospedar-partida-wifi.md](docs/how-to/hospedar-partida-wifi.md).
@@ -42,6 +63,8 @@ Documentada com [Diátaxis](https://diataxis.fr/) — veja
 - **Versionamento:** [SemVer 2.0.0](https://semver.org/) — veja [CHANGELOG.md](CHANGELOG.md)
 - **Commits:** [Conventional Commits](https://www.conventionalcommits.org/pt-br/)
 - **Contribuindo:** [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Código de conduta:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- **Lançar uma release:** [docs/how-to/lancar-release.md](docs/how-to/lancar-release.md)
 - **Especificação do produto:** [docs/explanation/especificacao-v2.html](docs/explanation/especificacao-v2.html)
 
 ## Comandos
@@ -50,5 +73,6 @@ Documentada com [Diátaxis](https://diataxis.fr/) — veja
 | --- | --- |
 | `npm run dev` | servidor de desenvolvimento (porta 3000) |
 | `npm run lint` | typecheck (`tsc --noEmit`) |
+| `npm test` | testes unitários (Vitest) |
 | `npm run build` | build de produção em `dist/` |
 | `npm start` | roda o build de produção |

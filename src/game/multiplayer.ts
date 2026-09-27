@@ -16,8 +16,8 @@ export class MultiplayerManager {
   connected: boolean = false;
   onStateUpdate?: (state: any) => void;
   onCommand?: (cmd: NetworkCommand) => void;
-  onPlayerJoined?: (data: { id: string; playerName: string; playerCount: number }) => void;
-  onPlayerLeft?: (data: { id: string; playerName: string; playerCount: number }) => void;
+  onPlayerJoined?: (data: { id: string; playerName: string; playerCount: number; playerSlot?: string }) => void;
+  onPlayerLeft?: (data: { id: string; playerName: string; playerCount: number; playerSlot?: string }) => void;
   onChatMessage?: (chat: ChatMessage) => void;
   onConnectionStatus?: (connected: boolean) => void;
   onJoinError?: (message: string) => void;
@@ -92,7 +92,7 @@ export class MultiplayerManager {
   // Host sends state to all clients
   broadcast(gameState: any) {
     if (this.isHost && this.socket.connected) {
-      this.socket.emit('sync-game-state', gameState);
+      this.socket.compress(true).emit('sync-game-state', gameState);
     }
   }
 

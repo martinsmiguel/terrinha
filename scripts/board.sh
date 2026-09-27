@@ -75,6 +75,6 @@ gh api graphql -f query='
       fieldId: $field
       value: { singleSelectOptionId: $value }
     }) { projectV2Item { id } }
-  }' -F project="$PROJECT_ID" -F item="$ITEM_ID" -F field="$FIELD_ID" -F value="$OPTION_ID" > /dev/null
+  }' -F project="$PROJECT_ID" -F item="$ITEM_ID" -F field="$FIELD_ID" -f value="$OPTION_ID" > /dev/null
 
 echo "Issue #$ISSUE movida para '$LABEL'"

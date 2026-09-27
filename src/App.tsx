@@ -4,21 +4,28 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { GameEngine, GameState, Unit, Building, ResourceNode, MAP_SIZE, PlayerResources, UnitType } from './game/engine';
+import { GameEngine, GameState, PlayerResources, Unit, Building, ResourceNode, MAP_SIZE, UnitType, isBoatUnit } from './game/engine';
+import { findPath, nextWaypoint } from './game/movement/pathfinding';
+import { resolveSeparation } from './game/movement/separation';
+import { createVisionGrid, expireVision, revealVision, visionRadiusFor, isVisibleAt } from './game/visibility';
 import { MultiplayerManager, ChatMessage } from './game/multiplayer';
 import { Minimap } from './components/Minimap';
+import { TechPanel } from './components/TechPanel';
 import { soundManager } from './game/audio';
 import { create3DHealthBar, update3DHealthBar, align3DHealthBarToCamera } from './game/healthBar';
 import { createBuildingGhost, updateBuildingGhost, checkBuildingPlacementValid } from './game/buildingGhost';
-import { BUILDING_CATALOG, BuildingDef, BuildingType, createConstructionScaffold } from './game/buildingDefs';
+import { BUILDING_CATALOG, BuildingType, createConstructionScaffold } from './game/buildingDefs';
 import { generateProceduralTerrain, ProceduralMapResult } from './game/proceduralMap';
 import { EmpireCatalogModal } from './components/EmpireCatalogModal';
 import { ResourceNavMenu } from './components/ResourceNavMenu';
+import { Tutorial } from './components/Tutorial';
+
+/** Marcador de que o tutorial de primeira partida ja foi exibido. */
+const TUTORIAL_SEEN_KEY = 'terrinha:tutorial-seen';
 import {
   Users,
   Hammer,
   Sword,
-  Package,
   Play,
   Shield,
   Copy,
@@ -31,8 +38,6 @@ import {
   Sparkles,
   Info,
   Maximize2,
-  ChevronRight,
-  RefreshCw,
   Volume2,
   VolumeX,
   LayoutGrid,
@@ -46,6 +51,7 @@ import {
   Sprout,
   Pickaxe,
   Trash2,
+  Wrench,
   X,
   Coins,
   Apple,
@@ -54,17 +60,48 @@ import {
   Unlock,
   ChevronDown,
   ChevronUp,
-  Minimize2,
   Layers,
-  SlidersHorizontal,
-  CircleDot,
-  Radio,
+  PawPrint,
+  GraduationCap,
+  Anchor,
 } from 'lucide-react';
 import * as THREE from 'three';
 import { v4 as uuidv4 } from 'uuid';
 import { createWorkZoneMesh, updateWorkZoneMesh } from './game/workZone';
 import { applyPopDelta, countDeathsByOwner } from './game/population';
-import { canAffordResources, deductResourceCost, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, type PlayerSlot } from './game/networkCommands';
+import {
+  applyCost,
+  canAfford,
+  COST_CHIP_CLASS,
+  COST_SHORT,
+  describeCost,
+  MARKET_LABELS,
+  MarketResourceType,
+  missingCost,
+  refundCost,
+  refinePlanks,
+  tradeResource,
+  UNIT_COSTS,
+  halfCost,
+} from './game/economy';
+import { PLAYER_SLOTS, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, soloMatchSlots, type PlayerSlot } from './game/networkCommands';
+import { evaluateMatch, localOutcome, type LocalOutcome } from './game/victory';
+import {
+  TECH_DEFS,
+  advanceResearch,
+  createTechState,
+  gatherMultiplier,
+  researchTarget,
+  startResearch,
+  unitDamageMultiplier,
+  type TechState,
+} from './game/tech';
+
+/** Reparo: HP por tick (50 ms) e madeira consumida por HP reparado. */
+const REPAIR_HP_PER_TICK = 4;
+const REPAIR_WOOD_PER_HP = 0.05;
+/** Distancia maxima em que o aldeao consegue consertar o edificio. */
+const REPAIR_REACH = 2.2;
 
 const FACTION_COLORS: Record<string, { name: string; hex: number; colorClass: string; border: string }> = {
   player1: { name: 'Império Português (Azul)', hex: 0x2563eb, colorClass: 'bg-blue-600', border: 'border-blue-500' },
@@ -87,7 +124,16 @@ export default function App() {
   const [lobbyError, setLobbyError] = useState<string | null>(null);
   const [lanIps, setLanIps] = useState<string[]>([]);
   const [copiedIp, setCopiedIp] = useState(false);
-  const [connectedPlayers, setConnectedPlayers] = useState(1);
+  const [, setConnectedPlayers] = useState(1);
+
+  // Participantes da partida: no solo vem do tamanho escolhido (2..4),
+  // no multiplayer e o host mais quem entrar na sala.
+  const [activeSlots, setActiveSlots] = useState<PlayerSlot[]>(['player1', 'player2']);
+  const activeSlotsRef = useRef<PlayerSlot[]>(['player1', 'player2']);
+  activeSlotsRef.current = activeSlots;
+  const [matchSize, setMatchSize] = useState<2 | 3 | 4>(2);
+  const playerSlotRef = useRef<PlayerSlot>('player1');
+  playerSlotRef.current = playerSlot;
 
   // Squad Formation Mode ('box' | 'line' | 'spread')
   const [squadFormation, setSquadFormation] = useState<'box' | 'line' | 'spread'>('box');
@@ -121,6 +167,7 @@ export default function App() {
 
   // Work Zone Visual Overlay & Management Modal
   const [isWorkZoneModalOpen, setIsWorkZoneModalOpen] = useState(false);
+  const [isTechPanelOpen, setIsTechPanelOpen] = useState(false);
   const [showWorkZones3D, setShowWorkZones3D] = useState(true);
   const [isStrictZoneLeash, setIsStrictZoneLeash] = useState(true);
   const isStrictZoneLeashRef = useRef(true);
@@ -137,6 +184,8 @@ export default function App() {
   const [notification, setNotification] = useState<{ message: string; type: 'info' | 'success' | 'warning'; id: number } | null>(null);
   const notificationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [showControlsModal, setShowControlsModal] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const tutorialSeenCheckedRef = useRef(false);
 
   const triggerNotification = (message: string, type: 'info' | 'success' | 'warning' = 'info') => {
     if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
@@ -233,6 +282,10 @@ export default function App() {
 
   // 3D Object Render references
   const unitMeshes = useRef<Map<string, THREE.Group>>(new Map());
+  // Caminho A* por unidade: recalculado so quando o alvo muda (custo por tick = O(tamanho do caminho))
+  const unitPathsRef = useRef<Map<string, { goal: { x: number; z: number }; path: { x: number; z: number }[] }>>(new Map());
+  // Nevoa de guerra do jogador local: 0 = nunca visto, 1 = explorado, 2 = visivel
+  const visionGridRef = useRef<Uint8Array>(createVisionGrid());
   const buildingMeshes = useRef<Map<string, THREE.Group>>(new Map());
   const resourceMeshes = useRef<Map<string, THREE.Group>>(new Map());
   const ghostBuildingMesh = useRef<THREE.Group | null>(null);
@@ -251,7 +304,7 @@ export default function App() {
         z: number;
         radius: number;
         unitIds: string[];
-        resourceType?: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school';
+        resourceType?: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school' | 'stone';
         clusterName?: string;
       }
     >();
@@ -342,6 +395,7 @@ export default function App() {
     let food = 0;
     let gold = 0;
     let fish = 0;
+    let stone = 0;
     gameState.units.forEach((u) => {
       if (u.owner === playerSlot && u.state === 'gathering' && u.targetEntityId) {
         const node = gameState.resourceNodes.find((n) => n.id === u.targetEntityId);
@@ -349,11 +403,12 @@ export default function App() {
           if (node.type === 'tree') wood++;
           else if (node.type === 'gold_mine') gold++;
           else if (node.type === 'fish_school') fish++;
+          else if (node.type === 'stone') stone++;
           else food++;
         }
       }
     });
-    return { wood, food, gold, fish };
+    return { wood, food, gold, fish, stone };
   }, [gameState.units, gameState.resourceNodes, playerSlot]);
 
   // Fetch local network IP to assist LAN players
@@ -389,7 +444,7 @@ export default function App() {
 
         const seed = index * 1.73;
         const groundY = proceduralMapRef.current ? proceduralMapRef.current.getHeightAt(unit.position.x, unit.position.z) : 0;
-        const isBoat = unit.type === 'fishing_boat' || unit.type === 'trade_boat';
+        const isBoat = isBoatUnit(unit.type);
         const baseElevation = isBoat ? Math.min(0.04, groundY) : groundY;
 
         if (unit.state === 'attacking') {
@@ -552,6 +607,14 @@ export default function App() {
 
       multi.onPlayerJoined = (data) => {
         setConnectedPlayers(data.playerCount);
+        const joinedSlot = isPlayerSlot(data.playerSlot) ? data.playerSlot : null;
+        if (joinedSlot) {
+          if (!activeSlotsRef.current.includes(joinedSlot)) {
+            activeSlotsRef.current = [...activeSlotsRef.current, joinedSlot];
+            setActiveSlots(activeSlotsRef.current);
+          }
+          if (role === 'host') spawnStarterBaseFor(joinedSlot);
+        }
         setChatMessages((prev) => [
           ...prev,
           { sender: 'Sistema', message: `${data.playerName} entrou na partida!`, timestamp: Date.now() },
@@ -560,6 +623,11 @@ export default function App() {
 
       multi.onPlayerLeft = (data) => {
         setConnectedPlayers(data.playerCount);
+        const leftSlot = isPlayerSlot(data.playerSlot) ? data.playerSlot : null;
+        if (leftSlot && role === 'host') {
+          activeSlotsRef.current = activeSlotsRef.current.filter((slot) => slot !== leftSlot);
+          setActiveSlots(activeSlotsRef.current);
+        }
         setChatMessages((prev) => [
           ...prev,
           { sender: 'Sistema', message: `${data.playerName || 'Um jogador'} saiu da partida.`, timestamp: Date.now() },
@@ -615,6 +683,88 @@ export default function App() {
     };
   }, [isGameStarted]);
 
+  // Base inicial de um slot: Centro da Vila + 2 aldeoes + 1 soldado
+  const buildStarterBase = (slot: PlayerSlot, spawn: { x: number; z: number }) => {
+    const townCenter: Building = {
+      id: uuidv4(),
+      type: 'town_center',
+      owner: slot,
+      position: { x: spawn.x, z: spawn.z },
+      health: 2400,
+      maxHealth: 2400,
+      isComplete: true,
+      trainingQueue: [],
+    };
+
+    const villager = (offsetX: number): Unit => ({
+      id: uuidv4(),
+      type: 'villager',
+      owner: slot,
+      position: { x: spawn.x + offsetX, z: spawn.z + 2 },
+      targetPosition: null,
+      targetEntityId: null,
+      health: 100,
+      maxHealth: 100,
+      attackDamage: 5,
+      state: 'idle' as const,
+    });
+
+    const units: Unit[] = [
+      villager(1.8),
+      villager(-1.8),
+      {
+        id: uuidv4(),
+        type: 'soldier',
+        owner: slot,
+        position: { x: spawn.x + 2.5, z: spawn.z - 1.5 },
+        targetPosition: null,
+        targetEntityId: null,
+        health: 150,
+        maxHealth: 150,
+        attackDamage: 18,
+        state: 'idle',
+      },
+    ];
+
+    return { townCenter, units };
+  };
+
+  const spawnForSlot = (slot: PlayerSlot): { x: number; z: number } | null => {
+    const procMap = proceduralMapRef.current;
+    if (!procMap) return null;
+    if (slot === 'player1') return procMap.player1Spawn;
+    if (slot === 'player2') return procMap.player2Spawn;
+    if (slot === 'player3') return procMap.player3Spawn;
+    return procMap.player4Spawn;
+  };
+
+  const startingColonyResources = (pop: number): PlayerResources => ({
+    wood: 350,
+    food: 350,
+    gold: 200,
+    stone: 100,
+    planks: 0,
+    pop,
+    maxPop: 15,
+  });
+
+  // Multiplayer: quem entra depois do inicio da partida ganha a propria base no host
+  const spawnStarterBaseFor = (slot: PlayerSlot) => {
+    const spawn = spawnForSlot(slot);
+    if (!spawn) return;
+    if (gameStateRef.current.buildings.some((b) => b.owner === slot && b.type === 'town_center')) return;
+
+    const { townCenter, units } = buildStarterBase(slot, spawn);
+    setGameState((prev) => ({
+      ...prev,
+      buildings: [...prev.buildings, townCenter],
+      units: [...prev.units, ...units],
+      playerResources: { ...prev.playerResources, [slot]: startingColonyResources(units.length) },
+      techs: { ...prev.techs, [slot]: prev.techs?.[slot] ?? createTechState() },
+    }));
+    triggerNotification(`${FACTION_COLORS[slot]?.name ?? slot} recebeu uma base inicial!`, 'success');
+  };
+
   // Initial map setup with Procedural Terrain, River, Valleys, Town Centers, Resources & Villagers
   const setupInitialMap = () => {
     const procMap = generateProceduralTerrain(MAP_SIZE);
@@ -630,106 +780,38 @@ export default function App() {
 
     const nodes: ResourceNode[] = procMap.resourceNodes;
 
-    // Player 1 Base (Southwest - Level Plains Village Plateau)
-    const p1Tc: Building = {
-      id: uuidv4(),
-      type: 'town_center',
-      owner: 'player1',
-      position: { x: procMap.player1Spawn.x, z: procMap.player1Spawn.z },
-      health: 2400,
-      maxHealth: 2400,
-      isComplete: true,
-      trainingQueue: [],
-    };
+    // Solo: o jogador local escolhe 2, 3 ou 4 participantes (ele + IA).
+    // Multiplayer: o host nasce sozinho e cada slot que entrar ganha a propria base.
+    const slots: PlayerSlot[] = role === 'single' ? soloMatchSlots(playerSlot, matchSize) : [playerSlot];
 
-    const p1Villagers: Unit[] = [
-      {
-        id: uuidv4(),
-        type: 'villager',
-        owner: 'player1',
-        position: { x: procMap.player1Spawn.x + 1.8, z: procMap.player1Spawn.z + 2 },
-        targetPosition: null,
-        targetEntityId: null,
-        health: 100,
-        maxHealth: 100,
-        attackDamage: 5,
-        state: 'idle',
-      },
-      {
-        id: uuidv4(),
-        type: 'villager',
-        owner: 'player1',
-        position: { x: procMap.player1Spawn.x - 1.8, z: procMap.player1Spawn.z + 2 },
-        targetPosition: null,
-        targetEntityId: null,
-        health: 100,
-        maxHealth: 100,
-        attackDamage: 5,
-        state: 'idle',
-      },
-      {
-        id: uuidv4(),
-        type: 'soldier',
-        owner: 'player1',
-        position: { x: procMap.player1Spawn.x + 2.5, z: procMap.player1Spawn.z - 1.5 },
-        targetPosition: null,
-        targetEntityId: null,
-        health: 150,
-        maxHealth: 150,
-        attackDamage: 18,
-        state: 'idle',
-      },
-    ];
+    const buildings: Building[] = [];
+    const units: Unit[] = [];
+    const playerResources: Record<string, PlayerResources> = {};
+    const techs: Record<string, ReturnType<typeof createTechState>> = {};
 
-    // Player 2 Base (Northeast - Rival Village Plateau / AI)
-    const p2Tc: Building = {
-      id: uuidv4(),
-      type: 'town_center',
-      owner: 'player2',
-      position: { x: procMap.player2Spawn.x, z: procMap.player2Spawn.z },
-      health: 2400,
-      maxHealth: 2400,
-      isComplete: true,
-      trainingQueue: [],
-    };
+    PLAYER_SLOTS.forEach((slot) => {
+      playerResources[slot] = startingColonyResources(0);
+      techs[slot] = createTechState();
+    });
 
-    const p2Units: Unit[] = [
-      {
-        id: uuidv4(),
-        type: 'villager',
-        owner: 'player2',
-        position: { x: procMap.player2Spawn.x - 1.8, z: procMap.player2Spawn.z + 1.8 },
-        targetPosition: null,
-        targetEntityId: null,
-        health: 100,
-        maxHealth: 100,
-        attackDamage: 5,
-        state: 'idle',
-      },
-      {
-        id: uuidv4(),
-        type: 'soldier',
-        owner: 'player2',
-        position: { x: procMap.player2Spawn.x + 2.2, z: procMap.player2Spawn.z - 1.5 },
-        targetPosition: null,
-        targetEntityId: null,
-        health: 150,
-        maxHealth: 150,
-        attackDamage: 18,
-        state: 'idle',
-      },
-    ];
+    slots.forEach((slot) => {
+      const spawn = spawnForSlot(slot);
+      if (!spawn) return;
+      const starter = buildStarterBase(slot, spawn);
+      buildings.push(starter.townCenter);
+      units.push(...starter.units);
+      playerResources[slot] = startingColonyResources(starter.units.length);
+    });
+
+    setActiveSlots(slots);
+    activeSlotsRef.current = slots;
 
     setGameState({
-      units: [...p1Villagers, ...p2Units],
-      buildings: [p1Tc, p2Tc],
+      units,
+      buildings,
       resourceNodes: nodes,
-      playerResources: {
-        player1: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 3, maxPop: 15 },
-        player2: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 2, maxPop: 15 },
-        player3: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 0, maxPop: 10 },
-        player4: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 0, maxPop: 10 },
-      },
+      playerResources,
+      techs,
     });
   };
 
@@ -782,8 +864,9 @@ export default function App() {
         group.position.set(node.position.x, nodeY, node.position.z);
 
         // Accurate hit collider avoiding overlap between adjacent grove trees
-        const hitRadius = node.type === 'tree' ? 1.25 : node.type === 'gold_mine' ? 1.5 : 1.1;
-        const hitHeight = node.type === 'tree' ? 4.8 : node.type === 'gold_mine' ? 2.8 : 2.0;
+        const isMineral = node.type === 'gold_mine' || node.type === 'stone';
+        const hitRadius = node.type === 'tree' ? 1.25 : isMineral ? 1.5 : 1.1;
+        const hitHeight = node.type === 'tree' ? 4.8 : isMineral ? 2.8 : 2.0;
         const hitGeo = new THREE.CylinderGeometry(hitRadius, hitRadius, hitHeight, 10);
         const hitMat = new THREE.MeshBasicMaterial({
           transparent: true,
@@ -798,7 +881,14 @@ export default function App() {
         // 3D Selection Ring on ground
         const ringGeo = new THREE.RingGeometry(1.3, 1.5, 24);
         const ringMat = new THREE.MeshBasicMaterial({
-          color: node.type === 'tree' ? 0x22c55e : node.type === 'gold_mine' ? 0xfacc15 : 0xf43f5e,
+          color:
+            node.type === 'tree'
+              ? 0x22c55e
+              : node.type === 'gold_mine'
+              ? 0xfacc15
+              : node.type === 'stone'
+              ? 0x94a3b8
+              : 0xf43f5e,
           side: THREE.DoubleSide,
           transparent: true,
           opacity: 0,
@@ -876,6 +966,28 @@ export default function App() {
           const miniRock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.32, 0), rockMat);
           miniRock.position.set(-0.55, 0.2, -0.4);
           group.add(miniRock);
+        } else if (node.type === 'stone') {
+          // Grey granite quarry outcrop
+          const rockGeo = new THREE.DodecahedronGeometry(0.9, 1);
+          const rockMat = new THREE.MeshStandardMaterial({ color: 0x8f9aa8, metalness: 0.15, roughness: 0.85 });
+          const rock = new THREE.Mesh(rockGeo, rockMat);
+          rock.position.y = 0.55;
+          rock.castShadow = true;
+          group.add(rock);
+
+          const smallRock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), rockMat);
+          smallRock.position.set(0.6, 0.28, 0.5);
+          smallRock.rotation.set(0.4, 0.8, 0.2);
+          group.add(smallRock);
+
+          const miniRock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.34, 0), rockMat);
+          miniRock.position.set(-0.6, 0.22, -0.35);
+          group.add(miniRock);
+
+          const pebbleMat = new THREE.MeshStandardMaterial({ color: 0xb6bec8, roughness: 0.95 });
+          const pebble = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18, 0), pebbleMat);
+          pebble.position.set(0.15, 0.1, -0.7);
+          group.add(pebble);
         } else if (node.type === 'fish_school') {
           // Fish School in river / water
           const fishGroup = new THREE.Group();
@@ -1042,6 +1154,54 @@ export default function App() {
           musket.position.set(0.28, 0.7, 0.1);
           musket.rotation.z = -0.3;
           group.add(musket);
+        } else if (unit.type === 'cavalry') {
+          // Cavalaria montada: cavalo + cavaleiro
+          const horseBody = new THREE.Mesh(
+            new THREE.BoxGeometry(0.45, 0.5, 1.3),
+            new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 0.85 })
+          );
+          horseBody.position.y = 0.75;
+          horseBody.castShadow = true;
+          group.add(horseBody);
+
+          const horseHead = new THREE.Mesh(
+            new THREE.BoxGeometry(0.3, 0.42, 0.5),
+            new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 0.85 })
+          );
+          horseHead.position.set(0, 1.0, -0.78);
+          group.add(horseHead);
+
+          const legGeometry = new THREE.CylinderGeometry(0.07, 0.07, 0.55, 6);
+          const legMaterial = new THREE.MeshStandardMaterial({ color: 0x4a2e18 });
+          const legSpots: [number, number][] = [[0.16, 0.45], [-0.16, 0.45], [0.16, -0.45], [-0.16, -0.45]];
+          const unitGroup = group;
+          legSpots.forEach(([legX, legZ]) => {
+            const leg = new THREE.Mesh(legGeometry, legMaterial);
+            leg.position.set(legX, 0.27, legZ);
+            unitGroup.add(leg);
+          });
+
+          const rider = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.2, 0.25, 0.7, 8),
+            new THREE.MeshStandardMaterial({ color: ownerColor })
+          );
+          rider.position.y = 1.35;
+          rider.castShadow = true;
+          group.add(rider);
+
+          const riderHead = new THREE.Mesh(
+            new THREE.SphereGeometry(0.17, 8, 8),
+            new THREE.MeshStandardMaterial({ color: 0xffdbac })
+          );
+          riderHead.position.y = 1.85;
+          group.add(riderHead);
+
+          const helmet = new THREE.Mesh(
+            new THREE.ConeGeometry(0.16, 0.3, 6),
+            new THREE.MeshStandardMaterial({ color: 0x1f2937 })
+          );
+          helmet.position.y = 2.08;
+          group.add(helmet);
         } else if (unit.type === 'fishing_boat') {
           // Barco de Pesca (Wooden skiff with triangular sail)
           const hull = new THREE.Mesh(
@@ -1096,6 +1256,46 @@ export default function App() {
           );
           crate.position.set(0, 0.45, -0.4);
           group.add(crate);
+        } else if (unit.type === 'warship') {
+          // Barco de Guerra (casco blindado com canhoes e vela negra)
+          const hull = new THREE.Mesh(
+            new THREE.BoxGeometry(1.1, 0.55, 2.5),
+            new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.55, metalness: 0.25 })
+          );
+          hull.position.y = 0.2;
+          hull.castShadow = true;
+          group.add(hull);
+
+          const mast = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.06, 0.06, 2.1, 6),
+            new THREE.MeshStandardMaterial({ color: 0x57534e })
+          );
+          mast.position.set(0, 1.15, 0.15);
+          group.add(mast);
+
+          const sail = new THREE.Mesh(
+            new THREE.BoxGeometry(1.15, 0.95, 0.06),
+            new THREE.MeshStandardMaterial({ color: ownerColor, roughness: 0.6 })
+          );
+          sail.position.set(0, 1.4, 0.3);
+          group.add(sail);
+
+          const crown = new THREE.Mesh(
+            new THREE.ConeGeometry(0.22, 0.3, 6),
+            new THREE.MeshStandardMaterial({ color: 0x0f172a })
+          );
+          crown.position.set(0, 2.3, 0.15);
+          group.add(crown);
+
+          for (const side of [-1, 1]) {
+            const cannon = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.11, 0.13, 0.75, 8),
+              new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7, roughness: 0.35 })
+            );
+            cannon.rotation.z = Math.PI / 2;
+            cannon.position.set(side * 0.62, 0.42, -0.35);
+            group.add(cannon);
+          }
         } else {
           // Villager
           const body = new THREE.Mesh(
@@ -1123,12 +1323,12 @@ export default function App() {
         }
 
         // Floating 3D Health Bar (only visible when selected or damaged)
-        const isBoat = unit.type === 'fishing_boat' || unit.type === 'trade_boat';
+        const isBoat = isBoatUnit(unit.type);
         const healthBar = create3DHealthBar({
-          width: isBoat ? 1.2 : unit.type === 'soldier' ? 1.0 : 0.9,
-          height: unit.type === 'soldier' ? 0.13 : 0.12,
+          width: isBoat ? 1.2 : unit.type === 'cavalry' ? 1.2 : unit.type === 'soldier' ? 1.0 : 0.9,
+          height: unit.type === 'soldier' || unit.type === 'cavalry' ? 0.13 : 0.12,
           ownerColor,
-          yOffset: isBoat ? 1.9 : unit.type === 'soldier' ? 1.75 : 1.55,
+          yOffset: isBoat ? 1.9 : unit.type === 'cavalry' ? 2.4 : unit.type === 'soldier' ? 1.75 : 1.55,
         });
         group.add(healthBar);
 
@@ -1137,7 +1337,7 @@ export default function App() {
       }
 
       // Update position according to terrain elevation
-      const isBoat = unit.type === 'fishing_boat' || unit.type === 'trade_boat';
+      const isBoat = isBoatUnit(unit.type);
       const unitY = isBoat
         ? 0.02
         : proceduralMapRef.current
@@ -1156,6 +1356,11 @@ export default function App() {
       if (healthBar) {
         update3DHealthBar(healthBar, unit.health, unit.maxHealth, isSelected);
       }
+
+      // Nevoa: inimigos fora da visao atual nao aparecem na cena
+      group.visible =
+        unit.owner === playerSlot ||
+        isVisibleAt(visionGridRef.current, Math.floor(unit.position.x), Math.floor(unit.position.z));
     });
 
     // 3. Sync Buildings
@@ -1589,6 +1794,11 @@ export default function App() {
       // Maintain exact terrain elevation so buildings never sink or hover
       const bGroundY = proceduralMapRef.current ? proceduralMapRef.current.getHeightAt(b.position.x, b.position.z) : 0;
       group.position.y = bGroundY;
+
+      // Nevoa: edificios inimigos fora da visao atual nao aparecem na cena
+      group.visible =
+        b.owner === playerSlot ||
+        isVisibleAt(visionGridRef.current, Math.floor(b.position.x), Math.floor(b.position.z));
     });
 
     // Host broadcasts simulation state to connected clients in LAN
@@ -1596,6 +1806,17 @@ export default function App() {
       multiRef.current.broadcast(gameState);
     }
   }, [gameState, selectedEntity, selectedUnitIds, role]);
+
+  // Nevoa de guerra: expira a visao do tick anterior e revela a visao atual
+  // das unidades/edificios do jogador local (raios iguais aos do Minimap)
+  useEffect(() => {
+    const sources = [...gameState.units, ...gameState.buildings]
+      .filter((entity) => entity.owner === playerSlot)
+      .map((entity) => ({ x: entity.position.x, z: entity.position.z, radius: visionRadiusFor(entity) }));
+    const grid = revealVision(expireVision(visionGridRef.current), sources);
+    visionGridRef.current = grid;
+    engineRef.current?.setFogGrid(grid);
+  }, [gameState, playerSlot]);
 
   // Synchronize 3D Work Zone ground overlays with active zones and preview
   useEffect(() => {
@@ -1618,7 +1839,13 @@ export default function App() {
 
       let group = workZoneMeshes.current.get(key);
       const colorHex =
-        zone.resourceType === 'tree' ? 0x10b981 : zone.resourceType === 'gold_mine' ? 0xf59e0b : 0xf43f5e;
+        zone.resourceType === 'tree'
+          ? 0x10b981
+          : zone.resourceType === 'gold_mine'
+          ? 0xf59e0b
+          : zone.resourceType === 'stone'
+          ? 0x94a3b8
+          : 0xf43f5e;
 
       if (!group) {
         group = createWorkZoneMesh(colorHex);
@@ -1636,7 +1863,13 @@ export default function App() {
 
       let group = workZoneMeshes.current.get(previewKey);
       const colorHex =
-        previewZone.resourceType === 'tree' ? 0x34d399 : previewZone.resourceType === 'gold_mine' ? 0xfbbf24 : 0xfb7185;
+        previewZone.resourceType === 'tree'
+          ? 0x34d399
+          : previewZone.resourceType === 'gold_mine'
+          ? 0xfbbf24
+          : previewZone.resourceType === 'stone'
+          ? 0xcbd5e1
+          : 0xfb7185;
 
       if (!group) {
         group = createWorkZoneMesh(colorHex);
@@ -1662,31 +1895,72 @@ export default function App() {
 
     const interval = setInterval(() => {
       setGameState((prev) => {
+        // Partida encerrada: a simulacao nao avanca mais
+        if (prev.match?.status === 'finished') return prev;
+
         let updatedUnits = [...prev.units];
         let updatedNodes = [...prev.resourceNodes];
         let updatedBuildings = [...prev.buildings];
         let updatedResources = { ...prev.playerResources };
+        const updatedTechs: Record<string, TechState> = { ...(prev.techs ?? {}) };
 
         // 1. Process Units (Movement, Gathering, Attacking)
         updatedUnits = updatedUnits
           .map((unit) => {
             // A. Move to Target Position
             if (unit.targetPosition) {
-              const dx = unit.targetPosition.x - unit.position.x;
-              const dz = unit.targetPosition.z - unit.position.z;
+              const goal = unit.targetPosition;
+              const dx = goal.x - unit.position.x;
+              const dz = goal.z - unit.position.z;
               const dist = Math.sqrt(dx * dx + dz * dz);
 
               if (dist < 0.25) {
+                unitPathsRef.current.delete(unit.id);
                 return { ...unit, targetPosition: null, state: 'idle' as const };
               }
 
-              const speed = unit.type === 'soldier' ? 0.2 : 0.16;
-              const nextX = unit.position.x + (dx / dist) * speed;
-              const nextZ = unit.position.z + (dz / dist) * speed;
+              const speed = unit.type === 'soldier' ? 0.2 : unit.type === 'cavalry' ? 0.3 : 0.16;
+              const isBoat = isBoatUnit(unit.type);
+              const pMap = proceduralMapRef.current;
+
+              // A* no grid: cliffs/agua bloqueiam o caminho (cacheado por alvo)
+              const pathFor = (from: { x: number; z: number }) => {
+                const isBlocked = pMap
+                  ? isBoat
+                    ? (x: number, z: number) => !pMap.isWaterAt(x, z)
+                    : (x: number, z: number) => pMap.isImpassableAt(x, z)
+                  : () => false;
+                return findPath(from, goal, isBlocked, { mapSize: MAP_SIZE, maxExpanded: 2400 });
+              };
+
+              const cached = unitPathsRef.current.get(unit.id);
+              if (!cached || cached.goal.x !== goal.x || cached.goal.z !== goal.z) {
+                unitPathsRef.current.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: pathFor(unit.position) });
+              }
+
+              // Rota parcial terminou antes do alvo (orcamento do A* esgotado no
+              // caminho): recalcula da posicao atual e segue em trechos ate chegar.
+              let cachedPath = unitPathsRef.current.get(unit.id)?.path ?? [];
+              if (cachedPath.length > 0 && nextWaypoint(unit.position, cachedPath) === null) {
+                cachedPath = pathFor(unit.position);
+                unitPathsRef.current.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: cachedPath });
+              }
+
+              // Segue o proximo waypoint; sem rota (ou fim dela) segue reto ao alvo
+              const waypoint = cachedPath.length > 0 ? nextWaypoint(unit.position, cachedPath) : null;
+              const heading = waypoint ?? goal;
+              const hx = heading.x - unit.position.x;
+              const hz = heading.z - unit.position.z;
+              const headingDist = Math.sqrt(hx * hx + hz * hz);
+              if (headingDist < 1e-6) {
+                unitPathsRef.current.delete(unit.id);
+                return { ...unit, targetPosition: null, state: 'idle' as const };
+              }
+
+              const nextX = unit.position.x + (hx / headingDist) * speed;
+              const nextZ = unit.position.z + (hz / headingDist) * speed;
 
               // Collision check with impassable Skyrim cliffs and ocean
-              const isBoat = unit.type === 'fishing_boat' || unit.type === 'trade_boat';
-              const pMap = proceduralMapRef.current;
               if (pMap) {
                 if (isBoat) {
                   if (!pMap.isWaterAt(nextX, nextZ)) {
@@ -1713,6 +1987,47 @@ export default function App() {
                 },
                 state: 'moving' as const,
               };
+            }
+
+            // Reparo: aldeao conserta o edificio proprio consumindo madeira
+            if (unit.state === 'repairing' && unit.targetEntityId) {
+              const targetId = unit.targetEntityId;
+              const building = updatedBuildings.find((bd) => bd.id === targetId);
+              if (!building || !building.isComplete || building.owner !== unit.owner || building.health >= building.maxHealth) {
+                return { ...unit, state: 'idle' as const, targetEntityId: null, targetPosition: null };
+              }
+
+              const repairDx = building.position.x - unit.position.x;
+              const repairDz = building.position.z - unit.position.z;
+              const repairDistance = Math.sqrt(repairDx * repairDx + repairDz * repairDz);
+
+              // Aproxima do edificio antes de comecar a consertar
+              if (repairDistance > REPAIR_REACH) {
+                const step = 0.16;
+                const nextX = unit.position.x + (repairDx / repairDistance) * step;
+                const nextZ = unit.position.z + (repairDz / repairDistance) * step;
+                const repairMap = proceduralMapRef.current;
+                if (repairMap && repairMap.isImpassableAt(nextX, nextZ)) {
+                  return { ...unit, state: 'idle' as const, targetEntityId: null };
+                }
+                return { ...unit, position: { x: nextX, z: nextZ }, state: 'repairing' as const };
+              }
+
+              const ownerResources = updatedResources[unit.owner];
+              const healed = Math.min(REPAIR_HP_PER_TICK, building.maxHealth - building.health);
+              const woodCost = healed * REPAIR_WOOD_PER_HP;
+              if (!ownerResources || healed <= 0 || ownerResources.wood < woodCost) {
+                return { ...unit, state: 'idle' as const, targetEntityId: null };
+              }
+
+              updatedResources = {
+                ...updatedResources,
+                [unit.owner]: { ...ownerResources, wood: ownerResources.wood - woodCost },
+              };
+              updatedBuildings = updatedBuildings.map((bd) =>
+                bd.id === building.id ? { ...bd, health: bd.health + healed } : bd
+              );
+              return { ...unit, state: 'repairing' as const };
             }
 
             // B. Resource Gathering (With Sustainable Forestry, Regrowth, Shift Timer & Strict Proximity Leash)
@@ -1760,7 +2075,7 @@ export default function App() {
                       (b) => b.owner === unit.owner && b.type === 'sawmill' && b.isComplete
                     );
                     if (hasSawmill) gatherRate *= 1.35;
-                  } else if (targetNode.type === 'gold_mine') {
+                  } else if (targetNode.type === 'gold_mine' || targetNode.type === 'stone') {
                     const hasMine = updatedBuildings.some(
                       (b) => b.owner === unit.owner && b.type === 'mine' && b.isComplete
                     );
@@ -1769,9 +2084,19 @@ export default function App() {
                     gatherRate = unit.type === 'fishing_boat' ? 1.0 : 0.65;
                   }
 
+                  // Tecnologias de economia aceleram a coleta
+                  gatherRate *= gatherMultiplier(updatedTechs[unit.owner], targetNode.type);
+
                   targetNode.remaining = Math.max(0, targetNode.remaining - gatherRate);
 
-                  const resKey = targetNode.type === 'tree' ? 'wood' : targetNode.type === 'gold_mine' ? 'gold' : 'food';
+                  const resKey =
+                    targetNode.type === 'tree'
+                      ? 'wood'
+                      : targetNode.type === 'gold_mine'
+                      ? 'gold'
+                      : targetNode.type === 'stone'
+                      ? 'stone'
+                      : 'food';
                   if (updatedResources[unit.owner]) {
                     updatedResources[unit.owner] = {
                       ...updatedResources[unit.owner],
@@ -1932,9 +2257,24 @@ export default function App() {
                 const dz = target.position.z - unit.position.z;
                 const dist = Math.sqrt(dx * dx + dz * dz);
 
-                const attackRange = unit.type === 'soldier' ? (targetBuilding ? 5.5 : 4.5) : (targetBuilding ? 2.5 : 1.2);
+                const attackRange =
+                  unit.type === 'soldier'
+                    ? targetBuilding
+                      ? 5.5
+                      : 4.5
+                    : unit.type === 'cavalry'
+                    ? targetBuilding
+                      ? 3.5
+                      : 2.5
+                    : unit.type === 'warship'
+                    ? targetBuilding
+                      ? 5
+                      : 7
+                    : targetBuilding
+                    ? 2.5
+                    : 1.2;
                 if (dist > attackRange) {
-                  const speed = 0.18;
+                  const speed = unit.type === 'cavalry' ? 0.26 : unit.type === 'warship' ? 0.2 : 0.18;
                   return {
                     ...unit,
                     position: {
@@ -1946,7 +2286,11 @@ export default function App() {
                   // Apply damage with rhythmic attack cadence
                   const cooldown = unit.attackCooldown ?? 0;
                   if (cooldown <= 0) {
-                    const damage = unit.type === 'soldier' ? 24 : 8;
+                    const baseDamage =
+                      unit.type === 'soldier' ? 24 : unit.type === 'cavalry' ? 32 : unit.type === 'warship' ? 20 : 8;
+                    const damage = Math.round(
+                      baseDamage * unitDamageMultiplier(updatedTechs[unit.owner], unit.type)
+                    );
                     const prevHealth = target.health;
                     target.health = Math.max(0, target.health - damage);
 
@@ -1963,20 +2307,24 @@ export default function App() {
                     // Combat audio feedback
                     soundManager.playCombatHitSound(isMusket);
 
-                    // If fatal hit, spawn defeat burst
+                    // If fatal hit, spawn defeat burst (barcos afundam com efeito proprio)
                     if (prevHealth > 0 && target.health <= 0) {
-                      engineRef.current?.spawnHitEffect(
-                        target.position.x,
-                        targetBuilding ? 1.0 : 0.3,
-                        target.position.z,
-                        false
-                      );
+                      if (targetEnemy && isBoatUnit(targetEnemy.type)) {
+                        engineRef.current?.spawnBoatSinking(target.position.x, target.position.z);
+                      } else {
+                        engineRef.current?.spawnHitEffect(
+                          target.position.x,
+                          targetBuilding ? 1.0 : 0.3,
+                          target.position.z,
+                          false
+                        );
+                      }
                     }
 
                     // Reset attack cooldown (Soldier fires every ~12 ticks = 0.6s, Villager strikes every ~8 ticks = 0.4s)
                     return {
                       ...unit,
-                      attackCooldown: isMusket ? 12 : 8,
+                      attackCooldown: isMusket ? 12 : unit.type === 'warship' ? 16 : 8,
                     };
                   } else {
                     return {
@@ -2048,6 +2396,11 @@ export default function App() {
         // Free population slots of every unit that died this tick
         const deathsByOwner = countDeathsByOwner(updatedUnits);
         updatedUnits = updatedUnits.filter((u) => u.health > 0); // Remove dead units
+        // Descarta caminhos A* de unidades que ja sairam da partida
+        const liveUnitIds = new Set(updatedUnits.map((u) => u.id));
+        unitPathsRef.current.forEach((_, id) => {
+          if (!liveUnitIds.has(id)) unitPathsRef.current.delete(id);
+        });
         for (const owner of Object.keys(deathsByOwner)) {
           updatedResources = applyPopDelta(updatedResources, owner, -deathsByOwner[owner]);
         }
@@ -2084,8 +2437,17 @@ export default function App() {
 
             if (currentItem.progress >= 100) {
               // Spawn unit
-              const isBoat = currentItem.unitType === 'fishing_boat' || currentItem.unitType === 'trade_boat';
-              const maxHp = isBoat ? 220 : currentItem.unitType === 'soldier' ? 150 : 100;
+              const isBoat = isBoatUnit(currentItem.unitType);
+              const maxHp =
+                currentItem.unitType === 'warship'
+                  ? 300
+                  : isBoat
+                  ? 220
+                  : currentItem.unitType === 'soldier'
+                  ? 150
+                  : currentItem.unitType === 'cavalry'
+                  ? 180
+                  : 100;
               const newUnit: Unit = {
                 id: uuidv4(),
                 type: currentItem.unitType,
@@ -2098,7 +2460,14 @@ export default function App() {
                 targetEntityId: null,
                 health: maxHp,
                 maxHealth: maxHp,
-                attackDamage: currentItem.unitType === 'soldier' ? 18 : 5,
+                attackDamage:
+                  currentItem.unitType === 'soldier'
+                    ? 18
+                    : currentItem.unitType === 'cavalry'
+                    ? 20
+                    : currentItem.unitType === 'warship'
+                    ? 24
+                    : 5,
                 state: 'idle',
               };
               updatedUnits.push(newUnit);
@@ -2185,37 +2554,110 @@ export default function App() {
           if (activeTradeBoats > 0) {
             res.gold = (res.gold || 0) + activeTradeBoats * 0.15; // ~3 gold / second per trade boat
           }
+
+          // Completed Sawmills refine wood into noble planks
+          const completedSawmills = updatedBuildings.filter(
+            (b) => b.owner === slot && b.type === 'sawmill' && b.isComplete && b.health > 0
+          ).length;
+          if (completedSawmills > 0) {
+            updatedResources[slot] = refinePlanks(res, completedSawmills);
+          }
         });
 
-        // 3. Simple Autonomous AI for player2 if singleplayer
+        // 3. IA autonoma de todos os slots nao humanos no modo solo (2..4 jogadores)
         if (role === 'single') {
-          const aiTc = updatedBuildings.find((b) => b.owner === 'player2' && b.type === 'town_center');
-          const aiUnits = updatedUnits.filter((u) => u.owner === 'player2');
-          const aiRes = updatedResources['player2'];
+          const humanSlot = playerSlotRef.current;
+          const aiSlots = activeSlotsRef.current.filter((slot) => slot !== humanSlot);
 
-          if (aiTc && aiTc.trainingQueue.length === 0 && aiUnits.length < 8 && aiRes.food >= 50) {
-            aiRes.food -= 50;
-            aiTc.trainingQueue.push({ unitType: aiUnits.length % 2 === 0 ? 'soldier' : 'villager', progress: 0 });
-          }
+          aiSlots.forEach((aiSlot) => {
+            const aiTc = updatedBuildings.find((b) => b.owner === aiSlot && b.type === 'town_center');
+            const aiUnits = updatedUnits.filter((u) => u.owner === aiSlot);
+            const aiRes = updatedResources[aiSlot];
+            if (!aiRes || !aiTc) return;
 
-          // Idle AI units gather or march
-          aiUnits.forEach((aiUnit) => {
-            if (aiUnit.state === 'idle') {
+            // Producao: mosqueteiro, aldeao e cavalaria quando o ouro permite
+            if (aiTc.trainingQueue.length === 0 && aiUnits.length < 8) {
+              const cycle: UnitType[] = ['soldier', 'villager', 'soldier', 'cavalry'];
+              const trainType = cycle[aiUnits.length % cycle.length];
+              const cost = UNIT_COSTS[trainType];
+              if (canAfford(aiRes, cost)) {
+                updatedResources[aiSlot] = applyCost(aiRes, cost);
+                aiTc.trainingQueue.push({ unitType: trainType, progress: 0 });
+              }
+            }
+
+            // Unidades ociosas: aldeoes coletam, militares marcham contra a base humana
+            aiUnits.forEach((aiUnit) => {
+              if (aiUnit.state !== 'idle') return;
+
               if (aiUnit.type === 'villager') {
                 const nearestTree = updatedNodes.find((n) => n.type === 'tree');
                 if (nearestTree) {
                   aiUnit.state = 'gathering';
                   aiUnit.targetEntityId = nearestTree.id;
                 }
-              } else if (aiUnit.type === 'soldier' && aiUnits.filter((u) => u.type === 'soldier').length >= 3) {
-                // Attack Player 1 TC
-                const p1Tc = updatedBuildings.find((b) => b.owner === 'player1');
-                if (p1Tc) {
-                  aiUnit.targetPosition = { x: p1Tc.position.x + 2, z: p1Tc.position.z + 2 };
+                return;
+              }
+
+              const soldiers = aiUnits.filter((u) => u.type === 'soldier').length;
+              const cavalry = aiUnits.filter((u) => u.type === 'cavalry').length;
+              const shouldMarch =
+                (aiUnit.type === 'soldier' && soldiers >= 3) ||
+                (aiUnit.type === 'cavalry' && (cavalry >= 2 || soldiers >= 3));
+              if (shouldMarch) {
+                const humanTc = updatedBuildings.find((b) => b.owner === humanSlot && b.type === 'town_center');
+                if (humanTc) {
+                  aiUnit.targetPosition = { x: humanTc.position.x + 2, z: humanTc.position.z + 2 };
                 }
               }
-            }
+            });
           });
+        }
+
+        // 3b. Filas de pesquisa: tecnologias e avancos de era (20 ticks/s)
+        Object.keys(updatedTechs).forEach((slot) => {
+          const before = updatedTechs[slot];
+          if (!before) return;
+          const after = advanceResearch(before, 0.05);
+          updatedTechs[slot] = after;
+          if (slot !== playerSlotRef.current || after === before) return;
+          if (after.completed.length > before.completed.length) {
+            const techId = after.completed[after.completed.length - 1];
+            const tech = TECH_DEFS.find((candidate) => candidate.id === techId);
+            triggerNotification(`Tecnologia pesquisada: ${tech?.name ?? techId}! (${tech?.description ?? ''})`, 'success');
+            soundManager.playBuildingCompletedSound('market');
+          } else if (after.era !== before.era) {
+            triggerNotification(`Avanço de era concluído: ${after.era}!`, 'success');
+            soundManager.playBuildingCompletedSound('town_center');
+          }
+        });
+
+        // 4. Separacao de corpos: empurra unidades sobrepostas (grid espacial, ~O(n) por tick)
+        const separationMap = proceduralMapRef.current;
+        if (separationMap && updatedUnits.length > 1) {
+          const movedPositions = new Map<string, { x: number; z: number }>();
+          const relax = (units: Unit[], isBlocked: (x: number, z: number) => boolean) => {
+            if (units.length < 2) return;
+            const resolved = resolveSeparation(
+              units.map((u) => ({ id: u.id, x: u.position.x, z: u.position.z })),
+              { mapSize: MAP_SIZE, isBlocked }
+            );
+            resolved.forEach((pos, index) => {
+              const unit = units[index];
+              if (pos.x !== unit.position.x || pos.z !== unit.position.z) {
+                movedPositions.set(unit.id, { x: pos.x, z: pos.z });
+              }
+            });
+          };
+          const isSeaUnit = (u: Unit) => isBoatUnit(u.type);
+          relax(updatedUnits.filter((u) => !isSeaUnit(u)), (x, z) => separationMap.isImpassableAt(x, z));
+          relax(updatedUnits.filter(isSeaUnit), (x, z) => !separationMap.isWaterAt(x, z));
+          if (movedPositions.size > 0) {
+            updatedUnits = updatedUnits.map((u) => {
+              const pos = movedPositions.get(u.id);
+              return pos ? { ...u, position: pos } : u;
+            });
+          }
         }
 
         return {
@@ -2223,6 +2665,11 @@ export default function App() {
           buildings: updatedBuildings,
           resourceNodes: updatedNodes,
           playerResources: updatedResources,
+          techs: updatedTechs,
+          match:
+            activeSlotsRef.current.length >= 2
+              ? evaluateMatch(updatedBuildings, activeSlotsRef.current)
+              : { status: 'running' as const, players: activeSlotsRef.current },
         };
       });
     }, 50);
@@ -2332,7 +2779,7 @@ export default function App() {
       };
       setGameState((prev) => {
         const pRes = prev.playerResources[cmd.owner];
-        if (!pRes || !canAffordResources(pRes, def.cost)) return prev;
+        if (!pRes || !canAfford(pRes, def.cost)) return prev;
         const placement = checkBuildingPlacementValid(
           cmd.buildingType,
           cmd.position.x,
@@ -2365,7 +2812,7 @@ export default function App() {
           units: updatedUnits,
           playerResources: {
             ...prev.playerResources,
-            [cmd.owner]: deductResourceCost(pRes, def.cost),
+            [cmd.owner]: applyCost(pRes, def.cost),
           },
         };
       });
@@ -2380,14 +2827,8 @@ export default function App() {
           .filter((candidate) => candidate.owner === owner)
           .reduce((total, candidate) => total + candidate.trainingQueue.length, 0);
         if (resources.pop + queuedForOwner >= resources.maxPop) return prev;
-        const trainingCost = cmd.unitType === 'villager'
-          ? { food: 50 }
-          : cmd.unitType === 'soldier'
-            ? { food: 80, gold: 40 }
-            : cmd.unitType === 'fishing_boat'
-              ? { wood: 75 }
-              : { wood: 100, gold: 30 };
-        if (cmd.playerSlot && !canAffordResources(resources, trainingCost)) return prev;
+        const unitCost = UNIT_COSTS[cmd.unitType];
+        if (cmd.playerSlot && !canAfford(resources, unitCost)) return prev;
 
         return {
           ...prev,
@@ -2399,7 +2840,7 @@ export default function App() {
           ...(cmd.playerSlot ? {
             playerResources: {
               ...prev.playerResources,
-              [owner]: deductResourceCost(resources, trainingCost),
+              [owner]: applyCost(resources, unitCost),
             },
           } : {}),
         };
@@ -2409,8 +2850,7 @@ export default function App() {
         const b = prev.buildings.find((bd) => bd.id === cmd.buildingId);
         if (!b || b.trainingQueue.length <= cmd.index) return prev;
         const item = b.trainingQueue[cmd.index];
-        const costF = item.unitType === 'soldier' ? 80 : 50;
-        const costG = item.unitType === 'soldier' ? 40 : 0;
+        const unitCost = UNIT_COSTS[item.unitType];
         const pRes = prev.playerResources[b.owner];
         const newQueue = b.trainingQueue.filter((_, idx) => idx !== cmd.index);
         return {
@@ -2420,14 +2860,65 @@ export default function App() {
           ),
           playerResources: {
             ...prev.playerResources,
-            [b.owner]: {
-              ...pRes,
-              food: pRes.food + costF,
-              gold: (pRes.gold || 0) + costG,
-            },
+            [b.owner]: refundCost(pRes, unitCost),
           },
         };
       });
+    } else if (cmd.type === 'research') {
+      // Pesquisa de tecnologia ou avanco de era: custo debitado e fila validada no host
+      setGameState((prev) => {
+        const owner = cmd.playerSlot || playerSlot;
+        const techState = prev.techs?.[owner];
+        const resources = prev.playerResources[owner];
+        if (!techState || !resources) return prev;
+
+        const started = startResearch(techState, cmd.id, resources);
+        if (!started) return prev;
+
+        if (owner === playerSlotRef.current) {
+          soundManager.playClickSound();
+          triggerNotification(`Pesquisa iniciada: ${researchTarget(cmd.id)?.name ?? cmd.id}`, 'info');
+        }
+
+        return {
+          ...prev,
+          techs: { ...prev.techs, [owner]: started.techState },
+          playerResources: { ...prev.playerResources, [owner]: started.resources },
+        };
+      });
+    } else if (cmd.type === 'repair') {
+      // Aldeao do dono passa a consertar o edificio proprio (paga madeira por HP)
+      setGameState((prev) => {
+        const building = prev.buildings.find((bd) => bd.id === cmd.buildingId);
+        const unit = prev.units.find((u) => u.id === cmd.unitId);
+        if (!building || !unit || unit.owner !== building.owner || unit.type !== 'villager') return prev;
+        return {
+          ...prev,
+          units: prev.units.map((u) =>
+            u.id === cmd.unitId
+              ? { ...u, state: 'repairing' as const, targetEntityId: cmd.buildingId, targetPosition: null }
+              : u
+          ),
+        };
+      });
+      triggerNotification('Aldeão a caminho para reparar o edifício.', 'info');
+    } else if (cmd.type === 'demolish') {
+      setGameState((prev) => {
+        const b = prev.buildings.find((bd) => bd.id === cmd.buildingId);
+        if (!b || b.type === 'town_center') return prev;
+        const def = BUILDING_CATALOG[b.type];
+        const pRes = prev.playerResources[b.owner];
+        if (!def || !pRes) return prev;
+        return {
+          ...prev,
+          buildings: prev.buildings.filter((bd) => bd.id !== cmd.buildingId),
+          playerResources: {
+            ...prev.playerResources,
+            [b.owner]: refundCost(pRes, halfCost(def.cost)),
+          },
+        };
+      });
+      triggerNotification('Edifício demolido: metade dos recursos devolvida.', 'success');
     } else if (cmd.type === 'set_resource_mode') {
       setGameState((prev) => ({
         ...prev,
@@ -2518,9 +3009,6 @@ export default function App() {
           soundManager.playClickSound();
           return next;
         });
-      } else if (e.key === 'm' || e.key === 'M') {
-        setIsEmpireCatalogOpen((prev) => !prev);
-        soundManager.playClickSound();
       } else if (e.key === 'h' || e.key === 'H') {
         setHudMode((prev) => {
           const next = prev === 'hidden' ? 'full' : 'hidden';
@@ -2617,10 +3105,14 @@ export default function App() {
               handleTrainUnit('villager', 1);
             } else if (b.type === 'barracks' && key === 's') {
               handleTrainUnit('soldier', 1);
+            } else if (b.type === 'barracks' && key === 'g') {
+              handleTrainUnit('cavalry', 1);
             } else if (b.type === 'dock' && key === 'p') {
               handleTrainUnit('fishing_boat', 1);
             } else if (b.type === 'dock' && key === 'm') {
               handleTrainUnit('trade_boat', 1);
+            } else if (b.type === 'dock' && key === 'g') {
+              handleTrainUnit('warship', 1);
             }
           }
         }
@@ -2695,10 +3187,9 @@ export default function App() {
 
       const def = BUILDING_CATALOG[buildMode];
       const myRes = gameStateRef.current.playerResources[playerSlot];
-      const costW = def ? def.cost.wood : 60;
-      const costG = def && def.cost.gold ? def.cost.gold : 0;
+      const buildingCost = def ? def.cost : { wood: 60 };
 
-      if (myRes.wood >= costW && (myRes.gold || 0) >= costG) {
+      if (canAfford(myRes, buildingCost)) {
         // Collect selected villager ids so they automatically move to build
         let builderVillagers = gameStateRef.current.units.filter(
           (u) => selectedUnitIdsRef.current.includes(u.id) && u.owner === playerSlot && u.type === 'villager'
@@ -2738,7 +3229,7 @@ export default function App() {
       } else {
         soundManager.playClickSound();
         triggerNotification(
-          `Recursos insuficientes para ${def ? def.name : 'Edifício'}! Necessário: ${costW} Madeira${costG > 0 ? `, ${costG} Ouro` : ''}`,
+          `Recursos insuficientes para ${def ? def.name : 'Edifício'}! ${missingCost(myRes, buildingCost) || ''}`,
           'warning'
         );
       }
@@ -3166,11 +3657,20 @@ export default function App() {
       if (hits.length > 0) {
         const target = gameState.units.find((u) => u.id === id);
         if (target && target.owner !== playerSlot) {
+          let navalSkipped = false;
           myUnits.forEach((u) => {
+            // Barcos so enfrentam embarcacoes: nunca saem da agua atras de terra firme
+            if (isBoatUnit(u.type) && !isBoatUnit(target.type)) {
+              navalSkipped = true;
+              return;
+            }
             const cmd = { type: 'attack', unitId: u.id, targetId: id };
             if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
             else multiRef.current?.sendToHost(cmd);
           });
+          if (navalSkipped) {
+            triggerNotification('Barcos só enfrentam embarcações inimigas!', 'warning');
+          }
           engineRef.current.spawnClickMarker(target.position.x, target.position.z, 'attack');
           soundManager.playClickSound();
           return;
@@ -3185,12 +3685,20 @@ export default function App() {
         const targetB = gameState.buildings.find((b) => b.id === id);
         if (targetB) {
           if (targetB.owner !== playerSlot) {
-            // Attack enemy building
+            // Attack enemy building (barcos ficam na agua)
+            let navalSkipped = false;
             myUnits.forEach((u) => {
+              if (isBoatUnit(u.type)) {
+                navalSkipped = true;
+                return;
+              }
               const cmd = { type: 'attack', unitId: u.id, targetId: id };
               if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
               else multiRef.current?.sendToHost(cmd);
             });
+            if (navalSkipped) {
+              triggerNotification('Barcos só enfrentam embarcações inimigas!', 'warning');
+            }
             engineRef.current.spawnClickMarker(targetB.position.x, targetB.position.z, 'attack');
             soundManager.playClickSound();
             return;
@@ -3288,7 +3796,7 @@ export default function App() {
       const point = groundHits[0].point;
 
       // Check if clicked location is an impassable Skyrim rocky cliff
-      const isLandUnit = myUnits.some((u) => u.type !== 'fishing_boat' && u.type !== 'trade_boat');
+      const isLandUnit = myUnits.some((u) => !isBoatUnit(u.type));
       if (isLandUnit && proceduralMapRef.current?.isCliffAt(point.x, point.z)) {
         triggerNotification('Pico rochoso íngreme intransitável (Estilo Skyrim)! As tropas não podem subir.', 'warning');
         soundManager.playClickSound();
@@ -3323,21 +3831,7 @@ export default function App() {
     const b = gameState.buildings.find((bd) => bd.id === selectedEntity.id);
     if (!b || b.owner !== playerSlot) return;
 
-    let costFood = 0;
-    let costWood = 0;
-    let costGold = 0;
-
-    if (unitType === 'villager') {
-      costFood = 50;
-    } else if (unitType === 'soldier') {
-      costFood = 80;
-      costGold = 40;
-    } else if (unitType === 'fishing_boat') {
-      costWood = 75;
-    } else if (unitType === 'trade_boat') {
-      costWood = 100;
-      costGold = 30;
-    }
+    const unitCost = UNIT_COSTS[unitType];
 
     const myRes = gameState.playerResources[playerSlot];
 
@@ -3355,30 +3849,33 @@ export default function App() {
 
     const unitsToQueue = Math.min(count, availableSlots);
     let successfullyQueued = 0;
-    let currentFood = myRes.food;
-    let currentWood = myRes.wood;
-    let currentGold = myRes.gold;
+    let currentRes = myRes;
 
     for (let i = 0; i < unitsToQueue; i++) {
       if (myRes.pop + totalQueuedForPlayer + successfullyQueued >= myRes.maxPop) {
         triggerNotification('Limite de população atingido! Construa Casas Coloniais [Q] (+5 pop).', 'warning');
         break;
       }
-      if (currentFood < costFood || currentWood < costWood || currentGold < costGold) {
+      if (!canAfford(currentRes, unitCost)) {
         const unitName =
           unitType === 'villager'
             ? 'Aldeão'
             : unitType === 'soldier'
             ? 'Mosqueteiro'
+            : unitType === 'cavalry'
+            ? 'Cavalaria'
             : unitType === 'fishing_boat'
             ? 'Barco de Pesca'
+            : unitType === 'warship'
+            ? 'Barco de Guerra'
             : 'Barco Mercante';
-        triggerNotification(`Recursos insuficientes para construir ${unitName}!`, 'warning');
+        triggerNotification(
+          `Recursos insuficientes para ${unitName}! ${missingCost(currentRes, unitCost) || ''}`,
+          'warning'
+        );
         break;
       }
-      currentFood -= costFood;
-      currentWood -= costWood;
-      currentGold -= costGold;
+      currentRes = applyCost(currentRes, unitCost);
       successfullyQueued++;
 
       const cmd = { type: 'train', buildingId: b.id, unitType };
@@ -3392,12 +3889,7 @@ export default function App() {
         ...prev,
         playerResources: {
           ...prev.playerResources,
-          [playerSlot]: {
-            ...myRes,
-            food: currentFood,
-            wood: currentWood,
-            gold: currentGold,
-          },
+          [playerSlot]: currentRes,
         },
       }));
       const unitName =
@@ -3405,8 +3897,12 @@ export default function App() {
           ? 'Aldeão'
           : unitType === 'soldier'
           ? 'Mosqueteiro'
+          : unitType === 'cavalry'
+          ? 'Cavalaria'
           : unitType === 'fishing_boat'
           ? 'Barco de Pesca'
+          : unitType === 'warship'
+          ? 'Barco de Guerra'
           : 'Barco Mercante';
       triggerNotification(
         `+${successfullyQueued} ${unitName}(s) adicionado(s) à fila de construção!`,
@@ -3419,22 +3915,6 @@ export default function App() {
   const handleCancelTrain = (buildingId: string, index: number) => {
     const b = gameState.buildings.find((bd) => bd.id === buildingId);
     if (!b || b.owner !== playerSlot || b.trainingQueue.length <= index) return;
-
-    const item = b.trainingQueue[index];
-    let refundFood = 0;
-    let refundWood = 0;
-    let refundGold = 0;
-
-    if (item.unitType === 'villager') refundFood = 50;
-    else if (item.unitType === 'soldier') {
-      refundFood = 80;
-      refundGold = 40;
-    } else if (item.unitType === 'fishing_boat') {
-      refundWood = 75;
-    } else if (item.unitType === 'trade_boat') {
-      refundWood = 100;
-      refundGold = 30;
-    }
 
     const cmd = { type: 'cancel_train', buildingId, index };
     if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
@@ -3594,7 +4074,7 @@ export default function App() {
   };
 
   // Jump camera directly to the nearest resource of a given type
-  const handleJumpToResource = (type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school') => {
+  const handleJumpToResource = (type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school' | 'stone') => {
     if (!engineRef.current) return;
     const myTc = gameState.buildings.find((b) => b.owner === playerSlot && b.type === 'town_center');
     const refX = myTc ? myTc.position.x : MAP_SIZE / 2;
@@ -3609,6 +4089,8 @@ export default function App() {
           ? 'Ouro'
           : type === 'fish_school'
           ? 'Peixes'
+          : type === 'stone'
+          ? 'Pedra'
           : 'Alimento';
       triggerNotification(`Nenhum depósito de ${typeLabel} restante no mapa!`, 'warning');
       return;
@@ -3628,63 +4110,37 @@ export default function App() {
   };
 
   // Trade resource at the Grand Market (Ikariam / AoE market exchange)
-  const handleTradeResource = (type: 'wood' | 'food' | 'stone', action: 'buy' | 'sell', amount: number) => {
-    const marketRates = {
-      wood: { buyPrice: 50, sellPrice: 35 },
-      food: { buyPrice: 55, sellPrice: 38 },
-      stone: { buyPrice: 70, sellPrice: 48 },
-    };
-    const rate = marketRates[type];
+  const handleTradeResource = (type: MarketResourceType, action: 'buy' | 'sell', amount: number) => {
     const myRes = gameState.playerResources[playerSlot];
     if (!myRes) return;
 
+    const outcome = tradeResource(myRes, type, action, amount);
+    if (!outcome.ok || !outcome.next) {
+      triggerNotification(outcome.reason || 'Operação de comércio inválida.', 'warning');
+      return;
+    }
+
+    setGameState((prev) => {
+      const applied = tradeResource(prev.playerResources[playerSlot], type, action, amount);
+      if (!applied.ok || !applied.next) return prev;
+      return {
+        ...prev,
+        playerResources: {
+          ...prev.playerResources,
+          [playerSlot]: applied.next,
+        },
+      };
+    });
+    soundManager.playClickSound();
+
+    const nextRes = outcome.next;
+    const label = MARKET_LABELS[type];
     if (action === 'buy') {
-      const totalGoldCost = Math.round((amount / 100) * rate.buyPrice);
-      if ((myRes.gold || 0) < totalGoldCost) {
-        triggerNotification(`Ouro insuficiente! Necessário ${totalGoldCost} ouro.`, 'warning');
-        return;
-      }
-      setGameState((prev) => {
-        const pRes = prev.playerResources[playerSlot];
-        const resKey = type === 'wood' ? 'wood' : 'food';
-        return {
-          ...prev,
-          playerResources: {
-            ...prev.playerResources,
-            [playerSlot]: {
-              ...pRes,
-              gold: (pRes.gold || 0) - totalGoldCost,
-              [resKey]: (pRes[resKey] || 0) + amount,
-            },
-          },
-        };
-      });
-      soundManager.playClickSound();
-      triggerNotification(`Mercadão: Comprado ${amount} de ${type} por ${totalGoldCost} ouro!`, 'success');
+      const goldSpent = myRes.gold - nextRes.gold;
+      triggerNotification(`Mercadão: Comprado ${amount} de ${label} por ${goldSpent} ouro!`, 'success');
     } else {
-      const resKey = type === 'wood' ? 'wood' : 'food';
-      const currentSupply = myRes[resKey] || 0;
-      if (currentSupply < amount) {
-        triggerNotification(`${type} insuficiente no armazém para vender!`, 'warning');
-        return;
-      }
-      const totalGoldGain = Math.round((amount / 100) * rate.sellPrice);
-      setGameState((prev) => {
-        const pRes = prev.playerResources[playerSlot];
-        return {
-          ...prev,
-          playerResources: {
-            ...prev.playerResources,
-            [playerSlot]: {
-              ...pRes,
-              [resKey]: (pRes[resKey] || 0) - amount,
-              gold: (pRes.gold || 0) + totalGoldGain,
-            },
-          },
-        };
-      });
-      soundManager.playClickSound();
-      triggerNotification(`Mercadão: Vendido ${amount} de ${type} por ${totalGoldGain} ouro!`, 'success');
+      const goldGained = nextRes.gold - myRes.gold;
+      triggerNotification(`Mercadão: Vendido ${amount} de ${label} por ${goldGained} ouro!`, 'success');
     }
   };
 
@@ -3840,6 +4296,29 @@ export default function App() {
     setTimeout(() => setCopiedIp(false), 2500);
   };
 
+  // Tutorial de primeira partida: abre uma unica vez por navegador e pode ser
+  // revisto pelo botao "Controles" no HUD.
+  useEffect(() => {
+    if (!isGameStarted || tutorialSeenCheckedRef.current) return;
+    tutorialSeenCheckedRef.current = true;
+    try {
+      if (window.localStorage.getItem(TUTORIAL_SEEN_KEY) !== '1') {
+        setShowTutorial(true);
+      }
+    } catch {
+      setShowTutorial(true);
+    }
+  }, [isGameStarted]);
+
+  const closeTutorial = () => {
+    setShowTutorial(false);
+    try {
+      window.localStorage.setItem(TUTORIAL_SEEN_KEY, '1');
+    } catch {
+      // armazenamento indisponivel: o tutorial podera abrir de novo
+    }
+  };
+
   // ==========================================
   // RENDER: PRE-GAME LOBBY / MENU
   // ==========================================
@@ -3968,6 +4447,36 @@ export default function App() {
               </button>
             </div>
 
+            <div className="pt-1">
+              <span className="block text-xs font-medium text-slate-400 mb-1.5">
+                Treino Solo: jogadores na partida (você + IA)
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                {([2, 3, 4] as const).map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => {
+                      setMatchSize(size);
+                      soundManager.playClickSound();
+                    }}
+                    className={`py-2 rounded-xl border text-xs font-semibold transition-all ${
+                      matchSize === size
+                        ? 'bg-amber-500/15 border-amber-500/60 text-amber-300 ring-1 ring-amber-500/30'
+                        : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                    }`}
+                  >
+                    {size} jogadores
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-500 mt-1">
+                {matchSize === 2
+                  ? 'Você contra uma colônia rival.'
+                  : `${matchSize - 1} colônias rivais controladas pela IA.`}
+              </p>
+            </div>
+
             <button
               type="button"
               onClick={() => {
@@ -3985,10 +4494,54 @@ export default function App() {
     );
   }
 
+  // Reparo e demolicao de edificios proprios (validados no host)
+  const handleResearch = (id: string) => {
+    const cmd = { type: 'research', id };
+    if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+    else multiRef.current?.sendToHost(cmd);
+  };
+
+  const handleRepairBuilding = (unitId: string, buildingId: string) => {
+    const cmd = { type: 'repair', unitId, buildingId };
+    if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+    else multiRef.current?.sendToHost(cmd);
+    soundManager.playClickSound();
+  };
+
+  const handleDemolishBuilding = (buildingId: string) => {
+    const cmd = { type: 'demolish', buildingId };
+    if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+    else multiRef.current?.sendToHost(cmd);
+    soundManager.playClickSound();
+  };
+
   // ==========================================
   // RENDER: IN-GAME RTS INTERFACE
   // ==========================================
   const myResources = gameState.playerResources[playerSlot] || { wood: 0, food: 0, gold: 0, pop: 0, maxPop: 10 };
+
+  // Match outcome: o host publica gameState.match, o jogador local deriva seu resultado
+  const matchStatus = gameState.match;
+  const matchFinished = matchStatus?.status === 'finished';
+  const contenders = matchStatus?.players ?? activeSlots;
+  const isMatchContender = contenders.includes(playerSlot);
+  const outcome: LocalOutcome = isMatchContender
+    ? localOutcome(playerSlot, gameState.buildings, contenders)
+    : 'running';
+  const showResultScreen = isMatchContender && (matchFinished || outcome !== 'running');
+  const isDraw = matchStatus?.status === 'finished' && matchStatus.winner === null;
+  const resultLabel = isDraw ? 'EMPATE' : outcome === 'victory' ? 'VITÓRIA' : 'DERROTA';
+  const resultToneClass = isDraw
+    ? 'text-slate-100'
+    : outcome === 'victory'
+      ? 'text-amber-300'
+      : 'text-red-400';
+  const resultDetail = isDraw
+    ? 'Nenhum Centro da Vila sobreviveu ao confronto.'
+    : outcome === 'victory'
+      ? 'Todos os oponentes perderam o Centro da Vila.'
+      : 'Seu Centro da Vila foi destruído.';
+
   const selectedUnitsList = gameState.units.filter((u) => selectedUnitIds.includes(u.id));
   const soldierCount = selectedUnitsList.filter((u) => u.type === 'soldier').length;
   const villagerCount = selectedUnitsList.filter((u) => u.type === 'villager').length;
@@ -4002,6 +4555,22 @@ export default function App() {
   const activeBuildersOnSelectedBuilding = selectedBuilding
     ? gameState.units.filter((u) => u.state === 'building' && u.targetEntityId === selectedBuilding.id).length
     : 0;
+
+  // Aldeao proprio mais proximo do edificio selecionado (destino do reparo)
+  let nearestVillagerToSelectedBuilding: Unit | null = null;
+  if (selectedBuilding) {
+    const buildingX = selectedBuilding.position.x;
+    const buildingZ = selectedBuilding.position.z;
+    let closestDistance = Number.POSITIVE_INFINITY;
+    for (const candidate of gameState.units) {
+      if (candidate.owner !== playerSlot || candidate.type !== 'villager' || candidate.health <= 0) continue;
+      const distance = Math.hypot(candidate.position.x - buildingX, candidate.position.z - buildingZ);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        nearestVillagerToSelectedBuilding = candidate;
+      }
+    }
+  }
 
   // Active gatherers working on selected resource if any
   const activeGatherersOnSelectedResource = selectedResource
@@ -4065,9 +4634,7 @@ export default function App() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-56 sm:max-h-none overflow-y-auto pr-0.5">
           {buildings.map((type) => {
             const def = BUILDING_CATALOG[type];
-            const canAffordWood = myResources.wood >= def.cost.wood;
-            const canAffordGold = !def.cost.gold || (myResources.gold || 0) >= def.cost.gold;
-            const canAfford = canAffordWood && canAffordGold;
+            const affordable = canAfford(myResources, def.cost);
 
             const icon =
               type === 'house' ? (
@@ -4092,14 +4659,14 @@ export default function App() {
               <button
                 key={type}
                 type="button"
-                disabled={!canAfford}
+                disabled={!affordable}
                 onClick={() => {
                   setBuildMode(type);
                   soundManager.playClickSound();
                   triggerNotification(`Modo de Construção: ${def.name}. Clique no terreno para erguer.`, 'info');
                 }}
                 className={`p-2 rounded-xl border text-left flex flex-col justify-between transition-all group relative overflow-hidden ${
-                  canAfford
+                  affordable
                     ? 'bg-slate-900/90 hover:bg-slate-800/95 border-slate-700/80 hover:border-amber-500/60 text-white shadow-sm hover:shadow-amber-500/10 hover:scale-[1.02]'
                     : 'bg-slate-950/70 border-slate-800/60 text-slate-600 cursor-not-allowed opacity-60'
                 }`}
@@ -4124,23 +4691,23 @@ export default function App() {
 
                 <div className="mt-1.5 pt-1 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono">
                   <div className="flex items-center gap-1">
-                    <span className={canAffordWood ? 'text-amber-400 font-bold' : 'text-red-400 font-bold'}>
-                      M {def.cost.wood}
-                    </span>
-                    {def.cost.gold && (
-                      <span className={canAffordGold ? 'text-yellow-400 font-bold' : 'text-red-400 font-bold'}>
-                        O {def.cost.gold}
-                      </span>
-                    )}
+                    {(['wood', 'food', 'gold', 'stone', 'planks'] as const)
+                      .filter((key) => (def.cost[key] || 0) > 0)
+                      .map((key) => {
+                        const owned = (myResources[key] || 0) >= (def.cost[key] || 0);
+                        return (
+                          <span key={key} className={owned ? COST_CHIP_CLASS[key] : 'text-red-400 font-bold'}>
+                            {COST_SHORT[key]} {def.cost[key]}
+                          </span>
+                        );
+                      })}
                   </div>
                   <span className="text-slate-500 text-[9px]">{def.buildTimeSeconds}s</span>
                 </div>
 
-                {!canAfford && (
+                {!affordable && (
                   <div className="text-[9px] text-red-400 font-medium mt-0.5 truncate">
-                    {!canAffordWood
-                      ? `Falta ${def.cost.wood - Math.floor(myResources.wood)} M`
-                      : `Falta ${def.cost.gold! - Math.floor(myResources.gold)} O`}
+                    {missingCost(myResources, def.cost, 'short')}
                   </div>
                 )}
               </button>
@@ -4261,6 +4828,15 @@ export default function App() {
                 </span>
                 <span className="flex items-center gap-1 text-yellow-300 font-bold" title="Ouro">
                   O {Math.floor(myResources.gold)}
+                </span>
+                <span
+                  className="flex items-center gap-1 text-slate-300 font-bold"
+                  title="Pedra"
+                >
+                  P {Math.floor(myResources.stone)}
+                </span>
+                <span className="flex items-center gap-1 text-orange-200 font-bold" title="Tábuas">
+                  T {Math.floor(myResources.planks || 0)}
                 </span>
                 <span className="flex items-center gap-1 text-blue-300 font-bold" title="População">
                   Pop {myResources.pop}/{myResources.maxPop}
@@ -4434,6 +5010,31 @@ export default function App() {
                   <kbd className="hidden lg:inline px-1 py-0.5 bg-slate-900 rounded font-mono text-[9px] text-slate-400">Z</kbd>
                 </button>
 
+                {/* Research & Eras Panel Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsTechPanelOpen((prev) => !prev);
+                    soundManager.playClickSound();
+                  }}
+                  className={`p-1.5 px-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                    isTechPanelOpen
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm shadow-amber-500/20'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                  }`}
+                  title="Tecnologias e Eras: pesquique melhorias de economia e militar"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden md:inline">Tecnologias</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold bg-slate-900 text-amber-200">
+                    {gameState.techs?.[playerSlot]?.era === 'commercial'
+                      ? 'E2'
+                      : gameState.techs?.[playerSlot]?.era === 'industrial'
+                      ? 'E3'
+                      : 'E1'}
+                  </span>
+                </button>
+
                 {/* Controls Guide Modal Button */}
                 <button
                   type="button"
@@ -4499,7 +5100,7 @@ export default function App() {
                 </span>
               </div>
               <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-                <span>Custo: <span className="text-amber-400 font-semibold">{BUILDING_CATALOG[buildMode]?.cost.wood} Madeira{BUILDING_CATALOG[buildMode]?.cost.gold ? `, ${BUILDING_CATALOG[buildMode]?.cost.gold} Ouro` : ''}</span></span>
+                <span>Custo: <span className="text-amber-400 font-semibold">{describeCost(BUILDING_CATALOG[buildMode]?.cost ?? {})}</span></span>
                 {buildPreviewInfo && (
                   <>
                     <span>•</span>
@@ -4580,7 +5181,7 @@ export default function App() {
                   <>
                     {selectedUnitsList[0].type === 'villager' ? <Users className="w-4 h-4 text-amber-400 shrink-0" /> : <Sword className="w-4 h-4 text-blue-400 shrink-0" />}
                     <span className="font-bold text-white truncate">
-                      {selectedUnitsList[0].type === 'villager' ? 'Aldeão' : 'Mosqueteiro'} ({Math.round(selectedUnitsList[0].health)}/{selectedUnitsList[0].maxHealth} HP)
+                      {selectedUnitsList[0].type === 'villager' ? 'Aldeão' : selectedUnitsList[0].type === 'cavalry' ? 'Cavalaria' : 'Mosqueteiro'} ({Math.round(selectedUnitsList[0].health)}/{selectedUnitsList[0].maxHealth} HP)
                     </span>
                   </>
                 ) : selectedBuilding ? (
@@ -4593,9 +5194,24 @@ export default function App() {
                   </>
                 ) : selectedResource ? (
                   <>
-                    {selectedResource.type === 'tree' ? <TreePine className="w-4 h-4 text-emerald-400 shrink-0" /> : selectedResource.type === 'gold_mine' ? <Coins className="w-4 h-4 text-amber-400 shrink-0" /> : <Apple className="w-4 h-4 text-rose-400 shrink-0" />}
+                    {selectedResource.type === 'tree' ? (
+                      <TreePine className="w-4 h-4 text-emerald-400 shrink-0" />
+                    ) : selectedResource.type === 'gold_mine' ? (
+                      <Coins className="w-4 h-4 text-amber-400 shrink-0" />
+                    ) : selectedResource.type === 'stone' ? (
+                      <Pickaxe className="w-4 h-4 text-slate-300 shrink-0" />
+                    ) : (
+                      <Apple className="w-4 h-4 text-rose-400 shrink-0" />
+                    )}
                     <span className="font-bold text-white truncate">
-                      {selectedResource.type === 'tree' ? 'Madeira' : selectedResource.type === 'gold_mine' ? 'Ouro' : 'Frutas'} ({Math.round(selectedResource.remaining)})
+                      {selectedResource.type === 'tree'
+                        ? 'Madeira'
+                        : selectedResource.type === 'gold_mine'
+                        ? 'Ouro'
+                        : selectedResource.type === 'stone'
+                        ? 'Pedra'
+                        : 'Frutas'}{' '}
+                      ({Math.round(selectedResource.remaining)})
                     </span>
                   </>
                 ) : null}
@@ -4845,7 +5461,7 @@ export default function App() {
                     </div>
                     <div>
                       <h3 className="font-bold text-base text-white capitalize">
-                        {selectedUnit.type === 'soldier' ? 'Soldado Mosqueteiro' : 'Aldeão Construtor'}
+                        {selectedUnit.type === 'soldier' ? 'Soldado Mosqueteiro' : selectedUnit.type === 'cavalry' ? 'Cavalaria Montada' : 'Aldeão Construtor'}
                       </h3>
                       <div className="text-xs text-slate-400 flex items-center gap-2">
                         <span>Status: <span className="text-amber-400 font-medium capitalize">{selectedUnit.state}</span></span>
@@ -5229,6 +5845,14 @@ export default function App() {
                                   <div className="p-1.5 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30">
                                     <Sword className="w-4 h-4" />
                                   </div>
+                                ) : selectedBuilding.trainingQueue[0].unitType === 'cavalry' ? (
+                                  <div className="p-1.5 rounded-xl bg-amber-600/20 text-amber-400 border border-amber-500/30">
+                                    <PawPrint className="w-4 h-4" />
+                                  </div>
+                                ) : selectedBuilding.trainingQueue[0].unitType === 'warship' ? (
+                                  <div className="p-1.5 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                                    <Anchor className="w-4 h-4" />
+                                  </div>
                                 ) : selectedBuilding.trainingQueue[0].unitType === 'fishing_boat' ||
                                   selectedBuilding.trainingQueue[0].unitType === 'trade_boat' ? (
                                   <div className="p-1.5 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
@@ -5243,10 +5867,14 @@ export default function App() {
                                   <div className="font-bold text-white text-xs">
                                     {selectedBuilding.trainingQueue[0].unitType === 'soldier'
                                       ? 'Soldado Mosqueteiro'
+                                      : selectedBuilding.trainingQueue[0].unitType === 'cavalry'
+                                      ? 'Cavalaria Montada'
                                       : selectedBuilding.trainingQueue[0].unitType === 'fishing_boat'
                                       ? 'Barco de Pesca Fluvial'
                                       : selectedBuilding.trainingQueue[0].unitType === 'trade_boat'
                                       ? 'Barco Mercante de Rio'
+                                      : selectedBuilding.trainingQueue[0].unitType === 'warship'
+                                      ? 'Barco de Guerra'
                                       : 'Aldeão Construtor'}
                                   </div>
                                   <div className="text-[10px] text-slate-400">
@@ -5379,6 +6007,7 @@ export default function App() {
 
                       {/* Barracks Recruitment */}
                       {selectedBuilding.type === 'barracks' && (
+                        <>
                         <div className="flex gap-2">
                           <button
                             type="button"
@@ -5425,6 +6054,49 @@ export default function App() {
                             <span>+5</span>
                           </button>
                         </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            disabled={
+                              !canAfford(myResources, UNIT_COSTS.cavalry) ||
+                              selectedBuilding.trainingQueue.length >= 5 ||
+                              myResources.pop + totalQueuedForPlayer >= myResources.maxPop
+                            }
+                            onClick={() => handleTrainUnit('cavalry', 1)}
+                            className={`flex-1 p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                              canAfford(myResources, UNIT_COSTS.cavalry) &&
+                              selectedBuilding.trainingQueue.length < 5 &&
+                              myResources.pop + totalQueuedForPlayer < myResources.maxPop
+                                ? 'bg-amber-700 hover:bg-amber-600 text-white font-bold border-amber-500 shadow-md shadow-amber-700/10 hover:scale-[1.01]'
+                                : 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed'
+                            }`}
+                          >
+                            <PawPrint className="w-4 h-4" />
+                            <span>Treinar Cavalaria (60 Alim + 80 Ouro) [G]</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={
+                              !canAfford(myResources, UNIT_COSTS.cavalry) ||
+                              selectedBuilding.trainingQueue.length >= 5 ||
+                              myResources.pop + totalQueuedForPlayer >= myResources.maxPop
+                            }
+                            onClick={() => handleTrainUnit('cavalry', 5)}
+                            className={`px-3 py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1 transition-all ${
+                              canAfford(myResources, UNIT_COSTS.cavalry) &&
+                              selectedBuilding.trainingQueue.length < 5 &&
+                              myResources.pop + totalQueuedForPlayer < myResources.maxPop
+                                ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700'
+                                : 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed'
+                            }`}
+                            title="Enfileirar múltiplas unidades de cavalaria"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>+5</span>
+                          </button>
+                        </div>
+                        </>
                       )}
 
                       {/* Dock Naval Shipyard Construction */}
@@ -5433,13 +6105,13 @@ export default function App() {
                           <button
                             type="button"
                             disabled={
-                              myResources.wood < 75 ||
+                              !canAfford(myResources, UNIT_COSTS.fishing_boat) ||
                               selectedBuilding.trainingQueue.length >= 5 ||
                               myResources.pop + totalQueuedForPlayer >= myResources.maxPop
                             }
                             onClick={() => handleTrainUnit('fishing_boat', 1)}
                             className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all ${
-                              myResources.wood >= 75 &&
+                              canAfford(myResources, UNIT_COSTS.fishing_boat) &&
                               selectedBuilding.trainingQueue.length < 5 &&
                               myResources.pop + totalQueuedForPlayer < myResources.maxPop
                                 ? 'bg-blue-600 hover:bg-blue-500 text-white font-bold border-blue-400 shadow-md shadow-blue-500/10 hover:scale-[1.01]'
@@ -5450,21 +6122,19 @@ export default function App() {
                               <Compass className="w-4 h-4 text-cyan-300" />
                               <span>Barco de Pesca [P]</span>
                             </div>
-                            <span className="font-mono text-[11px] text-cyan-200">75 Madeira</span>
+                            <span className="font-mono text-[11px] text-cyan-200">{describeCost(UNIT_COSTS.fishing_boat)}</span>
                           </button>
 
                           <button
                             type="button"
                             disabled={
-                              myResources.wood < 100 ||
-                              (myResources.gold || 0) < 30 ||
+                              !canAfford(myResources, UNIT_COSTS.trade_boat) ||
                               selectedBuilding.trainingQueue.length >= 5 ||
                               myResources.pop + totalQueuedForPlayer >= myResources.maxPop
                             }
                             onClick={() => handleTrainUnit('trade_boat', 1)}
                             className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all ${
-                              myResources.wood >= 100 &&
-                              (myResources.gold || 0) >= 30 &&
+                              canAfford(myResources, UNIT_COSTS.trade_boat) &&
                               selectedBuilding.trainingQueue.length < 5 &&
                               myResources.pop + totalQueuedForPlayer < myResources.maxPop
                                 ? 'bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold border-amber-400 shadow-md shadow-amber-500/10 hover:scale-[1.01]'
@@ -5475,10 +6145,64 @@ export default function App() {
                               <Sparkles className="w-4 h-4 text-yellow-200" />
                               <span>Barco Mercante [M]</span>
                             </div>
-                            <span className="font-mono text-[11px] text-yellow-200">100M + 30O</span>
+                            <span className="font-mono text-[11px] text-yellow-200">{describeCost(UNIT_COSTS.trade_boat)}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={
+                              !canAfford(myResources, UNIT_COSTS.warship) ||
+                              selectedBuilding.trainingQueue.length >= 5 ||
+                              myResources.pop + totalQueuedForPlayer >= myResources.maxPop
+                            }
+                            onClick={() => handleTrainUnit('warship', 1)}
+                            className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all ${
+                              canAfford(myResources, UNIT_COSTS.warship) &&
+                              selectedBuilding.trainingQueue.length < 5 &&
+                              myResources.pop + totalQueuedForPlayer < myResources.maxPop
+                                ? 'bg-rose-700 hover:bg-rose-600 text-white font-bold border-rose-400 shadow-md shadow-rose-500/10 hover:scale-[1.01]'
+                                : 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Anchor className="w-4 h-4 text-rose-200" />
+                              <span>Barco de Guerra [G]</span>
+                            </div>
+                            <span className="font-mono text-[11px] text-rose-200">{describeCost(UNIT_COSTS.warship)}</span>
                           </button>
                         </div>
                       )}
+
+                      {/* Building Maintenance: reparo e demolicao */}
+                      <div className="space-y-2">
+                        {selectedBuilding.health < selectedBuilding.maxHealth && (
+                          <button
+                            type="button"
+                            disabled={!nearestVillagerToSelectedBuilding}
+                            onClick={() => {
+                              if (nearestVillagerToSelectedBuilding) {
+                                handleRepairBuilding(nearestVillagerToSelectedBuilding.id, selectedBuilding.id);
+                              }
+                            }}
+                            className="w-full p-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-900 disabled:text-slate-600 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-2 transition-all"
+                          >
+                            <Wrench className="w-4 h-4" />
+                            <span>
+                              Reparar ({REPAIR_HP_PER_TICK * 20} HP/s · {REPAIR_WOOD_PER_HP * 100} M por 100 HP)
+                            </span>
+                          </button>
+                        )}
+                        {selectedBuilding.type !== 'town_center' && (
+                          <button
+                            type="button"
+                            onClick={() => handleDemolishBuilding(selectedBuilding.id)}
+                            className="w-full p-2.5 rounded-xl bg-slate-800 hover:bg-red-900/70 border border-slate-700 hover:border-red-500/60 text-slate-300 hover:text-red-200 font-semibold text-xs flex items-center justify-center gap-2 transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span>Demolir (devolve 50%)</span>
+                          </button>
+                        )}
+                      </div>
 
                       {/* Grand Market Hub Actions */}
                       {selectedBuilding.type === 'market' && (
@@ -5553,6 +6277,8 @@ export default function App() {
                           ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                           : selectedResource.type === 'gold_mine'
                           ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                          : selectedResource.type === 'stone'
+                          ? 'bg-slate-500/15 border-slate-400/30 text-slate-300'
                           : 'bg-rose-500/15 border-rose-500/30 text-rose-400'
                       }`}
                     >
@@ -5564,6 +6290,8 @@ export default function App() {
                         )
                       ) : selectedResource.type === 'gold_mine' ? (
                         <Coins className="w-6 h-6" />
+                      ) : selectedResource.type === 'stone' ? (
+                        <Pickaxe className="w-6 h-6" />
                       ) : (
                         <Apple className="w-6 h-6" />
                       )}
@@ -5577,6 +6305,8 @@ export default function App() {
                               : 'Floresta de Madeira (Desmatamento)'
                             : selectedResource.type === 'gold_mine'
                             ? 'Jazida de Minério de Ouro'
+                            : selectedResource.type === 'stone'
+                            ? 'Pedreira de Pedra Bruta'
                             : 'Arbusto de Frutas Silvestres'}
                         </h3>
                         {selectedResource.isRegrowing && (
@@ -5593,6 +6323,8 @@ export default function App() {
                             ? 'Madeira para habitações, quartéis e torres'
                             : selectedResource.type === 'gold_mine'
                             ? 'Ouro nobre para infantaria e fortificações'
+                            : selectedResource.type === 'stone'
+                            ? 'Pedra bruta para pedreiras, torres e muralhas'
                             : 'Alimento rápido para recrutar novos colonos'}
                         </span>
                         <span>•</span>
@@ -5611,12 +6343,14 @@ export default function App() {
                           ? 'text-emerald-400'
                           : selectedResource.type === 'gold_mine'
                           ? 'text-amber-400'
+                          : selectedResource.type === 'stone'
+                          ? 'text-slate-300'
                           : 'text-rose-400'
                       }`}
                     >
                       {selectedResource.isRegrowing
                         ? `${Math.round(selectedResource.regrowthProgress || 0)}%`
-                        : `${Math.round(selectedResource.remaining)}/${selectedResource.maxCapacity || (selectedResource.type === 'tree' ? 150 : selectedResource.type === 'gold_mine' ? 600 : 350)}`}
+                        : `${Math.round(selectedResource.remaining)}/${selectedResource.maxCapacity || (selectedResource.type === 'tree' ? 150 : selectedResource.type === 'gold_mine' ? 600 : selectedResource.type === 'stone' ? 700 : 350)}`}
                     </div>
                   </div>
                 </div>
@@ -5977,6 +6711,52 @@ export default function App() {
                   </div>
                 )}
 
+                {/* Specific Stone Quarry Controls */}
+                {selectedResource.type === 'stone' && (
+                  <div className="space-y-3 pt-3 border-t border-slate-800">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleAssignVillagersToResource(selectedResource.id, 1)}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <Users className="w-3.5 h-3.5 text-slate-300" />
+                        <span>+1 Pedreiro</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleAssignVillagersToResource(selectedResource.id, 3)}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <Users className="w-3.5 h-3.5 text-slate-300" />
+                        <span>+3 Pedreiros</span>
+                      </button>
+
+                      {selectedUnitsList.length > 0 && villagerCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleAssignSelectedSquadToResource(selectedResource.id)}
+                          className="p-2 rounded-xl bg-slate-400 hover:bg-slate-300 text-slate-950 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          <span>Pelotão ({villagerCount})</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-slate-700/20 border border-slate-600/40 text-xs text-slate-300/90 flex items-start gap-2">
+                      <Pickaxe className="w-4 h-4 text-slate-300 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="text-slate-200 font-semibold block">Extração Contínua de Pedra:</strong>
+                        <span>
+                          A Mineradora &amp; Pedreira dá +40% de rendimento. Ao esgotar esta pedreira, os aldeões migram para a próxima automaticamente.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Specific Food Bush Controls */}
                 {selectedResource.type === 'food_bush' && (
                   <div className="space-y-3 pt-3 border-t border-slate-800">
@@ -6132,6 +6912,7 @@ export default function App() {
                   <li>• <kbd className="font-mono text-slate-200">Z</kbd>: <strong className="text-emerald-300">Zonas de Trabalho Delimitadas</strong>: Configura o raio limite de extração (8m, 14m, 22m, etc.). Ao enviar aldeões para um recurso, eles fixam o local como centro e nunca saem desmatando o mapa inteiro descontroladamente!</li>
                   <li>• <kbd className="font-mono text-slate-200">V</kbd>: Recrutar Aldeão (Com Centro da Vila selecionado)</li>
                   <li>• <kbd className="font-mono text-slate-200">S</kbd>: Recrutar Mosqueteiro (Com Quartel selecionado)</li>
+                  <li>• <kbd className="font-mono text-slate-200">G</kbd>: Recrutar Cavalaria (Com Quartel selecionado)</li>
                   <li>• <strong className="text-slate-200">Fila de Produção de 5 Slots</strong>: Enfileire até 5 unidades; clique no ✕ de qualquer slot para cancelar e reembolsar 100% dos recursos!</li>
                   <li>• <strong className="text-slate-200">Manejo Sustentável vs Desmatamento</strong>: Selecione árvores para escolher entre remoção definitiva ou plantio automático de mudas com renovação contínua.</li>
                   <li>• <strong className="text-slate-200">Encadeamento Contínuo</strong>: Aldeões e mineradores buscam a próxima árvore ou mina próxima dentro da zona ao esgotar o alvo!</li>
@@ -6152,15 +6933,44 @@ export default function App() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowControlsModal(false)}
-              className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors shadow-lg shadow-amber-500/10"
-            >
-              Entendido, Continuar Batalha
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowControlsModal(false);
+                  setShowTutorial(true);
+                  soundManager.playClickSound();
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-colors flex items-center justify-center gap-2"
+              >
+                <GraduationCap className="w-4 h-4 text-cyan-400" /> Abrir Tutorial
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowControlsModal(false)}
+                className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors shadow-lg shadow-amber-500/10"
+              >
+                Entendido, Continuar Batalha
+              </button>
+            </div>
           </div>
         </div>
+      )}
+
+      {/* TUTORIAL DE PRIMEIRA PARTICIDA */}
+      {showTutorial && <Tutorial onClose={closeTutorial} />}
+
+      {/* TECH PANEL MODAL */}
+      {isTechPanelOpen && (
+        <TechPanel
+          techState={gameState.techs?.[playerSlot] ?? createTechState()}
+          resources={myResources}
+          onResearch={handleResearch}
+          onClose={() => {
+            setIsTechPanelOpen(false);
+            soundManager.playClickSound();
+          }}
+        />
       )}
 
       {/* WORK ZONE CONFIGURATOR MODAL */}
@@ -6375,6 +7185,37 @@ export default function App() {
         }}
         activeGatherersCount={activeGatherers}
       />
+
+      {/* MATCH RESULT SCREEN (vitoria / derrota / empate) */}
+      {showResultScreen && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
+          <div className="bg-slate-900/95 border border-slate-700/80 rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-5 text-center">
+            <div className={`text-4xl font-black tracking-wide ${resultToneClass}`}>{resultLabel}</div>
+            <p className="text-sm text-slate-400">{resultDetail}</p>
+            <div className="flex flex-col gap-2 pt-1">
+              {(role === 'host' || role === 'single') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setupInitialMap();
+                    soundManager.playClickSound();
+                  }}
+                  className="p-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition-colors"
+                >
+                  Jogar Novamente
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsGameStarted(false)}
+                className="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm transition-colors"
+              >
+                Voltar ao Menu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

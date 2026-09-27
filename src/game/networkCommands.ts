@@ -1,5 +1,7 @@
 import type { Building, BuildingType, GameState, PlayerResources, ResourceNode, Unit, UnitType } from './engine';
+import { isBoatUnit } from './engine';
 import { BUILDING_CATALOG } from './buildingDefs';
+import { researchBlock } from './tech';
 
 export const PLAYER_SLOTS = ['player1', 'player2', 'player3', 'player4'] as const;
 export type PlayerSlot = (typeof PLAYER_SLOTS)[number];
@@ -7,12 +9,14 @@ export type PlayerSlot = (typeof PLAYER_SLOTS)[number];
 const MAP_LIMIT = 60;
 const MAX_ID_LENGTH = 128;
 const BUILDING_TYPES = Object.keys(BUILDING_CATALOG).filter((type) => type !== 'town_center');
-const UNIT_TYPES = ['villager', 'soldier', 'fishing_boat', 'trade_boat'];
+const UNIT_TYPES = ['villager', 'soldier', 'cavalry', 'fishing_boat', 'trade_boat', 'warship'];
 const UNIT_COSTS: Record<TrainableType, Partial<PlayerResources>> = {
   villager: { food: 50 },
   soldier: { food: 80, gold: 40 },
+  cavalry: { food: 60, gold: 80 },
   fishing_boat: { wood: 75 },
   trade_boat: { wood: 100, gold: 30 },
+  warship: { wood: 120, gold: 80, planks: 40 },
 };
 const RESOURCE_KEYS = ['wood', 'food', 'gold', 'stone', 'planks'] as const;
 
@@ -42,11 +46,19 @@ export interface RoomMember {
 
 type Position = { x: number; z: number };
 type BuildableType = Exclude<BuildingType, 'town_center'>;
-type TrainableType = Exclude<UnitType, 'cavalry'>;
+type TrainableType = UnitType;
 
 interface CommandMetadata {
   playerSlot?: PlayerSlot;
   senderId?: string;
+}
+
+/**
+ * Participantes do modo solo: o jogador humano vem primeiro e os slots
+ * restantes sao preenchidos ate o tamanho escolhido (2, 3 ou 4 jogadores).
+ */
+export function soloMatchSlots(humanSlot: PlayerSlot, matchSize: number): PlayerSlot[] {
+  return [humanSlot, ...PLAYER_SLOTS.filter((slot) => slot !== humanSlot)].slice(0, matchSize);
 }
 
 export type NetworkCommand = CommandMetadata & (
@@ -57,6 +69,9 @@ export type NetworkCommand = CommandMetadata & (
   | { type: 'build'; buildingType: BuildableType; owner: PlayerSlot; position: Position; builderIds?: string[] }
   | { type: 'train'; buildingId: string; unitType: TrainableType }
   | { type: 'cancel_train'; buildingId: string; index: number }
+  | { type: 'research'; id: string }
+  | { type: 'repair'; unitId: string; buildingId: string }
+  | { type: 'demolish'; buildingId: string }
   | { type: 'set_resource_mode'; resourceId: string; mode: 'clear_cut' | 'sustainable' }
   | { type: 'set_grove_mode'; clusterId?: string; treeIds?: string[]; mode: 'clear_cut' | 'sustainable' }
   | { type: 'set_colony_forestry'; enabled: boolean }
@@ -162,6 +177,12 @@ export function isValidNetworkCommand(value: unknown): value is NetworkCommand {
       return allowedKeys('buildingId', 'unitType') && isId(value.buildingId) && typeof value.unitType === 'string' && UNIT_TYPES.includes(value.unitType);
     case 'cancel_train':
       return allowedKeys('buildingId', 'index') && isId(value.buildingId) && Number.isSafeInteger(value.index) && Number(value.index) >= 0 && Number(value.index) < 5;
+    case 'research':
+      return allowedKeys('id') && typeof value.id === 'string' && value.id.length > 0 && value.id.length <= 48;
+    case 'repair':
+      return allowedKeys('unitId', 'buildingId') && isId(value.unitId) && isId(value.buildingId);
+    case 'demolish':
+      return allowedKeys('buildingId') && isId(value.buildingId);
     case 'set_resource_mode':
       return allowedKeys('resourceId', 'mode') && isId(value.resourceId) && isMode(value.mode);
     case 'set_grove_mode':
@@ -226,10 +247,15 @@ export function isAuthorizedPlayerCommand(
       });
     case 'attack': {
       const attacker = ownsUnit(state, value.unitId, owner);
+      if (!attacker) return false;
       const targetId = value.targetId;
       const targetUnit = state.units.find((unit) => unit.id === targetId);
       const targetBuilding = state.buildings.find((building) => building.id === targetId);
-      return Boolean(attacker && ((targetUnit && targetUnit.owner !== owner) || (targetBuilding && targetBuilding.owner !== owner)));
+      // Barcos so enfrentam embarcacoes inimigas: nunca encostam em terra.
+      if (isBoatUnit(attacker.type)) {
+        return Boolean(targetUnit && targetUnit.owner !== owner && isBoatUnit(targetUnit.type));
+      }
+      return Boolean((targetUnit && targetUnit.owner !== owner) || (targetBuilding && targetBuilding.owner !== owner));
     }
     case 'build_order': {
       const unit = ownsUnit(state, value.unitId, owner);
@@ -248,13 +274,24 @@ export function isAuthorizedPlayerCommand(
       if (!building || !building.isComplete || !canAffordTraining(state, building, value.unitType)) return false;
       return (
         (building.type === 'town_center' && value.unitType === 'villager') ||
-        (building.type === 'barracks' && value.unitType === 'soldier') ||
-        (building.type === 'dock' && (value.unitType === 'fishing_boat' || value.unitType === 'trade_boat'))
+        (building.type === 'barracks' && (value.unitType === 'soldier' || value.unitType === 'cavalry')) ||
+        (building.type === 'dock' && isBoatUnit(value.unitType))
       );
     }
     case 'cancel_train': {
       const building = ownsBuilding(state, value.buildingId, owner);
       return Boolean(building && value.index < building.trainingQueue.length);
+    }
+    case 'repair': {
+      const unit = ownsUnit(state, value.unitId, owner);
+      const building = ownsBuilding(state, value.buildingId, owner);
+      if (!unit || unit.type !== 'villager' || !building || !building.isComplete) return false;
+      return building.health < building.maxHealth;
+    }
+    case 'demolish': {
+      const building = ownsBuilding(state, value.buildingId, owner);
+      if (!building) return false;
+      return building.type !== 'town_center';
     }
     case 'set_resource_mode':
       return state.resourceNodes.some((resource) => resource.id === value.resourceId && resource.type === 'tree');
@@ -263,6 +300,12 @@ export function isAuthorizedPlayerCommand(
       const trees = treeIds?.every((id) => state.resourceNodes.some((resource) => resource.id === id && resource.type === 'tree')) ?? true;
       const clusterExists = value.clusterId === undefined || state.resourceNodes.some((resource) => resource.clusterId === value.clusterId);
       return trees && clusterExists;
+    }
+    case 'research': {
+      const techState = state.techs?.[owner];
+      const resources = state.playerResources[owner];
+      if (!techState || !resources) return false;
+      return researchBlock(techState, value.id, resources) === null;
     }
     case 'set_colony_forestry':
       return true;
