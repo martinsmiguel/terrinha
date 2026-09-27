@@ -12,6 +12,8 @@ describe('BUILDING_CATALOG', () => {
       expect(definition.cost.wood).toBeGreaterThanOrEqual(0);
       expect(definition.cost.food ?? 0).toBeGreaterThanOrEqual(0);
       expect(definition.cost.gold ?? 0).toBeGreaterThanOrEqual(0);
+      expect(definition.cost.stone ?? 0).toBeGreaterThanOrEqual(0);
+      expect(definition.cost.planks ?? 0).toBeGreaterThanOrEqual(0);
       expect(definition.buildTimeSeconds).toBeGreaterThan(0);
     }
   });
@@ -19,5 +21,9 @@ describe('BUILDING_CATALOG', () => {
   it('keeps the documented house and barracks costs', () => {
     expect(BUILDING_CATALOG.house.cost).toEqual({ wood: 60 });
     expect(BUILDING_CATALOG.barracks.cost).toEqual({ wood: 120, gold: 30 });
+  });
+
+  it('charges the tower in stone and planks instead of gold', () => {
+    expect(BUILDING_CATALOG.tower.cost).toEqual({ wood: 80, stone: 40, planks: 20 });
   });
 });
