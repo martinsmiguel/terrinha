@@ -1,0 +1,1544 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Crônicas da Vila — Especificação Técnica Final</title>
+<style>
+  :root {
+    --primary: #1e293b;
+    --accent: #2563eb;
+    --accent2: #d97706;
+    --accent3: #059669;
+    --bg: #ffffff;
+    --code-bg: #f1f5f9;
+    --border: #cbd5e1;
+    --text: #1f2937;
+    --muted: #64748b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    line-height: 1.7;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 48px 32px 120px;
+    font-size: 15px;
+  }
+  h1 { font-size: 2.1em; color: var(--primary); border-bottom: 3px solid var(--accent); padding-bottom: 12px; margin-top: 0; }
+  h2 { font-size: 1.55em; color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-top: 56px; page-break-before: always; }
+  h2:first-of-type { page-break-before: avoid; }
+  h3 { font-size: 1.2em; color: var(--accent); margin-top: 32px; }
+  h4 { font-size: 1.03em; color: var(--primary); margin-top: 22px; }
+  p, li { text-align: justify; }
+  code {
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.88em;
+    color: #be123c;
+  }
+  pre {
+    background: var(--code-bg);
+    border-left: 4px solid var(--accent);
+    padding: 16px 20px;
+    overflow-x: auto;
+    border-radius: 4px;
+    font-size: 0.85em;
+    line-height: 1.55;
+    page-break-inside: avoid;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 20px 0;
+    font-size: 0.9em;
+    page-break-inside: avoid;
+  }
+  th, td { border: 1px solid var(--border); padding: 9px 11px; text-align: left; vertical-align: top; }
+  th { background: var(--primary); color: white; font-weight: 600; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  blockquote {
+    border-left: 4px solid var(--accent2);
+    background: #fffbeb;
+    margin: 20px 0;
+    padding: 12px 20px;
+    color: #78350f;
+    border-radius: 0 4px 4px 0;
+  }
+  .toc {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px 28px;
+    margin: 32px 0;
+  }
+  .toc h3 { margin-top: 0; color: var(--primary); }
+  .toc ol { margin: 0; padding-left: 20px; }
+  .toc li { margin: 4px 0; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .diagram {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 20px;
+    border-radius: 6px;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 0.76em;
+    line-height: 1.35;
+    overflow-x: auto;
+    white-space: pre;
+    page-break-inside: avoid;
+    margin: 20px 0;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    font-weight: 600;
+    color: white;
+    margin-right: 4px;
+  }
+  .badge.epic0 { background: #64748b; }
+  .badge.epic1 { background: #2563eb; }
+  .badge.epic2 { background: #d97706; }
+  .badge.epic3 { background: #7c3aed; }
+  .badge.must { background: #dc2626; }
+  .badge.should { background: #ea580c; }
+  .badge.could { background: #16a34a; }
+  .badge.new { background: #0891b2; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+  .cover {
+    text-align: center;
+    padding: 80px 0 40px;
+    page-break-after: always;
+  }
+  .cover h1 { border: none; font-size: 2.9em; margin-bottom: 8px; }
+  .cover .subtitle { font-size: 1.15em; color: var(--muted); margin-bottom: 40px; }
+  .cover .meta { font-size: 0.9em; color: var(--muted); margin-top: 60px; }
+  .cover .version-badge {
+    display: inline-block;
+    background: var(--accent);
+    color: white;
+    padding: 6px 18px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    font-weight: 600;
+    margin-top: 20px;
+  }
+  .footer-note { font-size: 0.85em; color: var(--muted); text-align: center; margin-top: 60px; border-top: 1px solid var(--border); padding-top: 20px; }
+  .callout {
+    background: #ecfdf5;
+    border-left: 4px solid var(--accent3);
+    padding: 12px 20px;
+    margin: 20px 0;
+    border-radius: 0 4px 4px 0;
+    color: #064e3b;
+  }
+  .callout-info {
+    background: #eff6ff;
+    border-left: 4px solid var(--accent);
+    padding: 12px 20px;
+    margin: 20px 0;
+    border-radius: 0 4px 4px 0;
+    color: #1e3a8a;
+  }
+  @media print {
+    body { font-size: 10.5pt; padding: 0; max-width: 100%; }
+    h2 { page-break-before: always; }
+    pre, table, .diagram { page-break-inside: avoid; }
+    a { color: var(--text); text-decoration: none; }
+  }
+  @media (max-width: 700px) {
+    body { padding: 24px 16px; }
+    h1 { font-size: 1.6em; }
+    h2 { font-size: 1.3em; }
+    pre, .diagram { font-size: 0.7em; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ CAPA ============ -->
+<div class="cover">
+  <h1>Crônicas da Vila</h1>
+  <div class="subtitle">
+    Especificação Técnica Final<br>
+    RTS Social em Navegador · 100% Open Source · Offline · Multiplayer via Wi-Fi<br>
+    Arquitetura Modular Baseada em Plugins
+  </div>
+  <div class="version-badge">Documento v2.0.0 · Software Alvo v1.0.0</div>
+  <div class="meta">
+    <strong>Licença do projeto:</strong> MIT<br>
+    <strong>Licença do documento:</strong> CC BY 4.0<br>
+    <strong>Ano:</strong> 2026<br>
+    <strong>Inspiração arquitetural:</strong> DeepSeek Harness (padrões, não dependência)
+  </div>
+</div>
+
+<!-- ============ SUMÁRIO ============ -->
+<div class="toc">
+  <h3>Sumário</h3>
+  <ol>
+    <li><a href="#s1">Visão Geral e Definição de Produto</a></li>
+    <li><a href="#s2">Requisitos Funcionais e Não-Funcionais</a></li>
+    <li><a href="#s3">Backlog de Produto (Épicos e User Stories)</a></li>
+    <li><a href="#s4">Arquitetura de Software (Plugin Host)</a></li>
+    <li><a href="#s5">Sistema de Plugins (GamePlugin)</a></li>
+    <li><a href="#s6">Stack Tecnológica 100% Open Source</a></li>
+    <li><a href="#s7">Assets Gráficos e de Áudio</a></li>
+    <li><a href="#s8">Estratégia de Testes em Pirâmide e E2E</a></li>
+    <li><a href="#s9">Versionamento Semântico (SemVer) e Changelog</a></li>
+    <li><a href="#s10">Documentação com Diátaxis + ADRs</a></li>
+    <li><a href="#s11">Fluxo de Trabalho no GitHub</a></li>
+    <li><a href="#s12">Automação com GitHub Actions</a></li>
+    <li><a href="#s13">Blueprint de Implementação em 8 Semanas</a></li>
+    <li><a href="#s14">Checklist Final de Lançamento</a></li>
+    <li><a href="#s15">Apêndices (Glossário, Padrões Adotados, Referências)</a></li>
+  </ol>
+</div>
+
+<!-- ============ SEÇÃO 1 ============ -->
+<h2 id="s1">1. Visão Geral e Definição de Produto</h2>
+
+<h3>1.1 Resumo Executivo</h3>
+<p>
+<strong>Crônicas da Vila</strong> é um jogo de estratégia em tempo real (RTS) simplificado, que roda
+inteiramente no navegador, é jogável offline e suporta partidas multiplayer locais entre 2 e 4
+jogadores conectados à mesma rede Wi-Fi. O jogo combina a mecânica central de <em>Age of Empires II</em>
+(coleta de recursos, construção, treino de unidades e combate) com a estética leve, colorida e social
+de jogos de navegador clássicos como <em>Club Penguin</em>.
+</p>
+<p>
+O projeto é <strong>100% open source</strong>, sem dependência de serviços proprietários ou
+bibliotecas com licenças restritivas. Sua arquitetura é <strong>modular baseada em plugins</strong>:
+cada sistema do jogo (movimento, coleta, combate, rede, renderização) é um plugin independente que se
+comunica via eventos, com interface explícita e ciclo de vida próprio. Essa escolha permite que os
+sistemas sejam desenvolvidos, testados e substituídos de forma isolada, sem que um quebre o outro.
+</p>
+
+<h3>1.2 Definição de Produto</h3>
+<table>
+  <tr><th>Campo</th><th>Definição</th></tr>
+  <tr><td><strong>Nome do Projeto</strong></td><td>Crônicas da Vila</td></tr>
+  <tr><td><strong>Gênero</strong></td><td>RTS simplificado, com viés social/casual</td></tr>
+  <tr><td><strong>Plataforma</strong></td><td>Navegador desktop e mobile (HTML5, WebGL)</td></tr>
+  <tr><td><strong>Modo de Jogo</strong></td><td>Multiplayer local (2–4 jogadores) via Wi-Fi; partida offline contra IA</td></tr>
+  <tr><td><strong>Público-Alvo</strong></td><td>Amigos e familiares que buscam estratégia leve e social</td></tr>
+  <tr><td><strong>Proposta de Valor</strong></td><td>Reunir amigos na mesma casa para partidas rápidas de RTS, sem internet, sem downloads complexos, com estética acolhedora</td></tr>
+  <tr><td><strong>Idioma</strong></td><td>Português (pt-BR); i18n preparada</td></tr>
+  <tr><td><strong>Duração de Partida</strong></td><td>15–30 minutos</td></tr>
+  <tr><td><strong>Licença</strong></td><td>MIT</td></tr>
+  <tr><td><strong>Arquitetura</strong></td><td>Plugin Host + Event Bus + Plugins de domínio</td></tr>
+</table>
+
+<h3>1.3 Objetivos e Não-Objetivos</h3>
+
+<h4>Objetivos</h4>
+<ul>
+  <li>Oferecer uma experiência RTS acessível, com curva de aprendizado de menos de 5 minutos.</li>
+  <li>Priorizar a interação social (chat, cores de civilização, lobby amigável) em vez do realismo histórico.</li>
+  <li>Garantir funcionamento totalmente offline, com multiplayer apenas na rede local.</li>
+  <li>Manter toda a stack sob licenças open source permissivas.</li>
+  <li>Adotar arquitetura modular em que cada sistema do jogo é um plugin substituível.</li>
+</ul>
+
+<h4>Não-Objetivos</h4>
+<ul>
+  <li>Não ser um simulador histórico ou realista.</li>
+  <li>Não ter campanha single-player extensa.</li>
+  <li>Não ter gráficos 3D de alta fidelidade.</li>
+  <li>Não suportar partidas via internet pública (apenas rede local).</li>
+  <li>Não ter monetização, microtransações ou cadastro de usuário.</li>
+  <li>Não adotar frameworks pesados de injeção de dependência (ex: Cordis completo).</li>
+</ul>
+
+<!-- ============ SEÇÃO 2 ============ -->
+<h2 id="s2">2. Requisitos Funcionais e Não-Funcionais</h2>
+
+<h3>2.1 Requisitos Funcionais (RF)</h3>
+<table>
+  <tr><th>Código</th><th>Requisito</th><th>Prioridade</th></tr>
+  <tr><td>RF-01</td><td>Coletar madeira ao comandar um aldeão para uma árvore.</td><td><span class="badge must">Must</span></td></tr>
+  <tr><td>RF-02</td><td>Construir casas para aumentar o limite populacional.</td><td><span class="badge must">Must</span></td></tr>
+  <tr><td>RF-03</td><td>Treinar soldados no Centro da Vila.</td><td><span class="badge must">Must</span></td></tr>
+  <tr><td>RF-04</td><td>Comandar unidades para atacar inimigos.</td><td><span class="badge must">Must</span></td></tr>
+  <tr><td>RF-05</td><td>Mover grupos de unidades com seleção múltipla.</td><td><span class="badge must">Must</span></td></tr>
+  <tr><td>RF-06</td><td>IA simples para partidas offline.</td><td><span class="badge should">Should</span></td></tr>
+  <tr><td>RF-07</td><td>Host cria partida e gera código de convite.</td><td><span class="badge must">Must</span></td></tr>
+  <tr><td>RF-08</td><td>Clientes entram com código de convite.</td><td><span class="badge must">Must</span></td></tr>
+  <tr><td>RF-09</td><td>Estado do jogo sincronizado em tempo real.</td><td><span class="badge must">Must</span></td></tr>
+  <tr><td>RF-10</td><td>Chat de texto entre jogadores.</td><td><span class="badge should">Should</span></td></tr>
+  <tr><td>RF-11</td><td>Partida termina ao destruir Centros da Vila inimigos.</td><td><span class="badge must">Must</span></td></tr>
+  <tr><td>RF-12</td><td>Escolher cor da civilização no lobby.</td><td><span class="badge could">Could</span></td></tr>
+  <tr><td>RF-13</td><td>Tutorial curto na primeira execução.</td><td><span class="badge could">Could</span></td></tr>
+  <tr><td>RF-14</td><td><span class="badge new">NOVO</span> Sistemas do jogo carregam como plugins registrados em runtime.</td><td><span class="badge must">Must</span></td></tr>
+  <tr><td>RF-15</td><td><span class="badge new">NOVO</span> Substituição de plugin (ex: renderização) sem recompilar o kernel.</td><td><span class="badge should">Should</span></td></tr>
+</table>
+
+<h3>2.2 Requisitos Não-Funcionais (RNF)</h3>
+<table>
+  <tr><th>Código</th><th>Requisito</th><th>Categoria</th></tr>
+  <tr><td>RNF-01</td><td>Carregamento em menos de 3 s em rede Wi-Fi local.</td><td>Performance</td></tr>
+  <tr><td>RNF-02</td><td>Latência entre clientes inferior a 150 ms na rede local.</td><td>Performance</td></tr>
+  <tr><td>RNF-03</td><td>Compatível com Chrome, Firefox, Edge e Safari (últimos 2 anos).</td><td>Compatibilidade</td></tr>
+  <tr><td>RNF-04</td><td>Roda em máquinas com 4 GB de RAM e GPU integrada.</td><td>Performance</td></tr>
+  <tr><td>RNF-05</td><td>Código-fonte integralmente sob licença MIT.</td><td>Legal</td></tr>
+  <tr><td>RNF-06</td><td>Documentação segue o framework Diátaxis.</td><td>Documentação</td></tr>
+  <tr><td>RNF-07</td><td>Cada épico concluído tem testes E2E aprovados antes do merge.</td><td>Qualidade</td></tr>
+  <tr><td>RNF-08</td><td>Versionamento segue SemVer 2.0.0.</td><td>Processo</td></tr>
+  <tr><td>RNF-09</td><td>Nenhuma dependência proprietária na stack final.</td><td>Legal</td></tr>
+  <tr><td>RNF-10</td><td><span class="badge new">NOVO</span> Dependências críticas são vendorizadas (peerjs, three, ws).</td><td>Estabilidade</td></tr>
+  <tr><td>RNF-11</td><td><span class="badge new">NOVO</span> Kernel do Plugin Host com menos de 300 linhas de TypeScript.</td><td>Simplicidade</td></tr>
+  <tr><td>RNF-12</td><td><span class="badge new">NOVO</span> Cada plugin tem cobertura de teste unitário acima de 80%.</td><td>Qualidade</td></tr>
+</table>
+
+<!-- ============ SEÇÃO 3 ============ -->
+<h2 id="s3">3. Backlog de Produto (Épicos e User Stories)</h2>
+
+<p>O backlog está organizado em quatro épicos, cada um com user stories e critérios de aceite objetivos que servem como portões E2E.</p>
+
+<h3>3.1 Épico 0 — Fundação Técnica, Plugin Host e Protótipo</h3>
+<p><span class="badge epic0">ÉPICO 0</span> Versão alvo: <code>0.1.0</code></p>
+
+<table>
+  <tr><th>ID</th><th>User Story</th><th>Critério de Aceite</th></tr>
+  <tr>
+    <td>US-00a</td>
+    <td>Como desenvolvedor, quero um <strong>Plugin Host</strong> mínimo que registre plugins, resolva dependências e roteie eventos.</td>
+    <td>Plugin A emite evento que Plugin B consome; ordem de init respeita dependências.</td>
+  </tr>
+  <tr>
+    <td>US-00b</td>
+    <td>Como desenvolvedor, quero uma interface <code>GamePlugin</code> explícita e um <strong>Event Bus</strong> simples.</td>
+    <td>É possível adicionar um plugin de teste sem tocar no kernel; kernel &lt; 300 linhas.</td>
+  </tr>
+  <tr>
+    <td>US-00c</td>
+    <td>Como desenvolvedor, quero <strong>vendorizar</strong> as dependências críticas (<code>peerjs</code>, <code>three</code>, <code>ws</code>).</td>
+    <td>Dependências ficam em <code>vendor/</code>; build não quebra em atualizações do npm.</td>
+  </tr>
+  <tr>
+    <td>US-00d</td>
+    <td>Como desenvolvedor, quero configurar o ambiente (Node.js, Vite, TypeScript) com base moderna.</td>
+    <td>Projeto roda com <code>npm run dev</code>; build funciona com <code>npm run build</code>.</td>
+  </tr>
+  <tr>
+    <td>US-00e</td>
+    <td>Como desenvolvedor, quero um loop de jogo que renderize um grid isométrico.</td>
+    <td>Grid visível; FPS estável acima de 30.</td>
+  </tr>
+  <tr>
+    <td>US-00f</td>
+    <td>Como jogador, quero movimentar a câmera com o mouse.</td>
+    <td>Pan e zoom respondem sem erros no console.</td>
+  </tr>
+</table>
+
+<h3>3.2 Épico 1 — Sistemas Centrais do Jogo (MVP)</h3>
+<p><span class="badge epic1">ÉPICO 1</span> Versão alvo: <code>0.2.0</code></p>
+
+<table>
+  <tr><th>ID</th><th>User Story</th><th>Critério de Aceite</th></tr>
+  <tr><td>US-03</td><td>Coletar madeira com aldeão em árvore.</td><td>Aldeão se move, coleta por 2 s, +10 madeira.</td></tr>
+  <tr><td>US-04</td><td>Construir Casa com madeira.</td><td>Casa consome 50 madeira, +5 limite populacional.</td></tr>
+  <tr><td>US-05</td><td>Treinar Soldado no Centro da Vila.</td><td>Soldado em 5 s consome 30 madeira.</td></tr>
+  <tr><td>US-06</td><td>Comandar Soldado para atacar inimigo.</td><td>Dano por tick até a morte de um dos dois.</td></tr>
+  <tr><td>US-07</td><td>Comandar grupo de unidades.</td><td>Seleção por retângulo; movimento em formação simples.</td></tr>
+  <tr><td>US-08</td><td>Jogar contra IA simples offline.</td><td>IA coleta, constrói e treina de forma coerente.</td></tr>
+</table>
+
+<h3>3.3 Épico 2 — Multiplayer Local (Wi-Fi)</h3>
+<p><span class="badge epic2">ÉPICO 2</span> Versão alvo: <code>0.3.0</code></p>
+
+<table>
+  <tr><th>ID</th><th>User Story</th><th>Critério de Aceite</th></tr>
+  <tr><td>US-09</td><td>Hospedar partida e obter código de convite.</td><td>Código de 6 caracteres exibido.</td></tr>
+  <tr><td>US-10</td><td>Entrar em partida com código.</td><td>Conexão P2P em menos de 5 s na rede local.</td></tr>
+  <tr><td>US-11</td><td>Ver ações dos amigos em tempo real.</td><td>Zero divergência de estado após 5 min.</td></tr>
+  <tr><td>US-12</td><td>Conversar via chat de texto.</td><td>Mensagens visíveis em menos de 200 ms.</td></tr>
+  <tr><td>US-13</td><td>Partida termina quando um vence.</td><td>Tela de vitória aparece para todos.</td></tr>
+</table>
+
+<h3>3.4 Épico 3 — Polimento e Experiência Social</h3>
+<p><span class="badge epic3">ÉPICO 3</span> Versão alvo: <code>1.0.0</code></p>
+
+<table>
+  <tr><th>ID</th><th>User Story</th><th>Critério de Aceite</th></tr>
+  <tr><td>US-14</td><td>Escolher cor da civilização no lobby.</td><td>Cores distintas aplicadas a todas as unidades.</td></tr>
+  <tr><td>US-15</td><td>UI amigável com ícones grandes e cores vivas.</td><td>Botões com área de toque mínima de 44×44 px.</td></tr>
+  <tr><td>US-16</td><td>Efeitos sonoros ao coletar, construir e lutar.</td><td>Sons distintos por ação; volume ajustável.</td></tr>
+  <tr><td>US-17</td><td>Tutorial curto na primeira execução.</td><td>Tutorial de 2 min cobre seleção, movimento, coleta, construção e combate.</td></tr>
+</table>
+
+<!-- ============ SEÇÃO 4 ============ -->
+<h2 id="s4">4. Arquitetura de Software (Plugin Host)</h2>
+
+<h3>4.1 Visão Geral</h3>
+<p>
+A arquitetura é organizada em quatro pilares:
+<strong>Plugin Host</strong> (kernel mínimo), <strong>Event Bus</strong> (comunicação),
+<strong>Plugins de Domínio</strong> (sistemas do jogo) e <strong>Camada de Rede P2P</strong> via WebRTC.
+Cada plugin declara o que oferece, o que consome e quais eventos emite/escuta. O kernel apenas
+resolve dependências, roteia eventos e gerencia o ciclo de vida. Nenhuma lógica de jogo vive no
+kernel.
+</p>
+
+<h3>4.2 Diagrama de Contexto</h3>
+<div class="diagram">
+┌──────────────────────────────────────────────────────────────────┐
+│                    REDE WI-FI LOCAL (LAN)                        │
+│                                                                  │
+│   ┌──────────────┐   WebRTC DataChannel   ┌──────────────┐       │
+│   │  Jogador 1   │◄──────────────────────►│  Jogador 2   │       │
+│   │   (HOST)     │                        │  (Cliente)   │       │
+│   │  Navegador   │◄───────┐               │  Navegador   │       │
+│   └──────┬───────┘        │               └──────────────┘       │
+│          │                │                                      │
+│          │          ┌─────▼────────┐      ┌──────────────┐       │
+│          │          │  Jogador 3   │      │  Jogador 4   │       │
+│          │          │  (Cliente)   │      │  (Cliente)   │       │
+│          │          └──────────────┘      └──────────────┘       │
+│          │                                                       │
+│   ┌──────▼────────────┐                                          │
+│   │ Signaling Server  │  (roda no host, apenas para             │
+│   │ Node.js + ws      │   descoberta inicial P2P)               │
+│   └───────────────────┘                                          │
+└──────────────────────────────────────────────────────────────────┘
+</div>
+
+<h3>4.3 Diagrama de Componentes — Plugin Host</h3>
+<div class="diagram">
+┌──────────────────────────────────────────────────────────────────┐
+│                    PLUGIN HOST (kernel &lt; 300 LOC)                │
+│                                                                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐            │
+│  │ Event Bus    │  │ Service      │  │ Lifecycle    │            │
+│  │ (pub/sub)    │  │ Registry     │  │ Manager      │            │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘            │
+│         │                 │                 │                    │
+│  ┌──────▼─────────────────▼─────────────────▼───────┐            │
+│  │              Plugins Registrados                  │            │
+│  │                                                   │            │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐           │            │
+│  │  │ movement │ │ gather   │ │ combat   │           │            │
+│  │  └──────────┘ └──────────┘ └──────────┘           │            │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐           │            │
+│  │  │ ai       │ │ network  │ │ render   │           │            │
+│  │  └──────────┘ └──────────┘ └──────────┘           │            │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐           │            │
+│  │  │ ui-hud   │ │ audio    │ │ chat     │           │            │
+│  │  └──────────┘ └──────────┘ └──────────┘           │            │
+│  └───────────────────────────────────────────────────┘            │
+│                                                                  │
+│  Interface GamePlugin (todos os plugins implementam):            │
+│    • name, dependencies, events, init(ctx), destroy()            │
+└──────────────────────────────────────────────────────────────────┘
+</div>
+
+<h3>4.4 Diagrama de Sequência — Conexão Multiplayer</h3>
+<div class="diagram">
+Jogador 1 (Host)          Signaling Server         Jogador 2 (Cliente)
+      │                          │                        │
+      │ "Hospedar partida"       │                        │
+      ├─────────────────────────►│                        │
+      │                          │                        │
+      │◄──── Código: "XYZ123" ───┤                        │
+      │                          │                        │
+      │  (mostra código na tela) │                        │
+      │                          │  "Entrar com XYZ123"   │
+      │                          │◄───────────────────────┤
+      │                          │                        │
+      │◄─── "Novo jogador" ──────┤                        │
+      │                          │                        │
+      ├─── Oferta SDP ──────────►│──── Oferta SDP ───────►│
+      │                          │                        │
+      │◄── Resposta SDP ─────────┤◄─── Resposta SDP ──────┤
+      │                          │                        │
+      │◄══════ Troca de candidatos ICE ══════════════════►│
+      │                                                   │
+      │◄══════════ Conexão P2P Estabelecida ═════════════►│
+      │                                                   │
+      ├─── Estado inicial do jogo ───────────────────────►│
+      │                                                   │
+      │◄─── Comandos do Jogador 2 ────────────────────────┤
+</div>
+
+<h3>4.5 Modelo de Sincronização (Lockstep Determinístico)</h3>
+<ol>
+  <li>Cada jogador executa a simulação localmente em <em>ticks</em> fixos (20 ticks/s).</li>
+  <li>Comandos (mover, construir, atacar) são enviados para todos os pares com um <code>tick</code> alvo.</li>
+  <li>Nenhum comando é aplicado antes de todos os pares confirmarem recebimento daquele tick.</li>
+  <li>A simulação é determinística: mesma sequência de comandos = mesmo estado final.</li>
+  <li>Checksum periódico detecta divergência; cliente divergente é ressincronizado.</li>
+</ol>
+
+<!-- ============ SEÇÃO 5 ============ -->
+<h2 id="s5">5. Sistema de Plugins (GamePlugin)</h2>
+
+<p>
+O sistema de plugins é o coração da arquitetura. Ele é deliberadamente simples: uma interface
+TypeScript, um <code>EventEmitter</code> e um registro de serviços. Nada mais. O kernel não conhece
+nenhum sistema de jogo específico.
+</p>
+
+<h3>5.1 Interface <code>GamePlugin</code></h3>
+<pre><code>// src/core/plugin.ts
+export interface PluginContext {
+  events: EventBus;
+  services: ServiceRegistry;
+  logger: Logger;
+  config: Record&lt;string, unknown&gt;;
+}
+
+export interface GamePlugin {
+  /** Nome único do plugin (usado como namespace de serviços). */
+  name: string;
+
+  /** Plugins dos quais este depende (init só roda após eles). */
+  dependencies?: string[];
+
+  /** Eventos que este plugin emite. */
+  emits?: string[];
+
+  /** Eventos que este plugin escuta. */
+  listens?: string[];
+
+  /** Chamado uma vez quando o plugin é registrado e dependências prontas. */
+  init(ctx: PluginContext): void | Promise&lt;void&gt;;
+
+  /** Chamado quando o plugin é desregistrado (para limpeza de recursos). */
+  destroy?(): void | Promise&lt;void&gt;;
+}</code></pre>
+
+<h3>5.2 Event Bus (Implementação Mínima)</h3>
+<pre><code>// src/core/event-bus.ts
+export type EventHandler = (payload: unknown) =&gt; void;
+
+export class EventBus {
+  private handlers = new Map&lt;string, Set&lt;EventHandler&gt;&gt;();
+
+  on(event: string, handler: EventHandler): () =&gt; void {
+    if (!this.handlers.has(event)) this.handlers.set(event, new Set());
+    this.handlers.get(event)!.add(handler);
+    return () =&gt; this.off(event, handler);
+  }
+
+  off(event: string, handler: EventHandler): void {
+    this.handlers.get(event)?.delete(handler);
+  }
+
+  emit(event: string, payload: unknown): void {
+    this.handlers.get(event)?.forEach(h =&gt; h(payload));
+  }
+}</code></pre>
+
+<h3>5.3 Plugin Host (Kernel)</h3>
+<pre><code>// src/core/host.ts
+export class PluginHost {
+  private plugins = new Map&lt;string, GamePlugin&gt;();
+  private initialized = new Set&lt;string&gt;();
+  private events = new EventBus();
+  private services = new ServiceRegistry();
+
+  register(plugin: GamePlugin): void {
+    if (this.plugins.has(plugin.name)) {
+      throw new Error(`Plugin "${plugin.name}" já registrado`);
+    }
+    this.plugins.set(plugin.name, plugin);
+  }
+
+  async init(): Promise&lt;void&gt; {
+    const order = this.resolveDependencies();
+    for (const name of order) {
+      const plugin = this.plugins.get(name)!;
+      await plugin.init({
+        events: this.events,
+        services: this.services,
+        logger: createLogger(name),
+        config: {},
+      });
+      this.initialized.add(name);
+    }
+  }
+
+  private resolveDependencies(): string[] {
+    const order: string[] = [];
+    const visited = new Set&lt;string&gt;();
+
+    const visit = (name: string) =&gt; {
+      if (visited.has(name)) return;
+      const plugin = this.plugins.get(name);
+      if (!plugin) throw new Error(`Plugin "${name}" não encontrado`);
+      visited.add(name);
+      plugin.dependencies?.forEach(visit);
+      order.push(name);
+    };
+
+    this.plugins.forEach((_, name) =&gt; visit(name));
+    return order;
+  }
+
+  async destroy(): Promise&lt;void&gt; {
+    for (const name of [...this.initialized].reverse()) {
+      await this.plugins.get(name)?.destroy?.();
+    }
+    this.initialized.clear();
+  }
+}</code></pre>
+
+<h3>5.4 Exemplo de Plugin: Coleta</h3>
+<pre><code>// src/plugins/gathering/index.ts
+export const gatheringPlugin: GamePlugin = {
+  name: 'gathering',
+  dependencies: ['movement', 'ecs'],
+
+  emits: ['resource:gathered', 'animation:play'],
+  listens: ['command:gather'],
+
+  init({ events, services }) {
+    const ecs = services.get('ecs');
+    const movement = services.get('movement');
+
+    events.on('command:gather', (payload) =&gt; {
+      const { unitId, targetId } = payload as GatherCommand;
+
+      movement.send(unitId, getPosition(targetId));
+
+      const arrivalHandler = () =&gt; {
+        setTimeout(() =&gt; {
+          const amount = 10;
+          ecs.mutate(unitId, 'inventory', inv =&gt; inv.wood += amount);
+          events.emit('resource:gathered', { unitId, resource: 'wood', amount });
+          events.emit('animation:play', { unitId, clip: 'chop' });
+        }, 2000);
+      };
+
+      events.on(`unit:arrived:${unitId}`, arrivalHandler);
+    });
+  },
+};</code></pre>
+
+<h3>5.5 Vantagens Práticas</h3>
+<table>
+  <tr><th>Vantagem</th><th>Como se manifesta no projeto</th></tr>
+  <tr><td>Desenvolvimento paralelo</td><td>Um dev faz <code>movement</code>, outro faz <code>combat</code>, sem conflitos.</td></tr>
+  <tr><td>Teste isolado</td><td>Cada plugin tem seu teste unitário com mocks.</td></tr>
+  <tr><td>Substituição</td><td>Trocar <code>render-threejs</code> por <code>render-canvas2d</code> sem tocar no resto.</td></tr>
+  <tr><td>Hot-swap em dev</td><td>Vite HMR recarrega apenas o plugin editado.</td></tr>
+  <tr><td>Extensibilidade</td><td>Terceiros podem adicionar plugins (ex: <code>weather</code>) sem alterar o kernel.</td></tr>
+  <tr><td>Debug localizado</td><td>Cada plugin loga com namespace próprio.</td></tr>
+</table>
+
+<!-- ============ SEÇÃO 6 ============ -->
+<h2 id="s6">6. Stack Tecnológica 100% Open Source</h2>
+
+<table>
+  <tr><th>Camada</th><th>Tecnologia</th><th>Licença</th><th>Justificativa</th></tr>
+  <tr><td>Runtime</td><td>Node.js 20 LTS</td><td>MIT-like</td><td>Padrão da indústria, LTS.</td></tr>
+  <tr><td>Bundler</td><td>Vite</td><td>MIT</td><td>Dev server rápido, HMR nativo.</td></tr>
+  <tr><td>Linguagem</td><td>TypeScript</td><td>Apache 2.0</td><td>Tipagem estática, essencial para plugins.</td></tr>
+  <tr><td>Renderização 3D</td><td>Three.js (vendorizado)</td><td>MIT</td><td>Biblioteca WebGL madura.</td></tr>
+  <tr><td>Rede P2P</td><td>PeerJS (vendorizado)</td><td>MIT</td><td>Abstração simples sobre WebRTC.</td></tr>
+  <tr><td>WebSocket</td><td><code>ws</code> (vendorizado)</td><td>MIT</td><td>Servidor de sinalização leve.</td></tr>
+  <tr><td>Pathfinding</td><td>PathFinding.js</td><td>MIT</td><td>A* pronto para grids.</td></tr>
+  <tr><td>Event Bus</td><td>Implementação própria</td><td>MIT</td><td>~30 linhas; sem dependência externa.</td></tr>
+  <tr><td>Testes unitários</td><td>Vitest</td><td>MIT</td><td>Rápido, integrado ao Vite.</td></tr>
+  <tr><td>Testes E2E</td><td>Playwright</td><td>Apache 2.0</td><td>Multi-navegador, multi-contexto.</td></tr>
+  <tr><td>IA (código)</td><td>OpenCode + Ollama</td><td>MIT</td><td>Assistente de código open source.</td></tr>
+  <tr><td>IA (arte 2D)</td><td>Stable Diffusion</td><td>CreativeML Open RAIL</td><td>Geração local de texturas.</td></tr>
+  <tr><td>Modelagem 3D</td><td>Blender</td><td>GPL</td><td>Ferramenta de produção.</td></tr>
+  <tr><td>Editor</td><td>VS Code / VSCodium</td><td>MIT</td><td>Editor padrão.</td></tr>
+  <tr><td>Versionamento</td><td>sley</td><td>MIT</td><td>SemVer agnóstico de linguagem.</td></tr>
+  <tr><td>CI/CD</td><td>GitHub Actions</td><td>Gratuito em repos públicos</td><td>Automação do board.</td></tr>
+</table>
+
+<blockquote>
+<strong>Vendorização:</strong> <code>peerjs</code>, <code>three</code> e <code>ws</code> são copiados para
+<code>vendor/</code> em versões fixas. Isso garante que uma atualização acidental do npm não quebre
+o build do jogo. Atualizações são feitas de forma deliberada e testada.
+</blockquote>
+
+<!-- ============ SEÇÃO 7 ============ -->
+<h2 id="s7">7. Assets Gráficos e de Áudio</h2>
+
+<h3>7.1 Bibliotecas de Assets Recomendadas</h3>
+<table>
+  <tr><th>Biblioteca</th><th>Tipo</th><th>Licença</th><th>Uso</th></tr>
+  <tr><td>KayKit Medieval Hexagon Pack</td><td>3D low poly</td><td>CC0</td><td>Base visual principal.</td></tr>
+  <tr><td>Kenney Assets</td><td>2D e 3D</td><td>CC0</td><td>Ícones, sons, efeitos.</td></tr>
+  <tr><td>Poly Haven</td><td>Texturas e HDRIs</td><td>CC0</td><td>Iluminação e materiais.</td></tr>
+  <tr><td>Freesound</td><td>Áudio</td><td>CC0 / CC BY</td><td>Efeitos sonoros (verificar cada arquivo).</td></tr>
+  <tr><td>OpenGameArt</td><td>Variado</td><td>Variada</td><td>Recursos diversos (verificar caso a caso).</td></tr>
+</table>
+
+<h3>7.2 Pipeline de Produção com IA</h3>
+<ol>
+  <li><strong>Prototipagem:</strong> Stable Diffusion local gera rascunhos de texturas e ícones.</li>
+  <li><strong>Modelagem:</strong> Blender para modelar ou refinar, usando KayKit como referência.</li>
+  <li><strong>Exportação:</strong> <code>.glTF</code> ou <code>.glb</code> (padrão aberto, suportado pelo Three.js).</li>
+  <li><strong>Otimização:</strong> reduzir polígonos, atlas de textura, LOD simples.</li>
+  <li><strong>Versionamento:</strong> Git LFS para binários; metadados de licença por pasta.</li>
+</ol>
+
+<h3>7.3 Estrutura de Pastas para Assets</h3>
+<pre><code>assets/
+├── 3d/
+│   ├── units/
+│   │   ├── villager.glb
+│   │   └── soldier.glb
+│   ├── buildings/
+│   │   ├── town-center.glb
+│   │   └── house.glb
+│   └── nature/
+│       └── tree.glb
+├── 2d/
+│   ├── ui/
+│   └── icons/
+├── audio/
+│   ├── sfx/
+│   └── music/
+└── licenses/
+    ├── kaykit.md
+    └── kenney.md</code></pre>
+
+<!-- ============ SEÇÃO 8 ============ -->
+<h2 id="s8">8. Estratégia de Testes em Pirâmide e E2E</h2>
+
+<p>
+A estratégia de testes segue uma pirâmide com três camadas. Cada plugin é testado isoladamente
+(base), integrações entre plugins são testadas no meio, e partidas completas E2E formam o topo.
+</p>
+
+<h3>8.1 Pirâmide de Testes</h3>
+<div class="diagram">
+        ┌─────────────────────┐
+        │  E2E Partida        │  ← 2-4 clientes, partida completa
+        │  (vitest.e2e)       │     Playwright multi-contexto
+        ├─────────────────────┤
+        │  Sincronização      │  ← 2+ clientes, checksum de estado
+        │  (vitest.sync)      │
+        ├─────────────────────┤
+        │  Integração         │  ← 2+ plugins interagindo
+        │  (vitest)           │     ex: gathering + movement
+        ├─────────────────────┤
+        │  Unitário           │  ← 1 plugin isolado com mocks
+        │  (vitest)           │     cobertura mínima: 80%
+        └─────────────────────┘
+</div>
+
+<h3>8.2 Configurações de Teste (múltiplos arquivos)</h3>
+<table>
+  <tr><th>Arquivo</th><th>Propósito</th></tr>
+  <tr><td><code>vitest.config.ts</code></td><td>Testes unitários de plugins em isolamento.</td></tr>
+  <tr><td><code>vitest.integration.config.ts</code></td><td>Testes de integração entre 2+ plugins.</td></tr>
+  <tr><td><code>vitest.sync.config.ts</code></td><td>Testes de sincronização entre múltiplos clientes.</td></tr>
+  <tr><td><code>vitest.e2e.config.ts</code></td><td>Testes E2E de partida completa (Playwright).</td></tr>
+  <tr><td><code>vitest.bench.config.ts</code></td><td>Benchmarks de performance (FPS, latência, memória).</td></tr>
+  <tr><td><code>vitest.snapshot.config.ts</code></td><td>Snapshot testing do estado do jogo (determinismo).</td></tr>
+</table>
+
+<h3>8.3 Matriz de Testes E2E por Épico (Portões de Qualidade)</h3>
+<table>
+  <tr><th>Épico</th><th>Teste de Portão</th><th>Ferramenta</th><th>Critério</th></tr>
+  <tr>
+    <td>Épico 0</td>
+    <td>Carregar a página, ver o grid, mover câmera, registrar plugins.</td>
+    <td>Playwright + Vitest</td>
+    <td>Grid renderizado; kernel inicializa todos os plugins em ordem.</td>
+  </tr>
+  <tr>
+    <td>Épico 1</td>
+    <td>Partida single-player completa contra IA.</td>
+    <td>Playwright + script determinístico</td>
+    <td>Vitória em menos de 10 min; recursos contabilizados.</td>
+  </tr>
+  <tr>
+    <td>Épico 2</td>
+    <td>Sincronização entre 2 clientes na mesma rede.</td>
+    <td>Playwright com 2 contextos + checksum</td>
+    <td>Zero divergência de estado após 5 min.</td>
+  </tr>
+  <tr>
+    <td>Épico 3</td>
+    <td>Partida com 4 jogadores + chat + customização.</td>
+    <td>Playwright com 4 contextos + Puppeteer</td>
+    <td>Todos veem as mesmas ações; chat funciona; vitória correta.</td>
+  </tr>
+</table>
+
+<h3>8.4 Exemplo de Teste E2E (Playwright)</h3>
+<pre><code>// tests/e2e/epic2-sync.spec.ts
+import { test, expect, chromium } from '@playwright/test';
+
+test('Sincronização de movimento entre 2 clientes', async () =&gt; {
+  const browser = await chromium.launch();
+  const hostCtx = await browser.newContext();
+  const clientCtx = await browser.newContext();
+
+  const host = await hostCtx.newPage();
+  const client = await clientCtx.newPage();
+
+  await host.goto('http://localhost:5173');
+  await host.click('#btn-host');
+  const inviteCode = await host.textContent('#invite-code');
+
+  await client.goto('http://localhost:5173');
+  await client.click('#btn-join');
+  await client.fill('#input-code', inviteCode);
+  await client.click('#btn-connect');
+
+  await expect(host.locator('#player-count')).toHaveText('2');
+  await expect(client.locator('#player-count')).toHaveText('2');
+
+  await host.click('#unit-villager-1');
+  await host.click('#grid-tile-5-5');
+
+  await client.waitForTimeout(500);
+  const hostPos = await host.evaluate(() =&gt; window.__game.getUnitPosition(1));
+  const clientPos = await client.evaluate(() =&gt; window.__game.getUnitPosition(1));
+
+  expect(hostPos).toEqual(clientPos);
+
+  await browser.close();
+});</code></pre>
+
+<h3>8.5 Snapshot Testing para Determinismo</h3>
+<pre><code>// tests/snapshot/determinism.spec.ts
+import { test, expect } from 'vitest';
+import { runScenario } from '../helpers/scenario';
+
+test('Determinismo: mesma sequência de comandos = mesmo estado', async () =&gt; {
+  const commands = loadFixture('5min-partida.json');
+
+  const runA = await runScenario(commands);
+  const runB = await runScenario(commands);
+
+  expect(runA.finalState).toMatchSnapshot();
+  expect(runA.finalState).toEqual(runB.finalState);
+  expect(runA.checksum).toBe(runB.checksum);
+});</code></pre>
+
+<!-- ============ SEÇÃO 9 ============ -->
+<h2 id="s9">9. Versionamento Semântico (SemVer) e Changelog</h2>
+
+<h3>9.1 Regras SemVer Aplicadas ao Projeto</h3>
+<table>
+  <tr><th>Tipo de Mudança</th><th>Exemplo</th><th>Bump</th></tr>
+  <tr><td>MAJOR</td><td>Mudança no protocolo de rede ou remoção de plugin core.</td><td><code>1.x.x → 2.0.0</code></td></tr>
+  <tr><td>MINOR</td><td>Adição de novo plugin (ex: <code>weather</code>) ou nova unidade.</td><td><code>1.0.x → 1.1.0</code></td></tr>
+  <tr><td>PATCH</td><td>Correção de bug sem alterar comportamento esperado.</td><td><code>1.0.0 → 1.0.1</code></td></tr>
+</table>
+
+<h3>9.2 Convenção de Commits (Conventional Commits)</h3>
+<pre><code>&lt;tipo&gt;(&lt;escopo&gt;): &lt;descrição&gt; [#&lt;issue&gt;]
+
+Tipos:
+  feat      → nova funcionalidade       (MINOR)
+  fix       → correção de bug           (PATCH)
+  docs      → documentação              (sem bump)
+  test      → testes                    (sem bump)
+  refactor  → refatoração               (sem bump)
+  chore     → build, config             (sem bump)
+  perf      → performance               (PATCH)
+  plugin    → novo plugin ou mudança de interface de plugin
+
+Breaking changes:
+  Adicionar "!" após o tipo ou rodapé "BREAKING CHANGE:" → MAJOR</code></pre>
+
+<p><strong>Exemplos:</strong></p>
+<pre><code>git commit -m "feat(gathering): adiciona plugin de coleta de madeira [#12]"
+git commit -m "plugin(render-canvas2d): adiciona alternativa ao Three.js [#24]"
+git commit -m "fix(pathfinding): corrige A* travando em grid isométrico [#15]"
+git commit -m "feat(network)!: muda formato de comando para JSON [#22]
+
+BREAKING CHANGE: comandos agora usam JSON em vez de string."</code></pre>
+
+<h3>9.3 Arquivo CHANGELOG.md (Keep a Changelog)</h3>
+<pre><code># Changelog
+
+Todas as mudanças notáveis serão documentadas aqui.
+Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/)
+Versionamento: [Semantic Versioning](https://semver.org/lang/pt-BR/).
+
+## [Unreleased]
+
+## [1.0.0] - 2026-XX-XX
+### Added
+- Sistema de cores de civilização no lobby.
+- Tutorial interativo de 2 minutos.
+- Efeitos sonoros para coleta, construção e combate.
+- Tela de vitória com placar final.
+- Plugin `render-canvas2d` como alternativa ao Three.js.
+
+### Changed
+- UI redesenhada com ícones maiores e cores vivas.
+
+## [0.3.0] - 2026-XX-XX
+### Added
+- Chat de texto entre jogadores.
+- Sistema de fim de jogo com placar.
+- Plugin `network` com sincronização P2P via WebRTC.
+
+## [0.2.0] - 2026-XX-XX
+### Added
+- Plugin `gathering` (coleta de madeira).
+- Plugin `construction` (construção de casas).
+- Plugin `combat` (treino e combate).
+- Plugin `ai` (IA simples).
+
+## [0.1.0] - 2026-XX-XX
+### Added
+- Plugin Host kernel com Event Bus.
+- Interface `GamePlugin` e ciclo de vida.
+- Vendorização de `peerjs`, `three`, `ws`.
+- Grid isométrico renderizado.
+- Movimentação de câmera.</code></pre>
+
+<!-- ============ SEÇÃO 10 ============ -->
+<h2 id="s10">10. Documentação com Diátaxis + ADRs</h2>
+
+<p>
+A documentação segue o framework <strong>Diátaxis</strong>, com quatro quadrantes, e é complementada
+por <strong>ADRs</strong> (Architecture Decision Records), inspirados no DeepSeek Harness, que
+registram decisões arquiteturais versionadas junto com o código.
+</p>
+
+<h3>10.1 Quadrantes Diátaxis</h3>
+<table>
+  <tr><th>Quadrante</th><th>Necessidade</th><th>Conteúdo do Projeto</th></tr>
+  <tr><td><strong>Tutoriais</strong></td><td>"Quero aprender"</td><td>Guia passo a passo: "Sua primeira partida em 5 minutos".</td></tr>
+  <tr><td><strong>How-to Guides</strong></td><td>"Quero resolver um problema"</td><td>"Como hospedar uma partida na Wi-Fi", "Como criar um novo plugin".</td></tr>
+  <tr><td><strong>Referência</strong></td><td>"Preciso de dados técnicos"</td><td>Tabela de unidades, interface <code>GamePlugin</code>, API de rede.</td></tr>
+  <tr><td><strong>Explicação</strong></td><td>"Quero entender o porquê"</td><td>"Por que WebRTC?", "Como funciona o Plugin Host?", "O que é lockstep?".</td></tr>
+</table>
+
+<h3>10.2 ADRs (Architecture Decision Records)</h3>
+<p>
+ADRs são documentos curtos que registram uma decisão arquitetural, seu contexto, alternativas
+consideradas e consequências. Ficam em <code>docs/explanation/adr/</code> e são versionados.
+</p>
+
+<pre><code>docs/explanation/adr/
+├── 0001-uso-de-plugin-host.md
+├── 0002-escolha-de-webrtc.md
+├── 0003-lockstep-deterministico.md
+├── 0004-vendorizacao-de-dependencias.md
+├── 0005-por-que-nao-usar-cordis.md
+├── 0006-estrategia-de-testes-em-piramide.md
+└── 0007-escolha-de-licenca-mit.md</code></pre>
+
+<p><strong>Template de ADR:</strong></p>
+<pre><code># ADR-0005: Por que não usar Cordis como framework de plugins
+
+## Status
+Aceito — 2026-XX-XX
+
+## Contexto
+Consideramos adotar o Cordis (usado no DeepSeek Harness) como framework de injeção
+de dependência e ciclo de vida de plugins.
+
+## Decisão
+Implementar um Plugin Host próprio com menos de 300 linhas de TypeScript,
+usando um EventBus simples em vez do modelo de serviços do Cordis.
+
+## Consequências
+- ✅ Kernel mais simples, mais fácil de entender e depurar.
+- ✅ Sem dependência pesada; menor superfície de ataque.
+- ✅ Curva de aprendizado menor para contribuidores.
+- ❌ Sem hot-reload automático (mitigado pelo HMR do Vite).
+- ❌ Sem injeção de dependência automática (resolvida por ordem topológica).</code></pre>
+
+<h3>10.3 Estrutura Completa da Documentação</h3>
+<pre><code>docs/
+├── tutorials/
+│   ├── primeira-partida.md
+│   └── configurando-ambiente.md
+├── how-to/
+│   ├── hospedar-partida-wifi.md
+│   ├── entrar-em-partida.md
+│   ├── criar-novo-plugin.md
+│   ├── adicionar-novo-recurso.md
+│   └── fluxo-de-desenvolvimento.md
+├── reference/
+│   ├── game-plugin-interface.md
+│   ├── unidades.md
+│   ├── edificios.md
+│   ├── recursos.md
+│   ├── api-rede.md
+│   └── comandos-teclado.md
+└── explanation/
+    ├── arquitetura-geral.md
+    ├── por-que-webrtc.md
+    ├── modelo-lockstep.md
+    ├── vendorizacao.md
+    └── adr/
+        ├── 0001-uso-de-plugin-host.md
+        └── ...</code></pre>
+
+<!-- ============ SEÇÃO 11 ============ -->
+<h2 id="s11">11. Fluxo de Trabalho no GitHub</h2>
+
+<p>
+O board do GitHub Projects V2 é o <strong>log principal de progresso</strong>. Cada item do backlog
+vira um card rastreável, e cada commit é uma prova de execução.
+</p>
+
+<h3>11.1 Estrutura do Board (Colunas)</h3>
+<table>
+  <tr><th>Coluna</th><th>Significado</th><th>Gatilho</th></tr>
+  <tr><td>📋 Backlog</td><td>Ideias não priorizadas.</td><td>Issue criada.</td></tr>
+  <tr><td>🎯 Ready</td><td>Priorizada com critérios definidos.</td><td>Label <code>ready</code>.</td></tr>
+  <tr><td>🚧 In Progress</td><td>Desenvolvimento ativo.</td><td>Label <code>in-progress</code>.</td></tr>
+  <tr><td>👀 In Review</td><td>Aguardando validação E2E.</td><td>PR aberto referenciando issue.</td></tr>
+  <tr><td>✅ Done</td><td>Teste E2E aprovado, PR mergeado.</td><td>PR mergeado.</td></tr>
+  <tr><td>🚫 Blocked</td><td>Impedimento externo.</td><td>Label <code>blocked</code>.</td></tr>
+</table>
+
+<h3>11.2 Campos Customizados dos Cards</h3>
+<ul>
+  <li><strong>Épico</strong> (single select): Fundação, Sistemas Centrais, Multiplayer, Polimento.</li>
+  <li><strong>Versão Alvo</strong> (text): <code>0.1.0</code>, <code>0.2.0</code>, <code>0.3.0</code>, <code>1.0.0</code>.</li>
+  <li><strong>Critério de Aceite</strong> (text): teste E2E correspondente.</li>
+  <li><strong>Estimativa</strong> (number): pontos de complexidade.</li>
+  <li><strong>Plugin</strong> (single select): qual plugin a issue afeta (movement, gathering, etc.).</li>
+</ul>
+
+<h3>11.3 Template de Issue</h3>
+<pre><code>---
+name: Tarefa de Desenvolvimento
+about: Template padrão para itens do backlog
+labels: ['backlog']
+---
+
+## 📖 História de Usuário
+&lt;!-- Ex: Como jogador, quero coletar madeira para construir uma casa --&gt;
+
+## 🎯 Critério de Aceite (Teste E2E)
+- [ ] Critério 1
+- [ ] Critério 2
+- [ ] Critério 3
+
+## 🧩 Épico
+&lt;!-- Preenchido pelo campo customizado --&gt;
+
+## 🔌 Plugin Afetado
+&lt;!-- Ex: gathering, movement, network --&gt;
+
+## 📦 Versão Alvo
+&lt;!-- Ex: 0.2.0 --&gt;
+
+## 🔗 Dependências
+&lt;!-- Issues que precisam estar Done antes desta --&gt;
+
+## 📝 Notas Técnicas
+&lt;!-- Decisões de arquitetura, links para docs/explanation/ --&gt;</code></pre>
+
+<h3>11.4 Fluxo Completo de uma Tarefa</h3>
+<div class="diagram">
+Desenvolvedor       GitHub              Actions              Board
+     │                 │                   │                  │
+     │ Cria issue      │                   │                  │
+     ├────────────────►│                   │                  │
+     │                 ├──────────────────►│                  │
+     │                 │                   ├─────────────────►│ Backlog
+     │ Adiciona label  │                   │                  │
+     │ "ready"         │                   │                  │
+     ├────────────────►│──────────────────►│─────────────────►│ Ready
+     │ git commit      │                   │                  │
+     │ "feat(x) [#12]" │                   │                  │
+     ├────────────────►│                   │                  │
+     │ Abre PR         │                   │                  │
+     ├────────────────►│──────────────────►│─────────────────►│ In Review
+     │ Merge PR        │                   │                  │
+     ├────────────────►│──────────────────►│─────────────────►│ Done
+     │                 │◄──────────────────┤                  │
+     │                 │  Bump SemVer      │                  │
+     │                 │  Atualiza CHANGELOG                  │
+</div>
+
+<!-- ============ SEÇÃO 12 ============ -->
+<h2 id="s12">12. Automação com GitHub Actions</h2>
+
+<h3>12.1 Workflow A — Adicionar Issue ao Board</h3>
+<p><code>.github/workflows/add-to-board.yml</code></p>
+<pre><code>name: Adicionar issue ao board
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  add-to-project:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/add-to-project@v1
+        with:
+          project-url: https://github.com/users/SEU_USUARIO/projects/1
+          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}</code></pre>
+
+<h3>12.2 Workflow B — Sincronizar Board com PR</h3>
+<p><code>.github/workflows/pr-board-sync.yml</code></p>
+<pre><code>name: Sincronizar board com PR
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, closed]
+
+jobs:
+  update-board:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mover para In Review
+        if: github.event.action == 'opened' || github.event.action == 'ready_for_review'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          script: |
+            const body = context.payload.pull_request.body || '';
+            const matches = body.match(/#(\d+)/g) || [];
+            for (const m of matches) {
+              const issueNumber = parseInt(m.replace('#', ''), 10);
+              console.log(`Movendo issue #${issueNumber} para In Review`);
+            }
+
+      - name: Mover para Done
+        if: github.event.action == 'closed' && github.event.pull_request.merged
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          script: |
+            console.log('PR mergeado — mover cards para Done');</code></pre>
+
+<h3>12.3 Workflow C — Bump de Versão SemVer</h3>
+<p><code>.github/workflows/version-bump.yml</code></p>
+<pre><code>name: Bump de versão SemVer
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Instalar sley
+        run: |
+          curl -L https://github.com/dominikbraun/sley/releases/latest/download/sley-linux-amd64 -o sley
+          chmod +x sley
+
+      - name: Determinar bump
+        id: bump
+        run: |
+          COMMITS=$(git log --format=%B -n 20)
+          if echo "$COMMITS" | grep -qE "BREAKING CHANGE|!:"; then
+            echo "type=major" >> $GITHUB_OUTPUT
+          elif echo "$COMMITS" | grep -qE "^feat|^plugin"; then
+            echo "type=minor" >> $GITHUB_OUTPUT
+          else
+            echo "type=patch" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Aplicar bump
+        run: ./sley bump ${{ steps.bump.outputs.type }}
+
+      - name: Commit e push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add .version CHANGELOG.md
+          git commit -m "chore(release): v$(cat .version)"
+          git push</code></pre>
+
+<h3>12.4 Workflow D — Testes em Pirâmide</h3>
+<p><code>.github/workflows/test.yml</code></p>
+<pre><code>name: Testes
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm ci
+      - run: npm run test:unit
+      - run: npm run test:integration
+
+  sync:
+    runs-on: ubuntu-latest
+    needs: unit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm ci
+      - run: npm run test:sync
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: sync
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm ci
+      - run: npx playwright install --with-deps
+      - run: npm run test:e2e</code></pre>
+
+<h3>12.5 Script de Atualização Manual via GraphQL</h3>
+<p><code>scripts/board.sh</code></p>
+<pre><code>#!/usr/bin/env bash
+# Uso: ./board.sh &lt;issue_number&gt; &lt;coluna_destino&gt;
+
+ISSUE=$1
+COLUNA=$2
+PROJECT_ID="PVT_kwHOAxxxxxxxxx"
+FIELD_ID="PVTSSF_lAHOAxxxxxxxxx"
+
+declare -A STATUS=(
+  ["backlog"]="f75ad846"
+  ["ready"]="61e4505c"
+  ["in-progress"]="47fc9ee4"
+  ["in-review"]="df73e18b"
+  ["done"]="98236657"
+)
+
+ITEM_ID=$(gh api graphql -f query='
+  query($issue: Int!) {
+    repository(owner: "SEU_USUARIO", name: "SEU_REPO") {
+      issue(number: $issue) {
+        projectItems(first: 1) { nodes { id } }
+      }
+    }
+  }' -F issue=$ISSUE --jq '.data.repository.issue.projectItems.nodes[0].id')
+
+gh api graphql -f query='
+  mutation($project: ID!, $item: ID!, $field: ID!, $value: String!) {
+    updateProjectV2ItemFieldValue(input: {
+      projectId: $project
+      itemId: $item
+      fieldId: $field
+      value: { singleSelectOptionId: $value }
+    }) { projectV2Item { id } }
+  }' -F project=$PROJECT_ID -F item=$ITEM_ID -F field=$FIELD_ID -F value=${STATUS[$COLUNA]}
+
+echo "✅ Issue #$ISSUE movida para '$COLUNA'"</code></pre>
+
+<!-- ============ SEÇÃO 13 ============ -->
+<h2 id="s13">13. Blueprint de Implementação em 8 Semanas</h2>
+
+<table>
+  <tr><th>Semana</th><th>Foco</th><th>Entregável</th><th>Gate E2E</th><th>Versão</th></tr>
+  <tr>
+    <td>1</td>
+    <td>Plugin Host + Fundação + Docs iniciais</td>
+    <td>Kernel &lt; 300 LOC, EventBus, vendorização, grid isométrico.</td>
+    <td>Plugins inicializam em ordem; câmera funciona.</td>
+    <td>—</td>
+  </tr>
+  <tr>
+    <td>2–3</td>
+    <td>Sistemas Centrais como plugins</td>
+    <td>Plugins <code>movement</code>, <code>gathering</code>, <code>construction</code>, <code>combat</code>, <code>ai</code>.</td>
+    <td>Partida single-player completa contra IA.</td>
+    <td>0.1.0 → 0.2.0</td>
+  </tr>
+  <tr>
+    <td>4–5</td>
+    <td>Multiplayer Wi-Fi</td>
+    <td>Plugins <code>network</code> e <code>chat</code>; lobby com código.</td>
+    <td>Dois clientes sincronizados; checksum idêntico.</td>
+    <td>0.3.0</td>
+  </tr>
+  <tr>
+    <td>6–7</td>
+    <td>Polimento + Documentação</td>
+    <td>Plugins <code>audio</code>, <code>ui-hud</code>, <code>tutorial</code>; ADRs.</td>
+    <td>Quatro jogadores, experiência completa.</td>
+    <td>0.4.0 → 1.0.0</td>
+  </tr>
+  <tr>
+    <td>8</td>
+    <td>Lançamento</td>
+    <td>Publicação no GitHub, licença MIT, Diátaxis completa.</td>
+    <td>Revisão final da documentação e do CHANGELOG.</td>
+    <td>1.0.0</td>
+  </tr>
+</table>
+
+<h3>13.1 Passos Detalhados — Semana 1</h3>
+<ol>
+  <li>Criar repositório público no GitHub com licença MIT.</li>
+  <li>Configurar <code>package.json</code>, <code>vite.config.ts</code>, <code>tsconfig.json</code>.</li>
+  <li>Implementar <code>EventBus</code> (~30 linhas).</li>
+  <li>Implementar <code>PluginHost</code> com resolução topológica (~150 linhas).</li>
+  <li>Definir interface <code>GamePlugin</code> e <code>PluginContext</code>.</li>
+  <li>Criar plugin de teste (<code>hello-world</code>) para validar o kernel.</li>
+  <li>Vendorizar <code>peerjs</code>, <code>three</code>, <code>ws</code> em <code>vendor/</code>.</li>
+  <li>Implementar loop de jogo com <code>requestAnimationFrame</code>.</li>
+  <li>Renderizar grid isométrico com Three.js.</li>
+  <li>Implementar controle de câmera.</li>
+  <li>Criar board no GitHub Projects com 6 colunas e 5 campos.</li>
+  <li>Adicionar os 4 workflows em <code>.github/workflows/</code>.</li>
+  <li>Escrever <code>docs/explanation/arquitetura-geral.md</code> e ADR-0001.</li>
+</ol>
+
+<h3>13.2 Passos Detalhados — Semanas 2–3</h3>
+<ol>
+  <li>Implementar plugin <code>ecs</code> (entidades e componentes).</li>
+  <li>Implementar plugin <code>movement</code> com pathfinding A*.</li>
+  <li>Implementar plugin <code>gathering</code> (coleta de madeira).</li>
+  <li>Implementar plugin <code>construction</code> (ghost + progresso).</li>
+  <li>Implementar plugin <code>combat</code> (dano por tick).</li>
+  <li>Implementar plugin <code>ai</code> com máquina de estados.</li>
+  <li>Escrever testes unitários por plugin (&gt; 80% cobertura).</li>
+  <li>Escrever teste E2E do Épico 1.</li>
+  <li>Fazer bump para <code>0.2.0</code> após merge.</li>
+</ol>
+
+<h3>13.3 Estrutura de Pastas do Repositório</h3>
+<pre><code>cronicas-da-vila/
+├── .github/
+│   ├── workflows/
+│   │   ├── add-to-board.yml
+│   │   ├── pr-board-sync.yml
+│   │   ├── version-bump.yml
+│   │   └── test.yml
+│   └── ISSUE_TEMPLATE/
+│       └── tarefa.md
+├── docs/
+│   ├── tutorials/
+│   ├── how-to/
+│   ├── reference/
+│   └── explanation/
+│       └── adr/
+├── src/
+│   ├── core/
+│   │   ├── plugin.ts          # Interface GamePlugin
+│   │   ├── event-bus.ts       # ~30 linhas
+│   │   ├── host.ts            # ~150 linhas
+│   │   ├── services.ts        # ServiceRegistry
+│   │   └── loop.ts            # Game loop
+│   ├── plugins/
+│   │   ├── ecs/
+│   │   ├── movement/
+│   │   ├── gathering/
+│   │   ├── construction/
+│   │   ├── combat/
+│   │   ├── ai/
+│   │   ├── network/
+│   │   ├── chat/
+│   │   ├── render-threejs/
+│   │   ├── ui-hud/
+│   │   ├── audio/
+│   │   └── tutorial/
+│   └── main.ts                # Registra todos os plugins
+├── vendor/
+│   ├── peerjs/
+│   ├── three/
+│   └── ws/
+├── assets/
+│   ├── 3d/
+│   ├── 2d/
+│   ├── audio/
+│   └── licenses/
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   ├── sync/
+│   ├── e2e/
+│   └── snapshot/
+├── scripts/
+│   └── board.sh
+├── .version
+├── CHANGELOG.md
+├── LICENSE
+├── README.md
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+├── vitest.config.ts
+├── vitest.integration.config.ts
+├── vitest.sync.config.ts
+├── vitest.e2e.config.ts
+├── vitest.bench.config.ts
+└── vitest.snapshot.config.ts</code></pre>
+
+<!-- ============ SEÇÃO 14 ============ -->
+<h2 id="s14">14. Checklist Final de Lançamento</h2>
+
+<h3>14.1 Código</h3>
+<ul>
+  <li>☐ Todos os épicos concluídos com testes E2E aprovados.</li>
+  <li>☐ Cobertura de testes unitários por plugin acima de 80%.</li>
+  <li>☐ Kernel do Plugin Host abaixo de 300 linhas.</li>
+  <li>☐ Nenhum <code>console.log</code> de debug em produção.</li>
+  <li>☐ Build de produção sem warnings.</li>
+  <li>☐ Versão final <code>1.0.0</code> registrada em <code>.version</code>.</li>
+  <li>☐ Dependências vendorizadas em <code>vendor/</code>.</li>
+</ul>
+
+<h3>14.2 Documentação</h3>
+<ul>
+  <li>☐ <code>README.md</code> com quickstart, screenshots e link para docs.</li>
+  <li>☐ Documentação Diátaxis completa (4 quadrantes).</li>
+  <li>☐ ADRs para todas as decisões arquiteturais relevantes.</li>
+  <li>☐ <code>CHANGELOG.md</code> atualizado com todas as versões.</li>
+  <li>☐ <code>CONTRIBUTING.md</code> explicando o fluxo de commits e PRs.</li>
+  <li>☐ <code>CODE_OF_CONDUCT.md</code>.</li>
+</ul>
+
+<h3>14.3 Licenciamento</h3>
+<ul>
+  <li>☐ <code>LICENSE</code> (MIT) na raiz.</li>
+  <li>☐ <code>assets/licenses/</code> com atribuições de cada asset CC0/CC BY.</li>
+  <li>☐ Nenhuma dependência proprietária no <code>package.json</code>.</li>
+  <li>☐ <code>THIRD_PARTY_NOTICES.md</code> listando todas as dependências e suas licenças.</li>
+</ul>
+
+<h3>14.4 Board e Processo</h3>
+<ul>
+  <li>☐ Todos os cards do board em "Done".</li>
+  <li>☐ Todos os PRs mergeados ou fechados.</li>
+  <li>☐ Todos os workflows do GitHub Actions passando.</li>
+  <li>☐ Todas as issues fechadas com comentário de conclusão.</li>
+</ul>
+
+<!-- ============ SEÇÃO 15 ============ -->
+<h2 id="s15">15. Apêndices</h2>
+
+<h3>15.1 Padrões Adotados do DeepSeek Harness</h3>
+<p>
+O <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> foi analisado como
+referência arquitetural. Nem tudo foi adotado; a tabela abaixo registra o que foi incorporado,
+adaptado ou descartado, com justificativa.
+</p>
+
+<table>
+  <tr><th>Padrão do Harness</th><th>Decisão</th><th>Como/Justificativa</th></tr>
+  <tr>
+    <td>Everything-is-a-plugin</td>
+    <td>✅ <strong>Adotado</strong> (em escala reduzida)</td>
+    <td>Plugin Host mínimo + interface <code>GamePlugin</code>. Cada sistema do jogo é um plugin.</td>
+  </tr>
+  <tr>
+    <td>Vendorização de dependências</td>
+    <td>✅ <strong>Adotado</strong></td>
+    <td><code>peerjs</code>, <code>three</code>, <code>ws</code> em <code>vendor/</code>.</td>
+  </tr>
+  <tr>
+    <td>ADRs no repositório</td>
+    <td>✅ <strong>Adotado</strong></td>
+    <td><code>docs/explanation/adr/</code> integrado ao Diátaxis.</td>
+  </tr>
+  <tr>
+    <td>Snapshot testing</td>
+    <td>✅ <strong>Adotado</strong></td>
+    <td><code>vitest.snapshot.config.ts</code> para verificar determinismo.</td>
+  </tr>
+  <tr>
+    <td>Múltiplas configs de teste</td>
+    <td>✅ <strong>Adotado</strong></td>
+    <td>6 arquivos <code>vitest.*.config.ts</code> para diferentes camadas.</td>
+  </tr>
+  <tr>
+    <td>Cordis completo</td>
+    <td>❌ <strong>Descartado</strong></td>
+    <td>Overkill; Kernel próprio com ~150 linhas cobre o caso.</td>
+  </tr>
+  <tr>
+    <td>Monorepo pnpm</td>
+    <td>❌ <strong>Descartado</strong></td>
+    <td>Repositório único com pastas bem organizadas é suficiente.</td>
+  </tr>
+  <tr>
+    <td>Multi-linguagem (Python, Rust)</td>
+    <td>❌ <strong>Descartado</strong></td>
+    <td>Tudo TypeScript/JavaScript no navegador.</td>
+  </tr>
+  <tr>
+    <td>Múltiplas apps (Web + Desktop)</td>
+    <td>❌ <strong>Descartado</strong></td>
+    <td>Apenas Web (navegador) como alvo.</td>
+  </tr>
+  <tr>
+    <td>Desenvolvimento via IA (AGENTS.md)</td>
+    <td>✅ <strong>Adotado parcialmente</strong></td>
+    <td>Uso de OpenCode + Ollama; <code>AGENTS.md</code> como guia para assistentes.</td>
+  </tr>
+</table>
+
+<h3>15.2 Glossário</h3>
+<table>
+  <tr><th>Termo</th><th>Definição</th></tr>
+  <tr><td><strong>RTS</strong></td><td>Real-Time Strategy — gênero de jogos de estratégia em tempo real.</td></tr>
+  <tr><td><strong>ECS</strong></td><td>Entity-Component-System — padrão de arquitetura de jogos.</td></tr>
+  <tr><td><strong>Plugin Host</strong></td><td>Kernel mínimo que registra, resolve dependências e inicializa plugins.</td></tr>
+  <tr><td><strong>Event Bus</strong></td><td>Mecanismo pub/sub que desacopla plugins.</td></tr>
+  <tr><td><strong>P2P</strong></td><td>Peer-to-Peer — comunicação direta entre clientes.</td></tr>
+  <tr><td><strong>WebRTC</strong></td><td>Web Real-Time Communication — API de comunicação P2P do navegador.</td></tr>
+  <tr><td><strong>Lockstep</strong></td><td>Modelo de sincronização onde clientes avançam em ticks coordenados.</td></tr>
+  <tr><td><strong>SemVer</strong></td><td>Semantic Versioning — <code>MAJOR.MINOR.PATCH</code>.</td></tr>
+  <tr><td><strong>Diátaxis</strong></td><td>Framework de documentação em quatro quadrantes.</td></tr>
+  <tr><td><strong>ADR</strong></td><td>Architecture Decision Record — registro versionado de decisão arquitetural.</td></tr>
+  <tr><td><strong>Vendorização</strong></td><td>Copiar dependência para <code>vendor/</code> em versão fixa.</td></tr>
+  <tr><td><strong>CC0</strong></td><td>Creative Commons Zero — domínio público.</td></tr>
+  <tr><td><strong>E2E</strong></td><td>End-to-End — teste que valida o fluxo completo do sistema.</td></tr>
+</table>
+
+<h3>15.3 Referências</h3>
+<ul>
+  <li><a href="https://semver.org/lang/pt-BR/">Semantic Versioning 2.0.0 (pt-BR)</a></li>
+  <li><a href="https://diataxis.fr/">Diátaxis Framework</a></li>
+  <li><a href="https://keepachangelog.com/pt-BR/1.0.0/">Keep a Changelog</a></li>
+  <li><a href="https://www.conventionalcommits.org/pt-br/">Conventional Commits</a></li>
+  <li><a href="https://docs.github.com/en/issues/planning-and-tracking-with-projects">GitHub Projects V2</a></li>
+  <li><a href="https://threejs.org/">Three.js Documentation</a></li>
+  <li><a href="https://peerjs.com/">PeerJS</a></li>
+  <li><a href="https://playwright.dev/">Playwright</a></li>
+  <li><a href="https://vitest.dev/">Vitest</a></li>
+  <li><a href="https://kaylousberg.itch.io/kaykit-medieval-hexagon">KayKit Medieval Hexagon Pack</a></li>
+  <li><a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> — inspiração arquitetural</li>
+  <li><a href="https://github.com/cordiverse/cordis">Cordis</a> — framework de plugins (referência, não adotado)</li>
+  <li><a href="https://arxiv.org/abs/2608.25512">A Programming Paradigm for Spatiotemporal Composability</a> — paper do Cordis</li>
+</ul>
+
+<h3>15.4 Próximos Passos Imediatos</h3>
+<ol>
+  <li>Criar o repositório no GitHub com o nome <code>cronicas-da-vila</code>.</li>
+  <li>Adicionar a licença MIT e o <code>README.md</code>.</li>
+  <li>Configurar o board do GitHub Projects V2 com as 6 colunas e 5 campos.</li>
+  <li>Criar as 20 issues iniciais (uma para cada user story da seção 3).</li>
+  <li>Configurar os 4 workflows em <code>.github/workflows/</code>.</li>
+  <li>Executar os passos da Semana 1 (Plugin Host + EventBus + vendorização).</li>
+  <li>Escrever o primeiro ADR: <code>0001-uso-de-plugin-host.md</code>.</li>
+  <li>Fechar o Épico 0 e iniciar o Épico 1.</li>
+</ol>
+
+<div class="callout">
+<strong>Filosofia do projeto:</strong> "Interfaces bem definidas não são complexidade; são a
+garantia de que cada parte pode evoluir, ser testada e ser substituída sem quebrar o resto."
+Cada plugin é uma promessa: o que ele oferece, o que ele consome, o que ele emite. O kernel
+só faz uma coisa: manter essas promessas.
+</div>
+
+<div class="footer-note">
+  <strong>Crônicas da Vila</strong> — Especificação Técnica Final (v2.0.0)<br>
+  Documento sob licença CC BY 4.0 · Software sob licença MIT<br>
+  Para gerar o PDF: abra este arquivo no navegador e use <code>Ctrl+P</code> → "Salvar como PDF".
+</div>
+
+</body>
+</html>
