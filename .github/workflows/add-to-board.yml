@@ -2,7 +2,7 @@ name: Adicionar issue ao quadro
 
 on:
   issues:
-    types: [opened]
+    types: [opened, reopened]
 
 jobs:
   add-to-project:
@@ -22,3 +22,62 @@ jobs:
         with:
           project-url: https://github.com/users/martinsmiguel/projects/3
           github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
+
+      - name: Definir status inicial como Backlog
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          script: |
+            const project = await github.graphql(`
+              query {
+                user(login: "martinsmiguel") {
+                  projectV2(number: 3) {
+                    id
+                    fields(first: 50) {
+                      nodes {
+                        ... on ProjectV2SingleSelectField {
+                          id
+                          name
+                          options { id name }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `);
+            const board = project.user?.projectV2;
+            if (!board) throw new Error("Project V2 #3 não foi encontrado ou o token não tem acesso.");
+            const statusField = board.fields.nodes.find((field) => field.name === "Status");
+            const statusOption = statusField?.options.find((option) => option.name === "Backlog");
+            if (!statusField || !statusOption) throw new Error("Campo/opção Status → Backlog não foi encontrado.");
+
+            const issue = await github.graphql(`
+              query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  issue(number: $number) {
+                    id
+                    projectItems(first: 100) { nodes { id project { id } } }
+                  }
+                }
+              }
+            `, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              number: context.payload.issue.number,
+            });
+            const card = issue.repository.issue?.projectItems.nodes.find((item) => item.project.id === board.id);
+            if (!card) throw new Error(`Issue #${context.payload.issue.number} não apareceu no Project após a ação de inclusão.`);
+
+            await github.graphql(`
+              mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $project
+                  itemId: $item
+                  fieldId: $field
+                  value: { singleSelectOptionId: $option }
+                }) { projectV2Item { id } }
+              }
+            `, { project: board.id, item: card.id, field: statusField.id, option: statusOption.id });
+
+            core.info(`Issue #${context.payload.issue.number} adicionada ao Project em Backlog.`);

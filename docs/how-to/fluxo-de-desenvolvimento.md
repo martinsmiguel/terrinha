@@ -42,6 +42,12 @@ Para habilitar a automação, configure o segredo `ADD_TO_PROJECT_PAT` em
 ter permissão de escrita no projeto pessoal. O valor do token deve ficar apenas
 no segredo do GitHub, nunca em arquivos do repositório.
 
+Ao abrir ou reabrir uma issue, o workflow adiciona o card e define **Backlog**.
+No corpo da PR, liste as issues relacionadas em uma linha `Refs: #12`; a PR pronta
+para revisão move esses cards para **In Review**. Use `Closes #12` apenas para a
+issue que deve ser fechada quando a PR for mergeada; nesse evento, o card vai para
+**Done**. Uma referência `Refs` sozinha nunca fecha a issue.
+
 ## Commits pequenos
 
 Um card pode gerar vários commits, mas cada um deve ser uma unidade
