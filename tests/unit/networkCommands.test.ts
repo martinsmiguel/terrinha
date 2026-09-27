@@ -149,3 +149,45 @@ describe('network command validation', () => {
     expect(isAuthorizedPlayerCommand(foreignBuilding, { type: 'train', buildingId: 'barracks-1', unitType: 'soldier' }, 'player1')).toBe(false);
   });
 });
+
+describe('repair and demolish commands', () => {
+  const damagedState: GameState = {
+    ...state,
+    buildings: [
+      ...state.buildings,
+      {
+        id: 'house-1', type: 'house', owner: 'player1', position: { x: 15, z: 15 },
+        health: 60, maxHealth: 120, isComplete: true, trainingQueue: [],
+      },
+      {
+        id: 'house-2', type: 'house', owner: 'player2', position: { x: 40, z: 40 },
+        health: 60, maxHealth: 120, isComplete: true, trainingQueue: [],
+      },
+    ],
+  };
+
+  it('rejects malformed repair and demolish payloads', () => {
+    expect(isValidNetworkCommand({ type: 'repair', unitId: 'villager-1' })).toBe(false);
+    expect(isValidNetworkCommand({ type: 'demolish' })).toBe(false);
+    expect(isValidNetworkCommand({ type: 'demolish', buildingId: 'house-1', unitId: 'villager-1' })).toBe(false);
+  });
+
+  it('lets an own villager repair a damaged own building only', () => {
+    const repairOwn = { type: 'repair', unitId: 'villager-1', buildingId: 'house-1' };
+    expect(isAuthorizedPlayerCommand(damagedState, repairOwn, 'player1')).toBe(true);
+    expect(isAuthorizedPlayerCommand(damagedState, repairOwn, 'player2')).toBe(false);
+    expect(isAuthorizedPlayerCommand(damagedState, { type: 'repair', unitId: 'villager-1', buildingId: 'house-2' }, 'player1')).toBe(false);
+    expect(isAuthorizedPlayerCommand(damagedState, { type: 'repair', unitId: 'soldier-2', buildingId: 'house-2' }, 'player2')).toBe(false);
+    expect(isAuthorizedPlayerCommand(damagedState, { type: 'repair', unitId: 'villager-1', buildingId: 'missing-house' }, 'player1')).toBe(false);
+  });
+
+  it('refuses repairing a building that is already at full health', () => {
+    expect(isAuthorizedPlayerCommand(damagedState, { type: 'repair', unitId: 'villager-1', buildingId: 'town-center-1' }, 'player1')).toBe(false);
+  });
+
+  it('validates ownership on demolish and protects the town center', () => {
+    expect(isAuthorizedPlayerCommand(damagedState, { type: 'demolish', buildingId: 'house-1' }, 'player1')).toBe(true);
+    expect(isAuthorizedPlayerCommand(damagedState, { type: 'demolish', buildingId: 'house-2' }, 'player1')).toBe(false);
+    expect(isAuthorizedPlayerCommand(damagedState, { type: 'demolish', buildingId: 'town-center-1' }, 'player1')).toBe(false);
+  });
+});

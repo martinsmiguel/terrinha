@@ -6,6 +6,7 @@ import {
   applyCost,
   canAfford,
   describeCost,
+  halfCost,
   missingCost,
   refinePlanks,
   refundCost,
@@ -165,5 +166,14 @@ describe('refinePlanks', () => {
 
     expect(next.wood).toBe(0);
     expect(next.planks).toBeCloseTo(0.02 * (SAWMILL_PLANKS_PER_TICK / SAWMILL_WOOD_PER_TICK));
+  });
+});
+
+describe('halfCost', () => {
+  it('floors every resource at half and drops zero entries', () => {
+    expect(halfCost({ wood: 80, stone: 40, planks: 20 })).toEqual({ wood: 40, stone: 20, planks: 10 });
+    expect(halfCost({ wood: 75, gold: 31 })).toEqual({ wood: 37, gold: 15 });
+    expect(halfCost({ gold: 1 })).toEqual({});
+    expect(halfCost({})).toEqual({});
   });
 });

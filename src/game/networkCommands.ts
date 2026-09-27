@@ -57,6 +57,8 @@ export type NetworkCommand = CommandMetadata & (
   | { type: 'build'; buildingType: BuildableType; owner: PlayerSlot; position: Position; builderIds?: string[] }
   | { type: 'train'; buildingId: string; unitType: TrainableType }
   | { type: 'cancel_train'; buildingId: string; index: number }
+  | { type: 'repair'; unitId: string; buildingId: string }
+  | { type: 'demolish'; buildingId: string }
   | { type: 'set_resource_mode'; resourceId: string; mode: 'clear_cut' | 'sustainable' }
   | { type: 'set_grove_mode'; clusterId?: string; treeIds?: string[]; mode: 'clear_cut' | 'sustainable' }
   | { type: 'set_colony_forestry'; enabled: boolean }
@@ -162,6 +164,10 @@ export function isValidNetworkCommand(value: unknown): value is NetworkCommand {
       return allowedKeys('buildingId', 'unitType') && isId(value.buildingId) && typeof value.unitType === 'string' && UNIT_TYPES.includes(value.unitType);
     case 'cancel_train':
       return allowedKeys('buildingId', 'index') && isId(value.buildingId) && Number.isSafeInteger(value.index) && Number(value.index) >= 0 && Number(value.index) < 5;
+    case 'repair':
+      return allowedKeys('unitId', 'buildingId') && isId(value.unitId) && isId(value.buildingId);
+    case 'demolish':
+      return allowedKeys('buildingId') && isId(value.buildingId);
     case 'set_resource_mode':
       return allowedKeys('resourceId', 'mode') && isId(value.resourceId) && isMode(value.mode);
     case 'set_grove_mode':
@@ -255,6 +261,17 @@ export function isAuthorizedPlayerCommand(
     case 'cancel_train': {
       const building = ownsBuilding(state, value.buildingId, owner);
       return Boolean(building && value.index < building.trainingQueue.length);
+    }
+    case 'repair': {
+      const unit = ownsUnit(state, value.unitId, owner);
+      const building = ownsBuilding(state, value.buildingId, owner);
+      if (!unit || unit.type !== 'villager' || !building || !building.isComplete) return false;
+      return building.health < building.maxHealth;
+    }
+    case 'demolish': {
+      const building = ownsBuilding(state, value.buildingId, owner);
+      if (!building) return false;
+      return building.type !== 'town_center';
     }
     case 'set_resource_mode':
       return state.resourceNodes.some((resource) => resource.id === value.resourceId && resource.type === 'tree');

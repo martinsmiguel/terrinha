@@ -102,6 +102,16 @@ export const refundCost = (resources: PlayerResources, cost: ResourceCost): Play
   return next;
 };
 
+/** Devolve metade (arredondada para baixo) do custo — reembolso da demolição. */
+export const halfCost = (cost: ResourceCost): ResourceCost => {
+  const half: ResourceCost = {};
+  COST_KEYS.forEach((key) => {
+    const value = Math.floor((cost[key] || 0) / 2);
+    if (value > 0) half[key] = value;
+  });
+  return half;
+};
+
 /**
  * Refino de tábuas na Serralheria: consome madeira e produz tábuas.
  * Operação pura; sem madeira disponível não há refino.

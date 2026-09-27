@@ -46,6 +46,7 @@ import {
   Sprout,
   Pickaxe,
   Trash2,
+  Wrench,
   X,
   Coins,
   Apple,
@@ -73,12 +74,19 @@ import {
   refinePlanks,
   tradeResource,
   UNIT_COSTS,
+  halfCost,
 } from './game/economy';
 import { isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, type PlayerSlot } from './game/networkCommands';
 import { evaluateMatch, localOutcome, type LocalOutcome } from './game/victory';
 
 /** Donos de Centro da Vila no setup inicial: os participantes da partida. */
 const MATCH_CONTENDERS: string[] = ['player1', 'player2'];
+
+/** Reparo: HP por tick (50 ms) e madeira consumida por HP reparado. */
+const REPAIR_HP_PER_TICK = 4;
+const REPAIR_WOOD_PER_HP = 0.05;
+/** Distancia maxima em que o aldeao consegue consertar o edificio. */
+const REPAIR_REACH = 2.2;
 
 const FACTION_COLORS: Record<string, { name: string; hex: number; colorClass: string; border: string }> = {
   player1: { name: 'Império Português (Azul)', hex: 0x2563eb, colorClass: 'bg-blue-600', border: 'border-blue-500' },
@@ -1828,6 +1836,47 @@ export default function App() {
               };
             }
 
+            // Reparo: aldeao conserta o edificio proprio consumindo madeira
+            if (unit.state === 'repairing' && unit.targetEntityId) {
+              const targetId = unit.targetEntityId;
+              const building = updatedBuildings.find((bd) => bd.id === targetId);
+              if (!building || !building.isComplete || building.owner !== unit.owner || building.health >= building.maxHealth) {
+                return { ...unit, state: 'idle' as const, targetEntityId: null, targetPosition: null };
+              }
+
+              const repairDx = building.position.x - unit.position.x;
+              const repairDz = building.position.z - unit.position.z;
+              const repairDistance = Math.sqrt(repairDx * repairDx + repairDz * repairDz);
+
+              // Aproxima do edificio antes de comecar a consertar
+              if (repairDistance > REPAIR_REACH) {
+                const step = 0.16;
+                const nextX = unit.position.x + (repairDx / repairDistance) * step;
+                const nextZ = unit.position.z + (repairDz / repairDistance) * step;
+                const repairMap = proceduralMapRef.current;
+                if (repairMap && repairMap.isImpassableAt(nextX, nextZ)) {
+                  return { ...unit, state: 'idle' as const, targetEntityId: null };
+                }
+                return { ...unit, position: { x: nextX, z: nextZ }, state: 'repairing' as const };
+              }
+
+              const ownerResources = updatedResources[unit.owner];
+              const healed = Math.min(REPAIR_HP_PER_TICK, building.maxHealth - building.health);
+              const woodCost = healed * REPAIR_WOOD_PER_HP;
+              if (!ownerResources || healed <= 0 || ownerResources.wood < woodCost) {
+                return { ...unit, state: 'idle' as const, targetEntityId: null };
+              }
+
+              updatedResources = {
+                ...updatedResources,
+                [unit.owner]: { ...ownerResources, wood: ownerResources.wood - woodCost },
+              };
+              updatedBuildings = updatedBuildings.map((bd) =>
+                bd.id === building.id ? { ...bd, health: bd.health + healed } : bd
+              );
+              return { ...unit, state: 'repairing' as const };
+            }
+
             // B. Resource Gathering (With Sustainable Forestry, Regrowth, Shift Timer & Strict Proximity Leash)
             if (unit.state === 'gathering' && unit.targetEntityId) {
               const targetNode = updatedNodes.find((n) => n.id === unit.targetEntityId);
@@ -2579,6 +2628,39 @@ export default function App() {
           },
         };
       });
+    } else if (cmd.type === 'repair') {
+      // Aldeao do dono passa a consertar o edificio proprio (paga madeira por HP)
+      setGameState((prev) => {
+        const building = prev.buildings.find((bd) => bd.id === cmd.buildingId);
+        const unit = prev.units.find((u) => u.id === cmd.unitId);
+        if (!building || !unit || unit.owner !== building.owner || unit.type !== 'villager') return prev;
+        return {
+          ...prev,
+          units: prev.units.map((u) =>
+            u.id === cmd.unitId
+              ? { ...u, state: 'repairing' as const, targetEntityId: cmd.buildingId, targetPosition: null }
+              : u
+          ),
+        };
+      });
+      triggerNotification('Aldeão a caminho para reparar o edifício.', 'info');
+    } else if (cmd.type === 'demolish') {
+      setGameState((prev) => {
+        const b = prev.buildings.find((bd) => bd.id === cmd.buildingId);
+        if (!b || b.type === 'town_center') return prev;
+        const def = BUILDING_CATALOG[b.type];
+        const pRes = prev.playerResources[b.owner];
+        if (!def || !pRes) return prev;
+        return {
+          ...prev,
+          buildings: prev.buildings.filter((bd) => bd.id !== cmd.buildingId),
+          playerResources: {
+            ...prev.playerResources,
+            [b.owner]: refundCost(pRes, halfCost(def.cost)),
+          },
+        };
+      });
+      triggerNotification('Edifício demolido: metade dos recursos devolvida.', 'success');
     } else if (cmd.type === 'set_resource_mode') {
       setGameState((prev) => ({
         ...prev,
@@ -4072,6 +4154,21 @@ export default function App() {
     );
   }
 
+  // Reparo e demolicao de edificios proprios (validados no host)
+  const handleRepairBuilding = (unitId: string, buildingId: string) => {
+    const cmd = { type: 'repair', unitId, buildingId };
+    if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+    else multiRef.current?.sendToHost(cmd);
+    soundManager.playClickSound();
+  };
+
+  const handleDemolishBuilding = (buildingId: string) => {
+    const cmd = { type: 'demolish', buildingId };
+    if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+    else multiRef.current?.sendToHost(cmd);
+    soundManager.playClickSound();
+  };
+
   // ==========================================
   // RENDER: IN-GAME RTS INTERFACE
   // ==========================================
@@ -4111,6 +4208,22 @@ export default function App() {
   const activeBuildersOnSelectedBuilding = selectedBuilding
     ? gameState.units.filter((u) => u.state === 'building' && u.targetEntityId === selectedBuilding.id).length
     : 0;
+
+  // Aldeao proprio mais proximo do edificio selecionado (destino do reparo)
+  let nearestVillagerToSelectedBuilding: Unit | null = null;
+  if (selectedBuilding) {
+    const buildingX = selectedBuilding.position.x;
+    const buildingZ = selectedBuilding.position.z;
+    let closestDistance = Number.POSITIVE_INFINITY;
+    for (const candidate of gameState.units) {
+      if (candidate.owner !== playerSlot || candidate.type !== 'villager' || candidate.health <= 0) continue;
+      const distance = Math.hypot(candidate.position.x - buildingX, candidate.position.z - buildingZ);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        nearestVillagerToSelectedBuilding = candidate;
+      }
+    }
+  }
 
   // Active gatherers working on selected resource if any
   const activeGatherersOnSelectedResource = selectedResource
@@ -5608,6 +5721,37 @@ export default function App() {
                           </button>
                         </div>
                       )}
+
+                      {/* Building Maintenance: reparo e demolicao */}
+                      <div className="space-y-2">
+                        {selectedBuilding.health < selectedBuilding.maxHealth && (
+                          <button
+                            type="button"
+                            disabled={!nearestVillagerToSelectedBuilding}
+                            onClick={() => {
+                              if (nearestVillagerToSelectedBuilding) {
+                                handleRepairBuilding(nearestVillagerToSelectedBuilding.id, selectedBuilding.id);
+                              }
+                            }}
+                            className="w-full p-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-900 disabled:text-slate-600 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-2 transition-all"
+                          >
+                            <Wrench className="w-4 h-4" />
+                            <span>
+                              Reparar ({REPAIR_HP_PER_TICK * 20} HP/s · {REPAIR_WOOD_PER_HP * 100} M por 100 HP)
+                            </span>
+                          </button>
+                        )}
+                        {selectedBuilding.type !== 'town_center' && (
+                          <button
+                            type="button"
+                            onClick={() => handleDemolishBuilding(selectedBuilding.id)}
+                            className="w-full p-2.5 rounded-xl bg-slate-800 hover:bg-red-900/70 border border-slate-700 hover:border-red-500/60 text-slate-300 hover:text-red-200 font-semibold text-xs flex items-center justify-center gap-2 transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span>Demolir (devolve 50%)</span>
+                          </button>
+                        )}
+                      </div>
 
                       {/* Grand Market Hub Actions */}
                       {selectedBuilding.type === 'market' && (

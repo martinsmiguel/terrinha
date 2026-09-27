@@ -30,7 +30,7 @@ export interface Unit {
   health: number;
   maxHealth: number;
   attackDamage: number;
-  state: 'idle' | 'moving' | 'gathering' | 'attacking' | 'building' | 'fishing' | 'trading';
+  state: 'idle' | 'moving' | 'gathering' | 'attacking' | 'building' | 'fishing' | 'trading' | 'repairing';
   gatheringResource?: 'wood' | 'food' | 'gold' | 'fish' | 'stone' | 'planks';
   attackCooldown?: number;
   gatherOrigin?: { x: number; z: number }; // Anchor position where gathering started
