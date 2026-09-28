@@ -92,6 +92,22 @@ h1 em { color: #b9c9b7; font-style: normal; }
 .legend-dot.found-dot { background: #a6ca90; }
 .toast { position: absolute; right: 20px; bottom: 18px; max-width: 310px; padding: 10px 13px; border: 1px solid rgba(244, 224, 177, .26); border-radius: 7px; color: #f0e7cf; background: rgba(33, 43, 37, .9); font-size: 11px; opacity: 0; transform: translateY(6px); transition: .2s; pointer-events: none; }
 .toast.visible { opacity: 1; transform: translateY(0); }
+.enter-island,.leave-island { position:absolute; z-index:3; top:18px; right:18px; padding:11px 14px; border:2px solid #e5c978; border-radius:4px; color:#fff1ce; background:linear-gradient(#75623d,#50452f); box-shadow:0 4px 0 #253027,0 7px 18px #17221c66; font:800 10px 'Manrope',sans-serif; letter-spacing:.1em; cursor:pointer; }
+.enter-island:hover,.leave-island:hover { filter:brightness(1.2); transform:translateY(-1px); }
+.empire { margin: 0 0 14px; padding: 12px; border: 1px solid #86734d; border-radius: 4px; background:linear-gradient(140deg,#414b35,#30382d); box-shadow:0 3px 0 #171f18; }
+.empire-heading { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; color:#f0d17c; font-size:9px; font-weight:800; letter-spacing:.12em; }
+.empire-heading small { color:#aeb69b; font-size:8px; letter-spacing:.07em; }
+.unit-stats { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-bottom:9px; }
+.unit-stats div { padding:8px; border:1px solid #ffffff14; background:#141b1780; }
+.unit-stats small,.unit-stats b { display:block; }
+.unit-stats small { color:#aab39a; font-size:8px; letter-spacing:.1em; }
+.unit-stats b { margin-top:4px; color:#f2e7c7; font:700 16px 'Manrope',sans-serif; }
+.empire-actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.empire-actions button { min-height:48px; padding:7px; border:1px solid #88764d; border-radius:3px; color:#f0e7d0; background:linear-gradient(#50583e,#394333); font-size:9px; text-align:left; cursor:pointer; }
+.empire-actions button:hover:not(:disabled) { border-color:#ecd17d; background:#626848; }
+.empire-actions button:disabled { opacity:.45; cursor:not-allowed; }
+.empire-actions small { display:block; margin-top:4px; color:#c8bd9f; font-size:8px; }
+[hidden] { display:none !important; }
 
 @media (max-width: 860px) {
   .topbar { height: auto; min-height: 62px; padding: 10px 14px; gap: 10px; flex-wrap: wrap; }
@@ -111,6 +127,7 @@ h1 em { color: #b9c9b7; font-style: normal; }
   .label-bruma { left: 39%; bottom: 20%; }
   .map-legend { top: 12px; left: 12px; gap: 9px; font-size: 8px; }
   .map-hint { left: 12px; bottom: 12px; font-size: 7px; }
+  .enter-island,.leave-island { top:10px; right:10px; padding:9px 10px; font-size:8px; }
 }
 
 @media (max-width: 420px) {

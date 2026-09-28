@@ -2,31 +2,34 @@
 
 ## Pergunta
 
-Uma fatia jogável em estilo voxel, com assentamento, barco e ilhas vizinhas de
-estados diferentes (outra civilização, aldeia abandonada e ruínas), consegue
-comunicar a fantasia de expansão por arquipélago sem reescrever o jogo atual?
+Uma partida RTS em estilo voxel consegue sustentar um império dentro de cada
+ilha — com aldeões, coleta, construções e tropas — enquanto barcos conectam
+ilhas com outras civilizações, aldeias abandonadas e ruínas?
 
 ## Hipótese
 
-Uma fatia jogável com ilhas de perfis econômicos distintos, cais, pesquisa de
-Navegação e descoberta de uma ilha vizinha pode representar a promessa central
-do estudo usando Three.js e uma simulação local pequena.
+Cada ilha tem uma visão de estratégia para o arquipélago e um mapa de jogo
+expandido ao desembarcar. O terreno em detalhe ocupa mais de mil vezes a área
+do marcador da ilha no mapa geral. A simulação inclui coleta direta de
+recursos, aldeões selecionáveis, ordens de movimento, casas, quartel e treino
+de espadachins.
 
 ## Limites desta PoC
 
 - Experimento isolado: não importa código de produção nem altera `src/App.tsx`.
 - Usa Three.js, já presente no Terrinha; não compara nem migra para Babylon.js.
-- Não implementa multiplayer, persistência, diplomacia, balanceamento ou o HUD
-  final. Recursos e ações existem apenas para testar o fluxo conceitual.
+- Não implementa multiplayer, persistência, combate, formação de tropas,
+  diplomacia, balanceamento ou o HUD final. Coleta e treino são simplificados
+  para testar o ciclo conceitual.
 - O estado é descartado ao recarregar a página.
 
 ## Roteiro de avaliação
 
-1. Observar a ilha inicial, as construções e o barco no cais.
-2. Construir o cais e pesquisar Navegação.
-3. Escolher uma rota e acompanhar o barco até a ilha próxima.
-4. Ler a descoberta: povo vizinho, lugar abandonado ou ruínas.
-5. Avaliar se a viagem e o tipo de descoberta despertam vontade de continuar.
+1. Entrar na ilha inicial e percorrer o terreno amplo com a câmera.
+2. Selecionar um aldeão e ordenar movimento com o botão direito.
+3. Reunir recursos, construir casa e quartel; criar aldeões e espadachins.
+4. Voltar ao arquipélago, erguer cais, pesquisar Navegação e enviar o barco.
+5. Desembarcar em uma civilização vizinha, aldeia abandonada ou ruínas.
 
 ## Executar
 

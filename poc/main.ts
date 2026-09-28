@@ -51,6 +51,7 @@ const islands: Island[] = [
 
 const stock: Record<ResourceKind, number> = { comida: 90, madeira: 100, pedra: 55 };
 const state = { selectedIsland: 'vale', hasDock: false, navigation: false };
+const empireState = { villagers: 5, army: 2, houses: 1, barracks: false, foodGathered: 0, woodGathered: 0 };
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('Elemento #app ausente.');
 
@@ -71,8 +72,10 @@ app.innerHTML = `
       <div class="map-label label-coral" data-map-label="coral"><span class="marker"></span>ÁGUAS DESCONHECIDAS</div>
       <div class="map-label label-forja" data-map-label="forja"><span class="marker"></span>ÁGUAS DESCONHECIDAS</div>
       <div class="map-label label-bruma" data-map-label="bruma"><span class="marker"></span>ÁGUAS DESCONHECIDAS</div>
-      <div class="map-hint"><span class="compass">N</span> ARRASTE PARA GIRAR · SCROLL PARA APROXIMAR</div>
+      <div class="map-hint" id="map-hint"><span class="compass">N</span> ARRASTE PARA GIRAR · SCROLL PARA APROXIMAR</div>
       <div class="map-legend"><span><i class="legend-dot home-dot"></i>Seu povo</span><span><i class="legend-dot unknown-dot"></i>Além do horizonte</span><span><i class="legend-dot found-dot"></i>Explorada</span></div>
+      <button class="enter-island" id="enter-island">ENTRAR NA ILHA ↗</button>
+      <button class="leave-island" id="leave-island" hidden>← VISÃO DO ARQUIPÉLAGO</button>
     </section>
     <aside class="side-panel">
       <div class="eyebrow">ERA DA EXPLORAÇÃO · DIA 01</div>
@@ -80,6 +83,7 @@ app.innerHTML = `
       <p class="intro">Erga um cais, prepare a embarcação e descubra quem vive nas ilhas vizinhas — ou o que ficou para trás.</p>
       <div class="selected-card" id="selected-card"></div>
       <div class="actions" id="actions"></div>
+      <div class="empire" id="empire"></div>
       <div class="island-list" id="island-list"></div>
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
       <footer>PoC local · Estado reinicia ao recarregar</footer>
@@ -103,8 +107,8 @@ camera.position.set(0, 13.5, 20);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0.1, 0);
 controls.enablePan = false;
-controls.minDistance = 13;
-  controls.maxDistance = 36;
+controls.minDistance = 12;
+controls.maxDistance = 220;
 controls.maxPolarAngle = Math.PI * 0.46;
 controls.update();
 
@@ -124,6 +128,12 @@ water.receiveShadow = true;
 scene.add(water);
 
 const islandMeshes = new Map<string, THREE.Object3D>();
+const islandTerrain = new Map<string, THREE.Group>();
+const islandDetailedTerrain = new Map<string, THREE.Group>();
+const unitMeshes: THREE.Mesh[] = [];
+const unitOrders = new Map<THREE.Group, THREE.Vector3>();
+let selectedUnits: THREE.Group[] = [];
+let islandMode = false;
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 
@@ -134,6 +144,8 @@ function noise(seed: number, angle: number): number {
 const blockGeometry = new THREE.BoxGeometry(0.58, 0.58, 0.58);
 const blockMaterials = {
   grass: new THREE.MeshStandardMaterial({ color: '#6fa34f', roughness: 1 }),
+  grassLight: new THREE.MeshStandardMaterial({ color: '#81ad58', roughness: 1 }),
+  grassDark: new THREE.MeshStandardMaterial({ color: '#5c8945', roughness: 1 }),
   sand: new THREE.MeshStandardMaterial({ color: '#c9a965', roughness: 1 }),
   dirt: new THREE.MeshStandardMaterial({ color: '#78543b', roughness: 1 }),
   stone: new THREE.MeshStandardMaterial({ color: '#777b70', roughness: 1 }),
@@ -149,9 +161,18 @@ function addBlock(parent: THREE.Object3D, x: number, y: number, z: number, mater
   return block;
 }
 
-function buildVoxelLand(parent: THREE.Object3D, island: Island): void {
-  const cell = 0.58;
-  const radius = island.radius;
+function buildVoxelLand(parent: THREE.Object3D, island: Island, scale = 1): void {
+  const cell = scale === 1 ? 0.58 : 2.4;
+  const radius = island.radius * scale;
+  const placements = new Map<THREE.Material, THREE.Matrix4[]>();
+  const block = new THREE.Object3D();
+  const addInstance = (x: number, y: number, z: number, material: THREE.Material) => {
+    const matrices = placements.get(material) ?? [];
+    block.position.set(x, y, z);
+    block.updateMatrix();
+    matrices.push(block.matrix.clone());
+    placements.set(material, matrices);
+  };
   for (let gx = -Math.ceil(radius / cell); gx <= Math.ceil(radius / cell); gx++) {
     for (let gz = -Math.ceil(radius / cell); gz <= Math.ceil(radius / cell); gz++) {
       const x = gx * cell;
@@ -160,15 +181,27 @@ function buildVoxelLand(parent: THREE.Object3D, island: Island): void {
       const r = Math.hypot(x, z) / radius;
       if (r > 0.73 + noise(island.id.length * 2.4, angle)) continue;
       const edge = r > 0.58;
-      const hill = r < 0.32 && (Math.sin(gx * 2.1 + gz) + Math.cos(gz * 2.7)) > 0.35;
+      const villageClearing = scale > 1 && Math.hypot(x, z) < 19;
+      const hill = !villageClearing && r > 0.18 && r < 0.65 && (Math.sin(gx * 2.1 + gz) + Math.cos(gz * 2.7)) > 0.15;
       const layers = hill ? 3 : r < 0.52 ? 2 : 1;
       for (let layer = 0; layer < layers; layer++) {
-        addBlock(parent, x, 0.02 + layer * cell * 0.86, z,
-          layer === layers - 1 ? (edge ? blockMaterials.sand : blockMaterials.grass) : blockMaterials.dirt);
+        const grassVariant = Math.abs(gx * 7 + gz * 11) % 3;
+        const surface = edge ? blockMaterials.sand : grassVariant === 0 ? blockMaterials.grassLight : grassVariant === 1 ? blockMaterials.grass : blockMaterials.grassDark;
+        addInstance(x, 0.02 + layer * 0.5, z,
+          layer === layers - 1 ? surface : blockMaterials.dirt);
       }
-      if (edge) addBlock(parent, x, -cell * 0.8, z, blockMaterials.dirt, 0.98);
+      if (edge) addInstance(x, -0.56, z, blockMaterials.dirt);
     }
   }
+  const geometry = new THREE.BoxGeometry(cell, 0.58, cell);
+  placements.forEach((matrices, material) => {
+    const mesh = new THREE.InstancedMesh(geometry, material, matrices.length);
+    matrices.forEach((matrix, index) => mesh.setMatrixAt(index, matrix));
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.receiveShadow = true;
+    mesh.frustumCulled = false;
+    parent.add(mesh);
+  });
 }
 
 function makeTree(x: number, z: number, scale = 1): THREE.Group {
@@ -195,19 +228,59 @@ function addHouse(parent: THREE.Object3D, x: number, z: number, color = '#b88954
   roof.castShadow = true;
   group.add(body, roof);
   group.position.set(x, 0.48, z);
+  group.scale.setScalar(1.65);
   parent.add(group);
   return group;
+}
+
+function addVillager(parent: THREE.Object3D, x: number, z: number, soldier = false): THREE.Group {
+  const person = new THREE.Group();
+  const tunicColor = soldier ? '#748b50' : '#b18a58';
+  const tunic = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.4, 0.2), new THREE.MeshStandardMaterial({ color: tunicColor }));
+  tunic.position.y = 0.42;
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.22), new THREE.MeshStandardMaterial({ color: '#d5b089' }));
+  head.position.y = 0.74;
+  const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.27, 0.12, 0.27), new THREE.MeshStandardMaterial({ color: soldier ? '#b8b6a0' : '#573f2b' }));
+  helmet.position.y = 0.88;
+  const legs = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.16, 0.2), new THREE.MeshStandardMaterial({ color: '#443c31' }));
+  legs.position.y = 0.14;
+  person.add(tunic, head, helmet, legs);
+  const ring = new THREE.Mesh(new THREE.CircleGeometry(0.43, 16), new THREE.MeshBasicMaterial({ color: '#f4ce58', transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
+  ring.name = 'selection-ring';
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = -0.48;
+  ring.visible = false;
+  person.add(ring);
+  if (soldier) {
+    const sword = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.48, 0.06), new THREE.MeshStandardMaterial({ color: '#c4c4b3', metalness: 0.35 }));
+    sword.position.set(0.23, 0.48, 0);
+    person.add(sword);
+  }
+  person.position.set(x, 0.52, z);
+  person.scale.setScalar(1.35);
+  person.userData.entityType = soldier ? 'soldier' : 'villager';
+  person.traverse((object) => {
+    if (object instanceof THREE.Mesh && object !== ring) {
+      object.userData.unitRoot = person;
+      unitMeshes.push(object);
+    }
+  });
+  parent.add(person);
+  return person;
 }
 
 function buildIsland(island: Island): THREE.Group {
   const group = new THREE.Group();
   group.position.set(island.x, 0, island.z);
-  buildVoxelLand(group, island);
-  const land = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.58, 0.58), blockMaterials.grass);
-  land.userData.islandId = island.id;
-  land.visible = false;
-  group.add(land);
-  island.mesh = land;
+  const terrain = new THREE.Group();
+  buildVoxelLand(terrain, island);
+  group.add(terrain);
+  islandTerrain.set(island.id, terrain);
+  const detailedTerrain = new THREE.Group();
+  buildVoxelLand(detailedTerrain, island, 32);
+  detailedTerrain.visible = false;
+  group.add(detailedTerrain);
+  islandDetailedTerrain.set(island.id, detailedTerrain);
 
   if (island.condition === 'ruínas') {
     for (let i = 0; i < 7; i++) {
@@ -282,6 +355,14 @@ function buildIsland(island: Island): THREE.Group {
     addHouse(group, -0.1, 0.5, '#d1b77f');
   }
 
+  if (island.id === 'vale') {
+    const people = new THREE.Group();
+    people.name = 'people';
+    for (let i = 0; i < empireState.villagers; i++) addVillager(people, -2.6 + (i % 4) * 1.1, 2 + Math.floor(i / 4) * 0.9);
+    for (let i = 0; i < empireState.army; i++) addVillager(people, 2.6 + i * 0.75, -1.7, true);
+    group.add(people);
+  }
+
   if (island.settled && island.id !== 'vale') {
     const outpost = addHouse(group, 0.2, 0.2, '#d5c18d');
     outpost.name = 'outpost';
@@ -346,7 +427,69 @@ function costs(cost: Partial<Record<ResourceKind, number>>): string {
   return Object.entries(cost).map(([kind, amount]) => `${amount} ${kind}`).join(' · ');
 }
 
+function enterIslandView(): void {
+  const island = selected();
+  if (!island.discovered) return notify('Explore esta ilha antes de desembarcar.');
+  islandMode = true;
+  islands.forEach((candidate) => {
+    const root = islandMeshes.get(candidate.id);
+    if (!root) return;
+    root.visible = candidate.id === island.id;
+    if (candidate.id === island.id) {
+      root.position.set(0, 0, 0);
+      islandTerrain.get(candidate.id)!.visible = false;
+      islandDetailedTerrain.get(candidate.id)!.visible = true;
+    }
+  });
+  water.scale.set(32, 1, 32);
+  scene.fog = new THREE.Fog('#86a9a3', 150, 430);
+  camera.far = 600;
+  camera.position.set(0, 22, 30);
+  camera.updateProjectionMatrix();
+  controls.target.set(0, 0, 0);
+  controls.enablePan = true;
+  controls.minDistance = 18;
+  controls.maxDistance = 260;
+  controls.update();
+  render();
+}
+
+function leaveIslandView(): void {
+  if (!islandMode) return;
+  islandMode = false;
+  selectedUnits.forEach((unit) => { const ring = unit.getObjectByName('selection-ring'); if (ring) ring.visible = false; });
+  selectedUnits = [];
+  islands.forEach((island) => {
+    const root = islandMeshes.get(island.id);
+    if (!root) return;
+    root.visible = true;
+    root.position.set(island.x, 0, island.z);
+    islandTerrain.get(island.id)!.visible = true;
+    islandDetailedTerrain.get(island.id)!.visible = false;
+  });
+  water.scale.set(1, 1, 1);
+  scene.fog = new THREE.Fog('#86a9a3', 18, 45);
+  camera.far = 100;
+  camera.position.set(0, 13.5, 20);
+  camera.updateProjectionMatrix();
+  controls.target.set(0, 0.1, 0);
+  controls.enablePan = false;
+  controls.minDistance = 13;
+  controls.maxDistance = 36;
+  controls.update();
+  render();
+}
+
 function render(): void {
+  const enterButton = document.querySelector<HTMLButtonElement>('#enter-island');
+  if (enterButton) enterButton.hidden = islandMode;
+  const leaveButton = document.querySelector<HTMLButtonElement>('#leave-island');
+  if (leaveButton) leaveButton.hidden = !islandMode;
+  const mapHint = document.querySelector<HTMLDivElement>('#map-hint');
+  if (mapHint) mapHint.innerHTML = islandMode
+    ? 'CLIQUE EM UM ALDEÃO OU SOLDADO · BOTÃO DIREITO ORDENA MOVIMENTO · ARRASTE PARA GIRAR'
+    : '<span class="compass">N</span> ARRASTE PARA GIRAR · SCROLL PARA APROXIMAR';
+  document.querySelectorAll<HTMLElement>('.map-label, .map-legend').forEach((element) => { element.hidden = islandMode; });
   document.querySelectorAll<HTMLElement>('[data-stock]').forEach((node) => {
     const kind = node.dataset.stock as ResourceKind;
     node.textContent = fmt(kind);
@@ -394,7 +537,7 @@ function render(): void {
         render();
       });
     } else if (!island.discovered) {
-      actions.innerHTML = `<button class="action primary" id="sail"><span class="action-icon">➤</span><span><b>Explorar ${island.name}</b><small>Enviar embarcação · 8s</small></span><i>→</i></button><div class="action-note">A viagem revela os recursos e o terreno da ilha.</div>`;
+      actions.innerHTML = `<button class="action primary" id="sail"><span class="action-icon">➤</span><span><b>Explorar ${island.name}</b><small>Enviar embarcação · 5s</small></span><i>→</i></button><div class="action-note">A viagem revela os recursos e o terreno da ilha.</div>`;
       document.querySelector('#sail')?.addEventListener('click', () => sailTo(island));
     } else if (!island.settled) {
       actions.innerHTML = `<button class="action primary" id="settle"><span class="action-icon">⌂</span><span><b>Estabelecer posto avançado</b><small>${costs(outpostCost)}</small></span><i>→</i></button><div class="action-note">Leve recursos para começar a explorar esta ilha.</div>`;
@@ -406,12 +549,68 @@ function render(): void {
         const outpost = group?.getObjectByName('outpost');
         if (outpost) outpost.visible = true;
         else if (group) addHouse(group, 0.2, 0.2, '#d5c18d');
+        if (group && island.id !== 'vale') {
+          for (let i = 0; i < empireState.villagers; i++) addVillager(group, -2.6 + (i % 4) * 1.1, 2 + Math.floor(i / 4) * 0.9);
+          for (let i = 0; i < empireState.army; i++) addVillager(group, 2.6 + i * 0.75, -1.7, true);
+        }
         notify(`Posto avançado estabelecido na ilha ${island.name}.`);
         render();
       });
     } else {
       actions.innerHTML = '<div class="complete"><span>✓</span> Ilha incorporada ao seu arquipélago</div><div class="action-note">Esta PoC termina após a primeira expansão naval.</div>';
     }
+  }
+
+  const empire = document.querySelector<HTMLDivElement>('#empire');
+  if (empire) {
+    const capacity = empireState.houses * 5;
+    empire.innerHTML = islandMode ? `
+      <div class="empire-heading"><span>POVO & EXÉRCITO</span><small>${island.name.toUpperCase()}</small></div>
+      <div class="unit-stats"><div><small>ALDEÕES</small><b>♟ ${empireState.villagers}/${capacity}</b></div><div><small>EXÉRCITO</small><b>⚔ ${empireState.army}</b></div></div>
+      <div class="empire-actions">
+        <button data-empire="gather-food">🌾 Colher alimento <small>+45 comida</small></button>
+        <button data-empire="gather-wood">🪓 Cortar madeira <small>+35 madeira</small></button>
+        <button data-empire="house">⌂ Construir casa <small>30 madeira · +5 vagas</small></button>
+        <button data-empire="villager">♟ Criar aldeão <small>25 comida</small></button>
+        <button data-empire="barracks">▣ ${empireState.barracks ? 'Quartel construído' : 'Construir quartel'} <small>${empireState.barracks ? 'Pronto para treinar' : '70 madeira · 30 pedra'}</small></button>
+        <button data-empire="soldier" ${empireState.barracks ? '' : 'disabled'}>⚔ Treinar espadachim <small>35 comida · 20 madeira</small></button>
+      </div>
+      <div class="action-note">Use aldeões para reunir recursos, ampliar a aldeia e formar um exército.</div>
+    ` : `<div class="empire-heading"><span>VIDA NA ILHA</span><small>${empireState.villagers} ALDEÕES · ${empireState.army} SOLDADOS</small></div><div class="action-note">Entre na ilha para administrar recursos, construir casas e quartel, criar aldeões e treinar tropas.</div>`;
+    empire.querySelectorAll<HTMLButtonElement>('[data-empire]').forEach((button) => button.addEventListener('click', () => {
+      const task = button.dataset.empire;
+      if (task === 'gather-food') { stock.comida += 45; empireState.foodGathered += 45; notify('Os aldeões colheram 45 de comida.'); }
+      if (task === 'gather-wood') { stock.madeira += 35; empireState.woodGathered += 35; notify('Os aldeões trouxeram 35 de madeira.'); }
+      if (task === 'house') {
+        if (!pay({ madeira: 30 })) return notify('Falta madeira para construir a casa.');
+        empireState.houses++;
+        addHouse(islandMeshes.get(island.id)!, -8 + ((empireState.houses - 2) % 4) * 4, 7 + Math.floor((empireState.houses - 2) / 4) * 4, '#c7aa71');
+        notify('Casa construída. A aldeia ganhou 5 vagas.');
+      }
+      if (task === 'villager') {
+        if (empireState.villagers >= capacity) return notify('Construa uma casa para aumentar a população máxima.');
+        if (!pay({ comida: 25 })) return notify('Falta comida para criar um aldeão.');
+        empireState.villagers++;
+        addVillager(islandMeshes.get(island.id)!, -5 + (empireState.villagers % 5) * 2.2, 4 + Math.floor(empireState.villagers / 5) * 2.2);
+        notify('Novo aldeão chegou à ilha.');
+      }
+      if (task === 'barracks') {
+        if (empireState.barracks) return notify('O quartel já está construído.');
+        if (!pay({ madeira: 70, pedra: 30 })) return notify('Faltam recursos para construir o quartel.');
+        empireState.barracks = true;
+        const barracks = addHouse(islandMeshes.get(island.id)!, 10, 5, '#8a5941');
+        barracks.scale.set(2.2, 1.45, 2.1);
+        notify('Quartel pronto. Agora você pode treinar tropas.');
+      }
+      if (task === 'soldier') {
+        if (!empireState.barracks) return notify('Construa um quartel primeiro.');
+        if (!pay({ comida: 35, madeira: 20 })) return notify('Faltam recursos para treinar o espadachim.');
+        empireState.army++;
+        addVillager(islandMeshes.get(island.id)!, 9 + (empireState.army % 4) * 1.8, -5, true);
+        notify('Espadachim treinado. O exército cresceu.');
+      }
+      render();
+    }));
   }
 
   const list = document.querySelector<HTMLDivElement>('#island-list');
@@ -439,6 +638,7 @@ function selectIsland(id: string): void {
     notify('Esta rota ainda não foi descoberta. Pesquise Navegação primeiro.');
     return;
   }
+  if (islandMode) leaveIslandView();
   state.selectedIsland = id;
   render();
 }
@@ -477,10 +677,37 @@ function onPointerDown(event: PointerEvent): void {
   pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
+  if (islandMode) {
+    if (event.button === 0) {
+      const unitHit = raycaster.intersectObjects(unitMeshes, false).find((item) => item.object.visible && item.object.userData.unitRoot);
+      const clickedUnit = unitHit?.object.userData.unitRoot as THREE.Group | undefined;
+      selectedUnits.forEach((unit) => { const ring = unit.getObjectByName('selection-ring'); if (ring) ring.visible = false; });
+      selectedUnits = clickedUnit ? [clickedUnit] : [];
+      selectedUnits.forEach((unit) => { const ring = unit.getObjectByName('selection-ring'); if (ring) ring.visible = true; });
+      if (clickedUnit) {
+        notify(clickedUnit.userData.entityType === 'soldier' ? 'Espadachim selecionado. Clique com o botão direito para mover.' : 'Aldeão selecionado. Clique com o botão direito para mover.');
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+    }
+    if (event.button === 2 && selectedUnits.length) {
+      const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.45);
+      const destination = new THREE.Vector3();
+      if (raycaster.ray.intersectPlane(ground, destination)) {
+        selectedUnits.forEach((unit, index) => unitOrders.set(unit, new THREE.Vector3(destination.x + index * 1.2, unit.position.y, destination.z)));
+        notify('Ordem de movimento enviada.');
+      }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+  }
   const hit = raycaster.intersectObjects([...islandMeshes.values()], true).find((item) => item.object.userData.islandId);
   if (hit?.object.userData.islandId) selectIsland(hit.object.userData.islandId as string);
 }
-renderer.domElement.addEventListener('pointerdown', onPointerDown);
+renderer.domElement.addEventListener('pointerdown', onPointerDown, { capture: true });
+renderer.domElement.addEventListener('contextmenu', (event) => event.preventDefault());
 
 function resize(): void {
   const panel = window.matchMedia('(max-width: 860px)').matches;
@@ -495,9 +722,22 @@ window.addEventListener('resize', resize);
 function animate(now = 0): void {
   requestAnimationFrame(animate);
   updateShip(now);
+  unitOrders.forEach((target, unit) => {
+    const dx = target.x - unit.position.x;
+    const dz = target.z - unit.position.z;
+    const distance = Math.hypot(dx, dz);
+    if (distance < 0.12) unitOrders.delete(unit);
+    else {
+      const step = Math.min(0.12, distance) / distance;
+      unit.position.x += dx * step;
+      unit.position.z += dz * step;
+    }
+  });
   controls.update();
   renderer.render(scene, camera);
 }
 render();
 resize();
 animate();
+document.querySelector('#enter-island')?.addEventListener('click', enterIslandView);
+document.querySelector('#leave-island')?.addEventListener('click', leaveIslandView);
