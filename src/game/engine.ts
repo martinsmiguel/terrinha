@@ -92,6 +92,8 @@ export interface GameState {
   match?: MatchStatus;
   /** Era, tecnologias concluidas e fila de pesquisa de cada jogador (host). */
   techs?: Record<string, TechState>;
+  /** Semente do mapa procedural: a mesma semente recria o mesmo arquipelago. */
+  mapSeed?: number;
 }
 
 export const MAP_SIZE = 60;
