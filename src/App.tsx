@@ -15,7 +15,7 @@ import { soundManager } from './game/audio';
 import { create3DHealthBar, update3DHealthBar, align3DHealthBarToCamera } from './game/healthBar';
 import { createBuildingGhost, updateBuildingGhost, checkBuildingPlacementValid } from './game/buildingGhost';
 import { BUILDING_CATALOG, BuildingType, createConstructionScaffold } from './game/buildingDefs';
-import { generateProceduralTerrain, ProceduralMapResult } from './game/proceduralMap';
+import { generateProceduralTerrain, findNearestOceanCell, ProceduralMapResult } from './game/proceduralMap';
 import { EmpireCatalogModal } from './components/EmpireCatalogModal';
 import { ResourceNavMenu } from './components/ResourceNavMenu';
 import { Tutorial } from './components/Tutorial';
@@ -636,6 +636,11 @@ export default function App() {
 
       multi.onStateUpdate = (remoteState) => {
         if (role === 'client') {
+          // Mesma semente do host: cliente e host veem o mesmo arquipelago.
+          const hostSeed = remoteState.mapSeed;
+          if (hostSeed !== undefined && proceduralMapRef.current?.seed !== hostSeed) {
+            applyTerrainSeed(hostSeed);
+          }
           const myUnits = remoteState.units.filter((u: Unit) => u.owner === playerSlot);
           if (prevMyUnitsCountRef.current !== null && myUnits.length > prevMyUnitsCountRef.current) {
             const newUnit = myUnits[myUnits.length - 1];
@@ -765,7 +770,21 @@ export default function App() {
     triggerNotification(`${FACTION_COLORS[slot]?.name ?? slot} recebeu uma base inicial!`, 'success');
   };
 
-  // Initial map setup with Procedural Terrain, River, Valleys, Town Centers, Resources & Villagers
+  // Initial map setup with Procedural Archipelago, Town Centers, Resources & Villagers
+  const applyTerrainSeed = (seed: number) => {
+    const procMap = generateProceduralTerrain(MAP_SIZE, seed);
+    proceduralMapRef.current = procMap;
+    if (engineRef.current) {
+      engineRef.current.setProceduralTerrainMesh(
+        procMap.terrainMesh,
+        procMap.waterMesh,
+        procMap.riverBankDecorations
+      );
+    }
+    unitPathsRef.current.clear();
+    return procMap;
+  };
+
   const setupInitialMap = () => {
     const procMap = generateProceduralTerrain(MAP_SIZE);
     proceduralMapRef.current = procMap;
@@ -812,27 +831,24 @@ export default function App() {
       resourceNodes: nodes,
       playerResources,
       techs,
+      mapSeed: procMap.seed,
     });
   };
 
-  // Regenerate Procedural Map with a fresh seed (meandering river, valleys, fish shoals)
+  // Regenerate the procedural archipelago with a fresh seed
   const handleRegenerateProceduralMap = () => {
     const newSeed = Math.floor(Math.random() * 999999);
-    const procMap = generateProceduralTerrain(MAP_SIZE, newSeed);
-    proceduralMapRef.current = procMap;
-    if (engineRef.current) {
-      engineRef.current.setProceduralTerrainMesh(
-        procMap.terrainMesh,
-        procMap.waterMesh,
-        procMap.riverBankDecorations
-      );
-    }
+    const procMap = applyTerrainSeed(newSeed);
     setGameState((prev) => ({
       ...prev,
       resourceNodes: procMap.resourceNodes,
+      mapSeed: newSeed,
     }));
     soundManager.playClickSound();
-    triggerNotification(`Novo mapa procedural gerado! Rio meandro, vales férteis e cardumes renovados (Semente: ${newSeed}).`, 'success');
+    triggerNotification(
+      `Novo arquipélago gerado! Ilhas, rios, lagos e cardumes renovados (Semente: ${newSeed}).`,
+      'success'
+    );
   };
 
   // Synchronize 3D Scene Objects with Simulation State
@@ -1923,11 +1939,12 @@ export default function App() {
               const isBoat = isBoatUnit(unit.type);
               const pMap = proceduralMapRef.current;
 
-              // A* no grid: cliffs/agua bloqueiam o caminho (cacheado por alvo)
+              // A* no grid: barcos so navegam o oceano; terra/cliffs/rios/lagos
+              // bloqueiam o caminho (cacheado por alvo)
               const pathFor = (from: { x: number; z: number }) => {
                 const isBlocked = pMap
                   ? isBoat
-                    ? (x: number, z: number) => !pMap.isWaterAt(x, z)
+                    ? (x: number, z: number) => !pMap.isOceanAt(x, z)
                     : (x: number, z: number) => pMap.isImpassableAt(x, z)
                   : () => false;
                 return findPath(from, goal, isBlocked, { mapSize: MAP_SIZE, maxExpanded: 2400 });
@@ -1960,10 +1977,10 @@ export default function App() {
               const nextX = unit.position.x + (hx / headingDist) * speed;
               const nextZ = unit.position.z + (hz / headingDist) * speed;
 
-              // Collision check with impassable Skyrim cliffs and ocean
+              // Collision check with impassable cliffs, ocean (land) and ocean-only (boats)
               if (pMap) {
                 if (isBoat) {
-                  if (!pMap.isWaterAt(nextX, nextZ)) {
+                  if (!pMap.isOceanAt(nextX, nextZ)) {
                     return { ...unit, targetPosition: null, state: 'idle' as const };
                   }
                 } else {
@@ -2452,10 +2469,14 @@ export default function App() {
                 id: uuidv4(),
                 type: currentItem.unitType,
                 owner: building.owner,
-                position: {
-                  x: building.position.x + (isBoat ? 2.5 : Math.random() * 2 + 2),
-                  z: building.position.z + (isBoat ? 2.5 : Math.random() * 2 + 2),
-                },
+                position: (() => {
+                  const bx = building.position.x + (isBoat ? 2.5 : Math.random() * 2 + 2);
+                  const bz = building.position.z + (isBoat ? 2.5 : Math.random() * 2 + 2);
+                  // Barco nasce sempre em oceano navegavel perto do cais
+                  return isBoat && proceduralMapRef.current
+                    ? findNearestOceanCell(proceduralMapRef.current, bx, bz)
+                    : { x: bx, z: bz };
+                })(),
                 targetPosition: null,
                 targetEntityId: null,
                 health: maxHp,
@@ -2651,7 +2672,7 @@ export default function App() {
           };
           const isSeaUnit = (u: Unit) => isBoatUnit(u.type);
           relax(updatedUnits.filter((u) => !isSeaUnit(u)), (x, z) => separationMap.isImpassableAt(x, z));
-          relax(updatedUnits.filter(isSeaUnit), (x, z) => !separationMap.isWaterAt(x, z));
+          relax(updatedUnits.filter(isSeaUnit), (x, z) => !separationMap.isOceanAt(x, z));
           if (movedPositions.size > 0) {
             updatedUnits = updatedUnits.map((u) => {
               const pos = movedPositions.get(u.id);
