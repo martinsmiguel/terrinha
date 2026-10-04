@@ -339,3 +339,61 @@ describe('naval combat', () => {
     ).toBe(true);
   });
 });
+
+describe('gathering settings and market commands', () => {
+  it('validates gathering settings against the real resources of the world', () => {
+    expect(
+      isAuthorizedPlayerCommand(state, { type: 'set_resource_mode', resourceId: 'tree-1', mode: 'sustainable' }, 'player1')
+    ).toBe(true);
+    expect(
+      isAuthorizedPlayerCommand(state, { type: 'set_resource_mode', resourceId: 'missing', mode: 'clear_cut' }, 'player1')
+    ).toBe(false);
+    expect(
+      isAuthorizedPlayerCommand(state, { type: 'set_grove_mode', treeIds: ['tree-1'], mode: 'sustainable' }, 'player1')
+    ).toBe(true);
+    expect(
+      isAuthorizedPlayerCommand(state, { type: 'set_grove_mode', treeIds: ['missing'], mode: 'sustainable' }, 'player1')
+    ).toBe(false);
+    expect(
+      isAuthorizedPlayerCommand(state, { type: 'set_colony_forestry', enabled: true }, 'player2')
+    ).toBe(true);
+    expect(
+      isAuthorizedPlayerCommand(state, { type: 'remove_resource', resourceId: 'tree-1' }, 'player1')
+    ).toBe(true);
+    expect(
+      isAuthorizedPlayerCommand(state, { type: 'remove_resource', resourceId: 'missing' }, 'player1')
+    ).toBe(false);
+  });
+
+  it('validates market trade payloads before they reach the host', () => {
+    expect(isValidNetworkCommand({ type: 'trade', resource: 'wood', action: 'buy', amount: 50 })).toBe(true);
+    expect(isValidNetworkCommand({ type: 'trade', resource: 'planks', action: 'buy', amount: 50 })).toBe(false);
+    expect(isValidNetworkCommand({ type: 'trade', resource: 'wood', action: 'swap', amount: 50 })).toBe(false);
+    expect(isValidNetworkCommand({ type: 'trade', resource: 'wood', action: 'buy', amount: 0 })).toBe(false);
+    expect(isValidNetworkCommand({ type: 'trade', resource: 'wood', action: 'buy', amount: 2.5 })).toBe(false);
+  });
+
+  it('authorizes only trades the player can actually pay for', () => {
+    expect(
+      isAuthorizedPlayerCommand(state, { type: 'trade', resource: 'wood', action: 'buy', amount: 10 }, 'player1')
+    ).toBe(true);
+    expect(
+      isAuthorizedPlayerCommand(state, { type: 'trade', resource: 'wood', action: 'sell', amount: 10 }, 'player1')
+    ).toBe(true);
+    expect(
+      isAuthorizedPlayerCommand(state, { type: 'trade', resource: 'wood', action: 'buy', amount: 10 }, 'player2')
+    ).toBe(false);
+    expect(
+      isAuthorizedPlayerCommand(state, { type: 'trade', resource: 'wood', action: 'sell', amount: 10 }, 'player2')
+    ).toBe(false);
+  });
+
+  it('rejects build orders against another player unit', () => {
+    expect(
+      isAuthorizedPlayerCommand(state, { type: 'build_order', unitId: 'villager-1', targetId: 'town-center-1' }, 'player1')
+    ).toBe(true);
+    expect(
+      isAuthorizedPlayerCommand(state, { type: 'build_order', unitId: 'villager-1', targetId: 'town-center-1' }, 'player2')
+    ).toBe(false);
+  });
+});

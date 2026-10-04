@@ -679,7 +679,16 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         if (aiUnit.state !== 'idle') return;
 
         if (aiUnit.type === 'villager') {
-          const nearestTree = updatedNodes.find((node) => node.type === 'tree');
+          let nearestTree: (typeof updatedNodes)[number] | null = null;
+          let nearestDistance = Infinity;
+          for (const node of updatedNodes) {
+            if (node.type !== 'tree') continue;
+            const distanceToTc = Math.hypot(node.position.x - aiTc.position.x, node.position.z - aiTc.position.z);
+            if (distanceToTc <= 18 && distanceToTc < nearestDistance) {
+              nearestDistance = distanceToTc;
+              nearestTree = node;
+            }
+          }
           if (nearestTree) {
             aiUnit.state = 'gathering';
             aiUnit.targetEntityId = nearestTree.id;
@@ -697,7 +706,18 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
             (building) => building.owner === playerSlot && building.type === 'town_center'
           );
           if (humanTc) {
-            aiUnit.targetPosition = { x: humanTc.position.x + 2, z: humanTc.position.z + 2 };
+            const goal = { x: humanTc.position.x + 2, z: humanTc.position.z + 2 };
+            const distanceToHuman = Math.hypot(goal.x - aiUnit.position.x, goal.z - aiUnit.position.z);
+            if (distanceToHuman > 26) return;
+            const pathExists =
+              !pMap ||
+              findPath(aiUnit.position, goal, (x, z) => pMap.isImpassableAt(x, z), {
+                mapSize: MAP_SIZE,
+                maxExpanded: 800,
+              }).length > 0;
+            if (pathExists) {
+              aiUnit.targetPosition = goal;
+            }
           }
         }
       });

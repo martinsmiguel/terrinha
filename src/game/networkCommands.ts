@@ -2,6 +2,7 @@ import type { Building, BuildingType, GameState, PlayerResources, ResourceNode, 
 import { BOAT_CAPACITY, isBoatUnit } from './engine';
 import { BUILDING_CATALOG } from './buildingDefs';
 import { researchBlock } from './tech';
+import { UNIT_COSTS, tradeResource, type MarketResourceType } from './economy';
 
 export const PLAYER_SLOTS = ['player1', 'player2', 'player3', 'player4'] as const;
 export type PlayerSlot = (typeof PLAYER_SLOTS)[number];
@@ -10,14 +11,6 @@ const MAP_LIMIT = 60;
 const MAX_ID_LENGTH = 128;
 const BUILDING_TYPES = Object.keys(BUILDING_CATALOG).filter((type) => type !== 'town_center');
 const UNIT_TYPES = ['villager', 'soldier', 'cavalry', 'fishing_boat', 'trade_boat', 'warship'];
-const UNIT_COSTS: Record<TrainableType, Partial<PlayerResources>> = {
-  villager: { food: 50 },
-  soldier: { food: 80, gold: 40 },
-  cavalry: { food: 60, gold: 80 },
-  fishing_boat: { wood: 75 },
-  trade_boat: { wood: 100, gold: 30 },
-  warship: { wood: 120, gold: 80, planks: 40 },
-};
 const RESOURCE_KEYS = ['wood', 'food', 'gold', 'stone', 'planks'] as const;
 
 export function canAffordResources(resources: PlayerResources, cost: Partial<PlayerResources>): boolean {
@@ -78,6 +71,7 @@ export type NetworkCommand = CommandMetadata & (
   | { type: 'remove_resource'; resourceId: string }
   | { type: 'embark'; unitIds: string[]; boatId: string }
   | { type: 'disembark'; boatId: string }
+  | { type: 'trade'; resource: MarketResourceType; action: 'buy' | 'sell'; amount: number }
 );
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -203,6 +197,16 @@ export function isValidNetworkCommand(value: unknown): value is NetworkCommand {
       return allowedKeys('unitIds', 'boatId') && isStringList(value.unitIds) && isId(value.boatId);
     case 'disembark':
       return allowedKeys('boatId') && isId(value.boatId);
+    case 'trade':
+      return (
+        allowedKeys('resource', 'action', 'amount') &&
+        (value.resource === 'wood' || value.resource === 'food' || value.resource === 'stone') &&
+        (value.action === 'buy' || value.action === 'sell') &&
+        typeof value.amount === 'number' &&
+        Number.isInteger(value.amount) &&
+        value.amount >= 1 &&
+        value.amount <= 1000
+      );
     default:
       return false;
   }
@@ -329,6 +333,11 @@ export function isAuthorizedPlayerCommand(
     case 'disembark': {
       const boat = ownsUnit(state, value.boatId, owner);
       return Boolean(boat && isBoatUnit(boat.type) && (boat.passengers?.length ?? 0) > 0);
+    }
+    case 'trade': {
+      const resources = state.playerResources[owner];
+      if (!resources) return false;
+      return tradeResource(resources, value.resource, value.action, value.amount).ok;
     }
     default:
       return false;
