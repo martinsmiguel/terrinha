@@ -377,6 +377,11 @@
       .batch-bar button { align-self: flex-start; padding: 5px 10px; border: 1px solid rgba(211,181,119,.5); border-radius: 8px; color: var(--gold-bright); background: transparent; font-size: 10px; cursor: pointer; }
       .batch-bar button:hover { background: rgba(211,181,119,.16); }
 
+      .history-list { display: grid; gap: 5px; max-height: 220px; overflow: auto; }
+      .history-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 9px; border: 1px solid rgba(199,184,139,.14); border-radius: 8px; color: var(--muted); font-size: 10px; }
+      .history-row.current { border-color: rgba(211,181,119,.6); color: var(--ink); background: rgba(211,181,119,.1); }
+      .history-row b { color: var(--dim); font: 9px/1.3 ui-monospace, monospace; }
+
       @media (max-width: 900px) {
         .radial-item { width: 72px; height: 72px; }
         .radial-center { width: 86px; height: 86px; }
@@ -447,7 +452,7 @@
         <div class="dock-handle"><button data-action="toggle-dock" aria-label="Ocultar painel de seleção">Recolher</button></div>
         <div class="selection" id="selection-card"><div class="portrait">AV</div><div><h3>Grupo de aldeões</h3><p>3 selecionados · disponíveis</p><div class="health"><i></i></div></div></div>
         <div class="commands" id="command-list" aria-label="Ações disponíveis"></div>
-        <div class="batch-bar" id="batch-bar" hidden><span id="batch-status"></span><button data-action="batch-undo">Desfazer <kbd style="opacity:.75">⌘Z</kbd></button></div>
+        <div class="batch-bar" id="batch-bar" hidden><span id="batch-status"></span><button data-action="batch-undo">Desfazer</button></div>
       </section>
 
       <aside class="minimap" id="minimap" aria-label="Prévia ilustrativa de painel de minimapa">
@@ -462,7 +467,7 @@
         <section class="palette" role="dialog" aria-modal="true" aria-labelledby="search-heading">
           <div class="palette-input-wrap"><span class="palette-symbol">/</span><input id="search-input" type="search" placeholder="Buscar telas, painéis e ações..." autocomplete="off" /><kbd>ESC</kbd></div>
           <div class="palette-label" id="search-heading">Acesso rápido</div><div class="palette-results" id="search-results"></div>
-          <div class="palette-help"><span>Use setas para percorrer · Enter para abrir</span><span>Busca no reino</span></div>
+          <div class="palette-help"><span>Setas navegam · Enter abre · prefixos: <b>!</b> lote · <b>#</b> tecnologias · <b>@</b> localidades</span><span>Busca no reino</span></div>
         </section>
       </div>
 
@@ -591,8 +596,55 @@
         const locality=localities.find(l=>l.id===id);
         notify(locality?`Foco no mapa: ${locality.name}`:'Foco no mapa removido');
       }
-      function openRadial() {
+      // Historico de configuracao (REI-2026-v3.1, secao Undo/Redo): toda mudanca de
+      // painel, composicao, modo ou foco vira um estado reversivel, com limite de 50
+      // acoes e navegacao para qualquer ponto sem perder o trabalho posterior.
+      let historyStack=[], historyCursor=-1, historySilent=false, pointer={x:null,y:null};
+      function snapshot(){return {preset:state.preset,panel:state.panel,dock:state.dock,minimap:state.minimap,objectives:state.objectives,hudMinimized:state.hudMinimized,mode:state.mode,nav:state.nav,locality:state.locality};}
+      function historyPush(label){
+        if(historySilent)return;
+        historyStack=historyStack.slice(0,historyCursor+1);
+        historyStack.push({label,at:new Date().toLocaleTimeString('pt-BR',{hour12:false}),state:snapshot()});
+        if(historyStack.length>50)historyStack.shift();
+        historyCursor=historyStack.length-1;
+        renderHistory();
+      }
+      function applySnapshot(s){
+        historySilent=true;
+        state.preset=s.preset;state.panel=s.panel;state.dock=s.dock;state.minimap=s.minimap;state.objectives=s.objectives;state.hudMinimized=s.hudMinimized;state.mode=s.mode;state.locality=s.locality;
+        game.dataset.mode=s.mode;game.classList.toggle('hud-minimized',s.hudMinimized);
+        document.querySelectorAll('[data-preset]').forEach(b=>b.classList.toggle('active',b.dataset.preset===s.preset));
+        document.querySelectorAll('[data-mode-choice]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.modeChoice===s.mode)));
+        panel.classList.toggle('closed',!s.panel);dock.classList.toggle('closed',!s.dock);minimap.hidden=!s.minimap;
+        document.querySelectorAll('.mini-marker').forEach(m=>m.classList.remove('focused'));
+        if(s.locality&&localityMarkers[s.locality])document.querySelector(`.mini-marker.${localityMarkers[s.locality]}`)?.classList.add('focused');
+        setNav(s.nav,false);syncSwitches();
+        historySilent=false;
+      }
+      function historyUndo() {
+        if(historyCursor<=0){notify('Nada para desfazer');return;}
+        const undone=historyStack[historyCursor].label;historyCursor--;
+        applySnapshot(historyStack[historyCursor].state);renderHistory();
+        notify(`Desfeito: ${undone}`);
+      }
+      function historyRedo() {
+        if(historyCursor>=historyStack.length-1){notify('Nada para refazer');return;}
+        historyCursor++;applySnapshot(historyStack[historyCursor].state);renderHistory();
+        notify(`Refeito: ${historyStack[historyCursor].label}`);
+      }
+      function renderHistory() {
+        const list=document.getElementById('history-list');if(!list)return;
+        list.innerHTML=historyStack.map((h,i)=>`<div class="history-row ${i===historyCursor?'current':''}"><span>${h.label}</span><b>${h.at}</b></div>`).join('');
+      }
+      function openRadial(clientX,clientY) {
         closeModals();
+        // Prime Pixel: o radial abre onde o cursor esta, e nao no centro da tela.
+        const size=Math.min(460,window.innerWidth*0.88), half=size/2, margin=8;
+        const rawX=clientX??(pointer.x??window.innerWidth/2);
+        const rawY=clientY??(pointer.y??window.innerHeight/2);
+        const x=Math.min(Math.max(rawX,half+margin),window.innerWidth-half-margin);
+        const y=Math.min(Math.max(rawY,half+margin),window.innerHeight-half-margin);
+        radialMenu.style.left=`${x}px`;radialMenu.style.top=`${y}px`;radialMenu.style.width=`${size}px`;
         const radius=36, total=radialCommands.length;
         const items=radialCommands.map((command,index)=>{
           const angle=(Math.PI*2*index)/total-Math.PI/2;
@@ -692,15 +744,35 @@
       function paletteActions() {
         return actions.concat(localities.map(l=>[`Ir para ${l.name}`,`Localidade · ${l.relation}`,'locality:'+l.id,'']));
       }
+      // Prefixos da paleta (Estudo de HUD para RTS, secao 4): @ localidade,
+      // ! comando em lote, # tecnologia.
+      const palettePrefixes={'!':'Comandos em lote','#':'Tecnologias','@':'Localidades'};
       function renderSearch(query) {
         const normalized=query.trim().toLocaleLowerCase('pt-BR');
-        const found=paletteActions().filter(a=>!normalized||(a[0]+' '+a[1]).toLocaleLowerCase('pt-BR').includes(normalized));
+        const sigil=palettePrefixes[normalized[0]]?normalized[0]:'';
+        const term=sigil?normalized.slice(1).trim():normalized;
+        let pool=paletteActions();
+        if(sigil==='!')pool=pool.filter(a=>a[2].startsWith('batch:'));
+        else if(sigil==='#')pool=pool.filter(a=>a[2]==='nav:research');
+        else if(sigil==='@')pool=pool.filter(a=>a[2].startsWith('locality:')||a[2]==='nav:world');
+        const found=pool.filter(a=>!term||(a[0]+' '+a[1]).toLocaleLowerCase('pt-BR').includes(term));
         state.searchIndex=0;
+        const heading=document.getElementById('search-heading');
+        if(heading)heading.textContent=sigil?`${palettePrefixes[sigil]} · prefixo ${sigil}`:'Acesso rápido';
         searchResults.innerHTML=found.length?found.map((a,i)=>`<button class="palette-result" aria-selected="${i===0}" data-command="${a[2]}"><span><b>${a[0]}</b><small>${a[1]}</small></span>${a[3]?`<kbd>${a[3]}</kbd>`:''}</button>`).join(''):'<div style="padding:18px 12px;color:var(--muted);font-size:11px">Nenhum menu ou comando corresponde à busca.</div>';
       }
       function runCommand(command) {
         closeModals();const [kind,value]=command.split(':');
-        if(kind==='nav')setNav(value);else if(kind==='mode')setMode(value);else if(kind==='toggle')setVisibility(value,!state[value]);else if(kind==='minimize')toggleHudMinimized(true);else if(kind==='menu'){openMenu(value);openModal(menuModal);}else if(kind==='customize')openModal(layoutModal);else if(kind==='menus')openModal(menuModal);else if(kind==='locality')setLocality(value);else if(kind==='radial')openRadial();else if(kind==='batch')openBatch(value);
+        if(kind==='nav')setNav(value);
+        else if(kind==='mode'){setMode(value);historyPush('Modo: '+value);}
+        else if(kind==='toggle'){setVisibility(value,!state[value]);historyPush(`${state[value]?'Mostrar':'Ocultar'} ${value}`);}
+        else if(kind==='minimize'){toggleHudMinimized(true);historyPush('Modo minimalista');}
+        else if(kind==='menu'){openMenu(value);openModal(menuModal);}
+        else if(kind==='customize')openModal(layoutModal);
+        else if(kind==='menus')openModal(menuModal);
+        else if(kind==='locality'){setLocality(value);historyPush('Foco: '+((localities.find(l=>l.id===value)||{}).name||value));}
+        else if(kind==='radial')openRadial();
+        else if(kind==='batch')openBatch(value);
       }
       function hudConfig() {
         return {version:1,layout:state.preset,panels:{context:state.panel,selection:state.dock,minimap:state.minimap,objectives:state.objectives},shortcuts:{minimizeHud:state.hudKey}};
@@ -743,8 +815,10 @@
             <textarea class="settings-file" id="settings-file" spellcheck="false" aria-label="Texto da configuração do HUD"></textarea>
             <div class="settings-actions"><button data-action="apply-config">Aplicar ${configFormat.toUpperCase()}</button><button data-action="copy-config">Copiar configuração</button><button data-action="download-config">Salvar arquivo</button></div>
             <p class="settings-note" id="settings-note"></p>
-          </div>`;
+          </div>
+          <div class="card" style="margin-top:14px"><div class="section-label">Histórico (undo/redo) <button data-action="history-redo">Refazer ⇧⌘Z</button></div><div class="history-list" id="history-list"></div><div class="settings-actions"><button data-action="history-undo">Desfazer ⌘Z</button></div></div>`;
         syncSettingsForm();
+        renderHistory();
       }
       function applyConfig(config) {
         if(!config||config.version!==1||!['balanced','explorer','strategist'].includes(config.layout)||!config.panels||!config.shortcuts)throw new Error('Estrutura de configuração inválida.');
@@ -753,7 +827,7 @@
         state.panel=Boolean(config.panels.context);state.dock=Boolean(config.panels.selection);state.minimap=Boolean(config.panels.minimap);state.objectives=Boolean(config.panels.objectives);state.hudKey=config.shortcuts.minimizeHud;
         setVisibility('panel',state.panel);setVisibility('dock',state.dock);setVisibility('minimap',state.minimap);setVisibility('objectives',state.objectives);
         window.localStorage.setItem('terrinha:hud-config',JSON.stringify(hudConfig()));
-        syncSettingsForm();notify('Configuração do HUD aplicada e salva neste navegador.');
+        syncSettingsForm();historyPush('Aplicar configuração');notify('Configuração do HUD aplicada e salva neste navegador.');
       }
       function parseHudYaml(value) {
         const parsed={version:undefined,layout:undefined,panels:{},shortcuts:{}};
@@ -797,30 +871,41 @@
         }
       } catch { /* A configuração local inválida não impede abrir a PoC. */ }
       setNav('overview');renderSelection();setVisibility('panel',state.panel);setVisibility('dock',state.dock);setVisibility('minimap',state.minimap);setVisibility('objectives',state.objectives);
+      historyPush('Estado inicial');
       document.addEventListener('click',event=>{
         const target=event.target.closest('button');if(!target)return;
         if(target.dataset.resource){openResource(target.dataset.resource);return;}
         if(target.dataset.modeChoice){setMode(target.dataset.modeChoice);return;}
         if(target.dataset.nav){setNav(target.dataset.nav);return;}
-        if(target.dataset.action){const action=target.dataset.action;if(action==='search'){closeModals();openModal(searchModal);}else if(action==='customize'){closeModals();openModal(layoutModal);}else if(action==='menus'||action==='open-menu'){closeModals();openMenu();openModal(menuModal);}else if(action==='close-menu')closeModals();else if(action==='close-layout')closeModals();else if(action==='toggle-panel')setVisibility('panel',!state.panel);else if(action==='toggle-dock')setVisibility('dock',!state.dock);else if(action==='minimap'){state.minimap=!state.minimap;setVisibility('minimap',state.minimap);}else if(action==='mode')setMode(target.dataset.value);else if(action==='minimize-hud')toggleHudMinimized(true);else if(action==='restore-hud')toggleHudMinimized(false);else if(action==='save-form-config')saveFormConfig();else if(action==='copy-config')copyConfig();else if(action==='apply-config'){try{const raw=document.getElementById('settings-file').value;applyConfig(configFormat==='json'?JSON.parse(raw):parseHudYaml(raw));}catch(error){notify(error instanceof Error?error.message:'JSON inválido.');}}else if(action==='download-config'){const ext=configFormat==='yaml'?'yml':'json';const content=configFormat==='yaml'?yamlConfig(hudConfig()):JSON.stringify(hudConfig(),null,2);const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([content],{type:'text/plain;charset=utf-8'}));link.download=`terrinha-hud.${ext}`;link.click();URL.revokeObjectURL(link.href);}else if(action==='toast')notify(target.dataset.message);else if(action==='radial')openRadial();else if(action==='batch-confirm')confirmBatch();else if(action==='batch-cancel')cancelBatch();else if(action==='batch-undo')undoBatch();else if(action==='locality-clear')setLocality(null);return;}
+        if(target.dataset.action){const action=target.dataset.action;if(action==='search'){closeModals();openModal(searchModal);}else if(action==='customize'){closeModals();openModal(layoutModal);}else if(action==='menus'||action==='open-menu'){closeModals();openMenu();openModal(menuModal);}else if(action==='close-menu')closeModals();else if(action==='close-layout')closeModals();else if(action==='toggle-panel'){setVisibility('panel',!state.panel);historyPush(state.panel?'Mostrar painel':'Ocultar painel');}else if(action==='toggle-dock'){setVisibility('dock',!state.dock);historyPush(state.dock?'Mostrar seleção':'Ocultar seleção');}else if(action==='minimap'){state.minimap=!state.minimap;setVisibility('minimap',state.minimap);historyPush(state.minimap?'Mostrar minimapa':'Ocultar minimapa');}else if(action==='mode'){setMode(target.dataset.value);historyPush('Modo: '+target.dataset.value);}else if(action==='minimize-hud'){toggleHudMinimized(true);historyPush('Modo minimalista');}else if(action==='restore-hud'){toggleHudMinimized(false);historyPush('Restaurar HUD');}else if(action==='save-form-config')saveFormConfig();else if(action==='copy-config')copyConfig();else if(action==='apply-config'){try{const raw=document.getElementById('settings-file').value;applyConfig(configFormat==='json'?JSON.parse(raw):parseHudYaml(raw));}catch(error){notify(error instanceof Error?error.message:'JSON inválido.');}}else if(action==='download-config'){const ext=configFormat==='yaml'?'yml':'json';const content=configFormat==='yaml'?yamlConfig(hudConfig()):JSON.stringify(hudConfig(),null,2);const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([content],{type:'text/plain;charset=utf-8'}));link.download=`terrinha-hud.${ext}`;link.click();URL.revokeObjectURL(link.href);}else if(action==='toast')notify(target.dataset.message);else if(action==='radial')openRadial(event.clientX,event.clientY);else if(action==='batch-confirm')confirmBatch();else if(action==='batch-cancel')cancelBatch();else if(action==='batch-undo')undoBatch();else if(action==='locality-clear'){setLocality(null);historyPush('Limpar foco');}else if(action==='history-undo')historyUndo();else if(action==='history-redo')historyRedo();return;}
         if(target.dataset.toggle){const key=target.dataset.toggle;setVisibility(key,!state[key]);return;}
         if(target.dataset.pref){const key=target.dataset.pref;setVisibility(key,!state[key]);refreshConfigEditor();return;}
-        if(target.dataset.preset){applyPreset(target.dataset.preset);return;}
+        if(target.dataset.preset){applyPreset(target.dataset.preset);historyPush('Composição: '+target.dataset.preset);return;}
         if(target.dataset.settingsView){settingsView=target.dataset.settingsView;renderInterfaceSettings();return;}
         if(target.dataset.format){configFormat=target.dataset.format;refreshConfigEditor();return;}
         if(target.dataset.menuTab){openMenu(target.dataset.menuTab);return;}
         if(target.dataset.command){runCommand(target.dataset.command);return;}
         if(target.dataset.radial){const command=target.dataset.radial;closeRadial();if(command==='radial-close'){notify('Menu radial fechado');return;}if(command==='search'){openModal(searchModal);return;}runCommand(command);return;}
-        if(target.dataset.locality){setLocality(target.dataset.locality);return;}
+        if(target.dataset.locality){setLocality(target.dataset.locality);historyPush('Foco: '+target.dataset.locality);return;}
         if(target.dataset.build){state.buildSelection=target.dataset.build;notify(`${target.dataset.build} selecionada no catálogo demonstrativo.`);return;}
       });
       document.addEventListener('change',event=>{
         const target=event.target;
-        if(target.id==='setting-layout'){applyPreset(target.value);syncSettingsForm();}
+        if(target.id==='setting-layout'){applyPreset(target.value);historyPush('Composição: '+target.value);syncSettingsForm();}
         else if(target.id==='setting-hotkey'){state.hudKey=target.value;refreshConfigEditor();}
       });
       document.addEventListener('click',event=>{if(event.target.classList.contains('modal-scrim'))closeModals();});
       radialScrim.addEventListener('click',closeRadial);
+      document.addEventListener('mousemove',event=>{pointer.x=event.clientX;pointer.y=event.clientY;},{passive:true});
+      // O mapa e um iframe de mesma origem: sem isto, o cursor "desaparece" para o
+      // HUD enquanto esta sobre o campo de jogo, e o radial nao acharia o Prime Pixel.
+      const gameFrame=document.getElementById('game-frame');
+      function trackPointerFromFrame() {
+        const doc=gameFrame.contentDocument;if(!doc)return;
+        doc.addEventListener('mousemove',event=>{const rect=gameFrame.getBoundingClientRect();pointer.x=rect.left+event.clientX;pointer.y=rect.top+event.clientY;},{passive:true});
+      }
+      gameFrame.addEventListener('load',trackPointerFromFrame);
+      trackPointerFromFrame();
       searchInput.addEventListener('input',()=>renderSearch(searchInput.value));
       document.addEventListener('keydown',event=>{
         const typing=event.target instanceof HTMLInputElement||event.target instanceof HTMLTextAreaElement;
@@ -828,7 +913,7 @@
         if(!searchModal.hidden&&(event.key==='ArrowDown'||event.key==='ArrowUp')){const results=[...searchResults.querySelectorAll('.palette-result')];if(results.length){event.preventDefault();state.searchIndex=(state.searchIndex+(event.key==='ArrowDown'?1:-1)+results.length)%results.length;results.forEach((button,i)=>button.setAttribute('aria-selected',String(i===state.searchIndex)));results[state.searchIndex].scrollIntoView({block:'nearest'});}return;}
         if(!searchModal.hidden&&event.key==='Enter'){const selected=searchResults.querySelectorAll('.palette-result')[state.searchIndex];if(selected){event.preventDefault();selected.click();}return;}
         if(!typing&&(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();openModal(searchModal);return;}
-        if(!typing&&(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='z'){event.preventDefault();undoBatch();return;}
+        if(!typing&&(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='z'){event.preventDefault();if(event.shiftKey)historyRedo();else historyUndo();return;}
         const shortcutMatches=state.hudKey==='Alt+H'?event.altKey&&event.key.toLowerCase()==='h':state.hudKey==='Alt+J'?event.altKey&&event.key.toLowerCase()==='j':event.ctrlKey&&event.shiftKey&&event.key.toLowerCase()==='h';
         if(!typing&&shortcutMatches){event.preventDefault();toggleHudMinimized(!state.hudMinimized);return;}
         if(typing||event.metaKey||event.ctrlKey||event.altKey)return;
