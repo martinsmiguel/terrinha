@@ -88,7 +88,7 @@
       .portrait .icon { width: 22px; height: 22px; }
       .command-button .icon { width: 18px; height: 18px; }
       .era-glyph { font-size: 15px; line-height: 1; }
-      .eyebrow { color: var(--dim); font-size: 8px; letter-spacing: .16em; text-transform: uppercase; }
+      .eyebrow { color: var(--dim); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
       .era-name { display: block; margin-top: 2px; color: var(--gold-bright); font: 600 12px/1 Georgia, serif; }
       .top-actions { display: flex; align-items: center; gap: 4px; }
       .square-button, .top-button { height: 34px; border: 1px solid transparent; border-radius: 9px; color: var(--ink); background: transparent; cursor: pointer; transition: background .16s, border-color .16s; }
@@ -126,7 +126,7 @@
       .rail-button.active::before, .rail-button[aria-pressed="true"]::before { content:''; position:absolute; left:-6px; top:22%; bottom:22%; width:2px; border-radius:2px; background: var(--gold-bright); }
       .rail-divider { height: 1px; margin: 3px 6px; background: rgba(199,184,139,.16); }
       .rail-spacer { flex: 1; }
-      .rail-label { color: var(--dim); font-size: 7px; line-height: 1.3; text-align: center; letter-spacing: .12em; text-transform: uppercase; }
+      .rail-label { color: var(--dim); font-size: 10px; line-height: 1.3; text-align: center; letter-spacing: .08em; text-transform: uppercase; }
 
       /* Contexto define visibilidade — REI-2026-v3.1, Preview 03. */
       .game.hud-idle .rail, .game.hud-idle .corner-top, .game.hud-idle .resource-rate { opacity: .34; }
@@ -134,6 +134,11 @@
       .game[data-mode="explore"] .resources { opacity: 0; pointer-events: none; }
       .game[data-mode="explore"] .topbar:hover .resources, .game[data-mode="explore"] .resources:focus-within { opacity: 1; pointer-events: auto; }
       .game[data-mode="battle"] .corner-top { opacity: 0; }
+      /* Tela estreita: nao existe posicao em que o radial caiba sem cobrir o chrome.
+         O overlay modal recolhe o HUD persistente enquanto esta aberto. */
+      .game.radial-compacto .rail, .game.radial-compacto #bottom-dock,
+      .game.radial-compacto #corner-top, .game.radial-compacto .topbar,
+      .game.radial-compacto #minimap, .game.radial-compacto .restore-hud { opacity: 0; pointer-events: none; }
 
       .side-panel { position: absolute; z-index: 4; top: 70px; right: 16px; bottom: 102px; width: 288px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(14px); transition: transform .2s, opacity .2s; }
       .side-panel.closed { transform: translateX(calc(100% + 28px)); opacity: 0; pointer-events: none; }
@@ -474,7 +479,7 @@
 
       <section class="corner-top" id="corner-top" aria-label="Contexto da partida">
         <div class="map-label"><strong id="map-title">Partida de teste</strong><span id="map-subtitle">Cenário original preservado</span></div>
-        <div class="context-strip" id="context-strip" aria-live="polite"></div>
+        <div class="context-strip" id="context-strip"></div>
         <div class="corner-note"><b>HUD ilustrativo</b> · números de exemplo; a partida ao fundo é real</div>
       </section>
 
@@ -495,7 +500,7 @@
         </div>
         <div class="rail-divider"></div>
         <div class="rail-group" aria-label="Ferramentas">
-          <button class="rail-button" data-action="minimap"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-minimap"/></svg></span><small>Minimapa</small></button>
+          <button class="rail-button" data-action="minimap" aria-pressed="true"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-minimap"/></svg></span><small>Minimapa</small></button>
           <button class="rail-button" data-action="customize"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-panels"/></svg></span><small>Painéis</small></button>
           <button class="rail-button" data-action="radial"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-radial"/></svg></span><small>Radial</small></button>
         </div>
@@ -543,7 +548,7 @@
         <section class="layout-window" role="dialog" aria-modal="true" aria-labelledby="layout-title">
           <div class="modal-title-row"><div><div class="eyebrow">Composição da interface</div><h2 id="layout-title">Organize sua visão</h2></div><button class="close-modal" data-action="close-layout" aria-label="Fechar">×</button></div>
           <p>Escolha uma disposição pronta e mostre só os painéis úteis agora. Os números nesta tela são ilustrativos.</p>
-          <div class="preset-row"><button class="preset active" data-preset="balanced"><b>Mapa primeiro</b><small>Só o essencial: seleção e minimapa</small></button><button class="preset" data-preset="explorer"><b>Exploração</b><small>Mapa amplo, minimapa e mundo</small></button><button class="preset" data-preset="strategist"><b>Gestão</b><small>Painel de economia aberto</small></button></div>
+          <div class="preset-row" role="group" aria-label="Composições disponíveis"><button class="preset active" data-preset="balanced"><b>Mapa primeiro</b><small>Só o essencial: seleção e minimapa</small></button><button class="preset" data-preset="explorer"><b>Exploração</b><small>Mapa amplo, minimapa e mundo</small></button><button class="preset" data-preset="strategist"><b>Gestão</b><small>Painel de economia aberto</small></button></div>
           <div class="toggle-list"><div class="toggle-row"><span>Painel contextual</span><button class="switch" role="switch" aria-checked="true" data-toggle="panel"></button></div><div class="toggle-row"><span>Seleção e ações</span><button class="switch" role="switch" aria-checked="true" data-toggle="dock"></button></div><div class="toggle-row"><span>Minimapa</span><button class="switch" role="switch" aria-checked="true" data-toggle="minimap"></button></div><div class="toggle-row"><span>Objetivos no painel</span><button class="switch" role="switch" aria-checked="true" data-toggle="objectives"></button></div></div>
         </section>
       </div>
@@ -589,6 +594,7 @@
       const batchModal = document.getElementById('batch-modal');
       const batchBar = document.getElementById('batch-bar');
       let batchState = null;
+      const overlayStack = [];
 
       // Localidades do mapa-múndi: dados ilustrativos que alimentam a busca
       // rapida, o painel "Mundo" e o destaque no minimapa.
@@ -639,7 +645,7 @@
         notify(resource==='population'?'População e vagas disponíveis':'Produção e estoque do recurso');
       }
       function buildPanel() { return `<div class="section-label">Edifícios disponíveis <button data-action="toast" data-message="Catálogo completo demonstrativo.">Catálogo completo</button></div><div class="catalog-grid"><button class="catalog-tile" data-build="Casa Colonial"><span class="tile-mark">Q</span><b>Casa Colonial</b><small>+5 população máx. · 60 madeira · 8 s</small></button><button class="catalog-tile" data-build="Fazenda &amp; Granja"><span class="tile-mark">F</span><b>Fazenda &amp; Granja</b><small>+2 comida/s · 75 madeira · 9 s</small></button><button class="catalog-tile" data-build="Quartel Militar"><span class="tile-mark">W</span><b>Quartel Militar</b><small>Soldado e cavalaria · 120 madeira + 30 ouro</small></button><button class="catalog-tile" data-build="Cais &amp; Doca Naval"><span class="tile-mark">B</span><b>Cais &amp; Doca Naval</b><small>Barcos · 140 madeira · só em margem</small></button></div><div class="card" style="margin-top:12px"><div class="card-title">Em construção <span class="state">1 obra</span></div><div class="progress-row"><span>Casa Colonial · 2 aldeões</span><b>68%</b></div><div class="progress"><i style="width:68%"></i></div></div>`; }
-      function researchPanel() { return `<div class="card"><div class="card-title">Cartografia <span class="state" style="color:var(--gold-bright)">Em pesquisa</span></div><div class="progress-row"><span>Era do Comércio · 250 madeira + 200 ouro · 35 s</span><b>24%</b></div><div class="progress"><i style="width:24%"></i></div><div class="objective"><span class="check done">✓</span><span>Pré-requisito atendido: Cunhagem</span></div></div><div class="section-label">Próximas descobertas</div><div class="action-list"><button class="panel-action" data-action="toast" data-message="Corpo de Fuzileiros exige Estriamento do Cano."><span><b>Corpo de Fuzileiros</b><small style="display:block;margin-top:4px">+35% de dano da infantaria · 300 madeira + 250 ouro</small></span><kbd>Comércio</kbd></button><button class="panel-action" data-action="toast" data-message="Serrarias a Vapor exige a Era Industrial."><span><b>Serrarias a Vapor</b><small style="display:block;margin-top:4px">+40% de coleta de madeira · 400 madeira + 350 ouro</small></span><small>Bloqueada</small></button><button class="panel-action" data-action="toast" data-message="Canais de Irrigação custam 150 madeira + 60 ouro e levam 20 s."><span><b>Canais de Irrigação</b><small style="display:block;margin-top:4px">+25% de coleta de madeira · 150 madeira + 60 ouro</small></span><small>Disponível</small></button></div><div class="objective" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)"><span class="check">3</span><span>Fila única: era e tecnologias dividem no máximo 3 itens.</span></div>`; }
+      function researchPanel() { return `<div class="card" data-technology="cartografia" tabindex="-1"><div class="card-title">Cartografia <span class="state" style="color:var(--gold-bright)">Em pesquisa</span></div><div class="progress-row"><span>Era do Comércio · 250 madeira + 200 ouro · 35 s</span><b>24%</b></div><div class="progress"><i style="width:24%"></i></div><div class="objective"><span class="check done">✓</span><span>Pré-requisito atendido: Cunhagem</span></div></div><div class="section-label">Próximas descobertas</div><div class="action-list"><button class="panel-action" data-technology="fuzileiros" data-action="toast" data-message="Corpo de Fuzileiros exige Estriamento do Cano."><span><b>Corpo de Fuzileiros</b><small style="display:block;margin-top:4px">+35% de dano da infantaria · 300 madeira + 250 ouro</small></span><kbd>Comércio</kbd></button><button class="panel-action" data-technology="serrarias" data-action="toast" data-message="Serrarias a Vapor exige a Era Industrial."><span><b>Serrarias a Vapor</b><small style="display:block;margin-top:4px">+40% de coleta de madeira · 400 madeira + 350 ouro</small></span><small>Bloqueada</small></button><button class="panel-action" data-technology="irrigacao" data-action="toast" data-message="Canais de Irrigação custam 150 madeira + 60 ouro e levam 20 s."><span><b>Canais de Irrigação</b><small style="display:block;margin-top:4px">+25% de coleta de madeira · 150 madeira + 60 ouro</small></span><small>Disponível</small></button></div><div class="objective" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)"><span class="check">3</span><span>Fila única: era e tecnologias dividem no máximo 3 itens.</span></div>`; }
       function relationsPanel() { return `<div class="card"><div class="card-title">Clã do Rio <span class="state">Neutro</span></div><div class="objective"><span class="check">R</span><span>Avistados ao norte do vale. Ainda não houve contato formal.</span></div><button class="panel-action" data-action="toast" data-message="O batedor segue para o limite norte do mapa."><span>Enviar batedor</span><kbd>↗</kbd></button></div><div class="card"><div class="card-title">Ruínas da colina <span class="state" style="color:var(--gold-bright)">Não exploradas</span></div><div class="objective"><span class="check">?</span><span>Há uma estrutura antiga além da mata. Uma patrulha pode investigar.</span></div><button class="panel-action" data-action="mode" data-value="explore"><span>Planejar exploração</span><kbd>E</kbd></button></div>`; }
 
       function worldPanel() {
@@ -696,10 +702,34 @@
         closeModals();rememberFocus();
         // Prime Pixel: o radial abre onde o cursor esta, e nao no centro da tela.
         const size=Math.min(460,window.innerWidth*0.88), half=size/2, margin=8;
-        const rawX=clientX??(pointer.x??window.innerWidth/2);
-        const rawY=clientY??(pointer.y??window.innerHeight/2);
-        const x=Math.min(Math.max(rawX,half+margin),window.innerWidth-half-margin);
-        const y=Math.min(Math.max(rawY,half+margin),window.innerHeight-half-margin);
+        const limitaX=valor=>Math.min(Math.max(valor,half+margin),window.innerWidth-half-margin);
+        const limitaY=valor=>Math.min(Math.max(valor,half+margin),window.innerHeight-half-margin);
+        const cursorX=limitaX(clientX??(pointer.x??window.innerWidth/2));
+        const cursorY=limitaY(clientY??(pointer.y??window.innerHeight/2));
+        const centroX=limitaX(window.innerWidth/2), centroY=limitaY(window.innerHeight/2);
+        // Medir a caixa final e mais confiavel que testar o cursor: no canto inferior
+        // direito o cursor cai num vao entre a coluna do painel e o dock, e o radial
+        // abre por cima das duas ancoras.
+        const colideCom=(cx,cy,ancoras)=>ancoras.some(rect=>
+          cx+half>rect.left&&cx-half<rect.right&&cy+half>rect.top&&cy-half<rect.bottom);
+        const chrome=ancorasDoHud();
+        let x=cursorX, y=cursorY, compacto=false;
+        // 1a passada: fica no Pixel Nobre se a caixa final nao cobrir o chrome.
+        if(colideCom(x,y,chrome.map(a=>a.rect))){x=centroX;y=centroY;}
+        // 2a passada: centralizado tambem colide (tela estreita, onde o radial e mais
+        // largo que a faixa de mapa). O HUD persistente recolhe enquanto o overlay modal
+        // esta aberto, em vez de ficar coberto por ele.
+        if(colideCom(x,y,chrome.map(a=>a.rect))){
+          compacto=true;
+          // Remede sem o chrome recolhido para ainda escolher o melhor y da caixa.
+          const restantes=chrome.filter(a=>!a.recolhido).map(a=>a.rect);
+          x=centroX;
+          if(colideCom(x,y,restantes)){
+            const primeiroTopo=restantes.length?Math.min(...restantes.map(r=>r.top)):0;
+            y=limitaY(primeiroTopo-Math.max(0,(window.innerHeight-primeiroTopo-half*2)/2));
+          }
+        }
+        game.classList.toggle('radial-compacto',compacto);
         radialMenu.style.left=`${x}px`;radialMenu.style.top=`${y}px`;radialMenu.style.width=`${size}px`;
         const radius=36, total=radialCommands.length;
         const items=radialCommands.map((command,index)=>{
@@ -708,10 +738,28 @@
           return `<button class="radial-item" style="left:${left.toFixed(2)}%;top:${top.toFixed(2)}%;transform:translate(-50%,-50%)" data-radial="${command[2]}"><span>${command[0]}</span><small>${command[1]}</small></button>`;
         }).join('');
         radialMenu.innerHTML=`${items}<div class="radial-center"><b>Radial</b><small>Esc fecha</small></div><div class="radial-note">Comandos de interface · nada é enviado à partida</div>`;
-        radialMenu.hidden=false;radialScrim.hidden=false;
+        radialMenu.hidden=false;radialScrim.hidden=false;overlayStack.push(radialMenu);
         setTimeout(()=>radialMenu.querySelector('.radial-item')?.focus(),30);
       }
-      function closeRadial() { radialMenu.hidden=true;radialScrim.hidden=true;restoreFocus(); }
+      // Ancoras do HUD com o retangulo e a marca de quais o modo compacto recolhe.
+      const CHROME_DO_HUD=['.topbar','.rail','#bottom-dock','#minimap','#side-panel','#corner-top','.restore-hud'];
+      function ancorasDoHud() {
+        return CHROME_DO_HUD
+          .map((selector,indice)=>{
+            const element=document.querySelector(selector);
+            if(!element||element.hidden)return null;
+            const estilo=getComputedStyle(element);
+            // O modo compacto nao remove o rail do layout, apenas o apaga: sem olhar a
+            // opacidade a ancora continuaria sendo medida como se estivesse visivel.
+            if(estilo.visibility==='hidden'||estilo.display==='none'||Number(estilo.opacity)<=0.05)return null;
+            const rect=element.getBoundingClientRect();
+            if(rect.width<=2||rect.height<=2)return null;
+            // A ultima entrada e o botao "Mostrar HUD", que nao esta no modo compacto.
+            return { rect, recolhido:indice<CHROME_DO_HUD.length-1 };
+          })
+          .filter(Boolean);
+      }
+      function closeRadial() { radialMenu.hidden=true;radialScrim.hidden=true;game.classList.remove('radial-compacto');removeOverlay(radialMenu);restoreFocus(); }
       function openBatch(id) {
         const def=batchDefs[id];if(!def)return;
         closeModals();rememberFocus();
@@ -720,16 +768,17 @@
         document.getElementById('batch-scope').textContent=`${def.scope} Prévia ilustrativa: confira os alvos antes de confirmar.`;
         document.getElementById('batch-list').innerHTML=def.targets.map(t=>`<div class="batch-row"><span>${t[0]}</span><b>${t[1]}</b></div>`).join('');
         batchModal.hidden=false;
+        overlayStack.push(batchModal);
         setTimeout(()=>batchModal.querySelector('[data-action="batch-confirm"]')?.focus(),30);
       }
       function confirmBatch() {
         if(!batchState)return;
-        batchState.applied=true;batchModal.hidden=true;restoreFocus();
+        batchState.applied=true;batchModal.hidden=true;removeOverlay(batchModal);restoreFocus();
         document.getElementById('batch-status').textContent=batchState.def.result+' ';
         batchBar.hidden=false;
         notify('Comando aplicado em lote · desfazer disponível');
       }
-      function cancelBatch() { batchModal.hidden=true;batchState=null;restoreFocus();notify('Comando em lote cancelado · nenhum alvo foi alterado'); }
+      function cancelBatch() { batchModal.hidden=true;removeOverlay(batchModal);batchState=null;restoreFocus();notify('Comando em lote cancelado · nenhum alvo foi alterado'); }
       function undoBatch() {
         if(!batchState||!batchState.applied){notify('Nada para desfazer');return;}
         batchState.applied=false;batchBar.hidden=true;
@@ -789,6 +838,7 @@
         document.querySelector('[data-toggle="dock"]').setAttribute('aria-checked',String(state.dock));
         document.querySelector('[data-toggle="minimap"]').setAttribute('aria-checked',String(state.minimap));
         document.querySelector('[data-toggle="objectives"]').setAttribute('aria-checked',String(state.objectives));
+        document.querySelectorAll('[data-action="minimap"]').forEach(button=>button.setAttribute('aria-pressed',String(state.minimap)));
       }
       function setVisibility(key,value) {
         state[key]=value;
@@ -822,26 +872,49 @@
         const destino=usavel?alvo:document.querySelector('[data-action="search"]');
         if(destino)destino.focus();
       }
-      function openModal(modal) { rememberFocus(); modal.hidden=false; const input=modal.querySelector('input'); if(input){input.value='';renderSearch('');setTimeout(()=>input.focus(),30);} }
-      function closeModals() { searchModal.hidden=true;menuModal.hidden=true;layoutModal.hidden=true;batchModal.hidden=true; restoreFocus(); }
+      function removeOverlay(modal) { const index=overlayStack.lastIndexOf(modal);if(index>=0)overlayStack.splice(index,1); }
+      function focaveis(raiz) { return [...raiz.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter(el=>!el.disabled&&el.offsetParent!==null); }
+      function overlayAberto() { while(overlayStack.length&&overlayStack[overlayStack.length-1].hidden)overlayStack.pop();return overlayStack[overlayStack.length-1]||null; }
+      function fecharOverlayMaisRecente() {
+        const overlay=overlayAberto();if(!overlay)return;
+        overlayStack.pop();
+        if(overlay===radialMenu){radialMenu.hidden=true;radialScrim.hidden=true;}
+        else {overlay.hidden=true;if(overlay===batchModal)batchState=null;}
+        restoreFocus();
+      }
+      function openModal(modal) { rememberFocus();modal.hidden=false;overlayStack.push(modal);const input=modal.querySelector('input');if(input){input.value='';renderSearch('');setTimeout(()=>input.focus(),30);}else setTimeout(()=>focaveis(modal)[0]?.focus(),30); }
+      function closeModals() { searchModal.hidden=true;menuModal.hidden=true;layoutModal.hidden=true;batchModal.hidden=true;radialMenu.hidden=true;radialScrim.hidden=true;game.classList.remove('radial-compacto');overlayStack.length=0;restoreFocus(); }
       const actions=[
         ['Abrir visão geral','Painel da aldeia','nav:overview',''],['Abrir economia','Produção e população','nav:economy',''],['Abrir construções','Catálogo de edifícios','nav:build',''],['Abrir pesquisa','Tecnologias e eras','nav:research',''],['Abrir relações','Vizinhos e regiões avistadas','nav:diplomacy',''],['Modo: vila','Composição de cidade','mode:city','Alt+1'],['Modo: exploração','Campo e navegação','mode:explore','Alt+2'],['Modo: combate','Patrulha e ordens militares','mode:battle','Alt+3'],['Mostrar ou ocultar painel','Recolher painel contextual','toggle:panel','Alt+P'],['Mostrar ou ocultar seleção','Recolher ações selecionadas','toggle:dock',''],['Alternar minimapa','Mostrar ou ocultar o minimapa','toggle:minimap','Alt+M'],['Modo minimalista','Ocultar todos os painéis e restaurar com Alt+H','minimize:all','Alt+H'],['Personalizar interface','Perfis e painéis visíveis','customize',''],['Abrir configurações do HUD','Disposição, atalhos e exportação','menu:interface',''],['Abrir menu do império','Áreas de gestão','menus',''],['Abrir mapa-múndi','Localidades e exploração','nav:world',''],['Menu radial de comandos','Comandos de interface em círculo','radial','Alt+R'],['Comando em lote: designar coleta','Prévia dos alvos com desfazer','batch:gather',''],['Comando em lote: patrulhar costa','Prévia dos alvos com desfazer','batch:patrol',''],['Centralizar no meu nascedouro','Câmera no ponto de partida','camera:home',''],['Centralizar na localidade em foco','Câmera na localidade marcada','camera:focus','']
       ];
       function paletteActions() {
-        return actions.concat(localities.map(l=>[`Ir para ${l.name}`,`Localidade · ${l.relation}`,'locality:'+l.id,'']));
+        return actions.concat(technologyActions,localities.map(l=>[`Ir para ${l.name}`,`Localidade · ${l.relation}`,'locality:'+l.id,'']));
       }
       // Prefixos da paleta (Estudo de HUD para RTS, secao 4): @ localidade,
       // ! comando em lote, # tecnologia.
       const palettePrefixes={'!':'Comandos em lote','#':'Tecnologias','@':'Localidades'};
+      const technologyActions=[
+        ['Cartografia','Pesquisa atual · Era do Comércio','technology:cartografia',''],
+        ['Corpo de Fuzileiros','+35% de dano da infantaria · Comércio','technology:fuzileiros',''],
+        ['Serrarias a Vapor','+40% de coleta de madeira · bloqueada','technology:serrarias',''],
+        ['Canais de Irrigação','+25% de coleta de madeira · disponível','technology:irrigacao',''],
+      ];
       function renderSearch(query) {
         const normalized=query.trim().toLocaleLowerCase('pt-BR');
         const sigil=palettePrefixes[normalized[0]]?normalized[0]:'';
         const term=sigil?normalized.slice(1).trim():normalized;
         let pool=paletteActions();
         if(sigil==='!')pool=pool.filter(a=>a[2].startsWith('batch:'));
-        else if(sigil==='#')pool=pool.filter(a=>a[2]==='nav:research');
+        else if(sigil==='#')pool=pool.filter(a=>a[2].startsWith('technology:'));
         else if(sigil==='@')pool=pool.filter(a=>a[2].startsWith('locality:')||a[2]==='nav:world');
-        const found=pool.filter(a=>!term||(a[0]+' '+a[1]).toLocaleLowerCase('pt-BR').includes(term));
+        const found=pool.filter(a=>{
+          if(!term)return true;
+          if(sigil==='@'&&a[2].startsWith('locality:')){
+            const locality=localities.find(item=>item.id===a[2].slice('locality:'.length));
+            return Boolean(locality&&locality.name.toLocaleLowerCase('pt-BR').startsWith(term));
+          }
+          return (a[0]+' '+a[1]).toLocaleLowerCase('pt-BR').includes(term);
+        });
         state.searchIndex=0;
         const heading=document.getElementById('search-heading');
         if(heading)heading.textContent=sigil?`${palettePrefixes[sigil]} · prefixo ${sigil}`:'Acesso rápido';
@@ -857,6 +930,7 @@
         else if(kind==='customize')openModal(layoutModal);
         else if(kind==='menus')openModal(menuModal);
         else if(kind==='locality'){setLocality(value);historyPush('Foco: '+((localities.find(l=>l.id===value)||{}).name||value));}
+        else if(kind==='technology'){setNav('research');requestAnimationFrame(()=>{const target=panelBody.querySelector(`[data-technology="${value}"]`);target?.scrollIntoView({block:'center',behavior:'smooth'});target?.focus({preventScroll:true});});}
         else if(kind==='radial')openRadial();
         else if(kind==='batch')openBatch(value);
         else if(kind==='camera')centralizaCamera(value);
@@ -888,7 +962,7 @@
       }
       function renderInterfaceSettings() {
         const cards=document.getElementById('menu-cards');cards.classList.add('interface-settings');
-        cards.innerHTML=`<div class="settings-toolbar"><div class="segmented" aria-label="Modo de edição"><button data-settings-view="form" aria-pressed="${settingsView==='form'}">Formulário</button><button data-settings-view="code" aria-pressed="${settingsView==='code'}">JSON / YAML</button></div><button class="settings-actions-button" data-action="minimize-hud">Minimizar HUD</button></div>
+        cards.innerHTML=`<div class="settings-toolbar"><div class="segmented" role="group" aria-label="Modo de edição"><button data-settings-view="form" aria-pressed="${settingsView==='form'}">Formulário</button><button data-settings-view="code" aria-pressed="${settingsView==='code'}">JSON / YAML</button></div><button class="settings-actions-button" data-action="minimize-hud">Minimizar HUD</button></div>
           <div id="settings-form" class="settings-form" ${settingsView==='code'?'hidden':''}>
             <label class="setting-field"><span>Disposição<small>Escolha o arranjo inicial dos painéis.</small></span><select id="setting-layout"><option value="balanced">Mapa primeiro</option><option value="explorer">Exploração</option><option value="strategist">Gestão</option></select></label>
             <div class="setting-field"><span>Painel contextual<small>Resumo e informações da partida.</small></span><button class="switch" role="switch" aria-checked="${state.panel}" data-pref="panel" aria-label="Mostrar painel contextual"></button></div>
@@ -900,7 +974,7 @@
             <div class="settings-actions"><button data-action="save-form-config">Salvar neste navegador</button><button data-action="copy-config">Copiar configuração</button><button data-action="download-config">Salvar arquivo</button></div>
           </div>
           <div id="settings-code-view" ${settingsView==='form'?'hidden':''}>
-            <div class="settings-toolbar"><div class="segmented" aria-label="Formato de configuração"><button data-format="json" aria-pressed="${configFormat==='json'}">JSON editável</button><button data-format="yaml" aria-pressed="${configFormat==='yaml'}">YAML</button></div><span class="eyebrow">Configuração do HUD</span></div>
+            <div class="settings-toolbar"><div class="segmented" role="group" aria-label="Formato de configuração"><button data-format="json" aria-pressed="${configFormat==='json'}">JSON editável</button><button data-format="yaml" aria-pressed="${configFormat==='yaml'}">YAML</button></div><span class="eyebrow">Configuração do HUD</span></div>
             <textarea class="settings-file" id="settings-file" spellcheck="false" aria-label="Texto da configuração do HUD"></textarea>
             <div class="settings-actions"><button data-action="apply-config">Aplicar ${configFormat.toUpperCase()}</button><button data-action="copy-config">Copiar configuração</button><button data-action="download-config">Salvar arquivo</button></div>
             <p class="settings-note" id="settings-note"></p>
@@ -974,7 +1048,7 @@
         if(target.dataset.pref){const key=target.dataset.pref;if(key==='idleFade'){state.idleFade=!state.idleFade;if(!state.idleFade)game.classList.remove('hud-idle');else wakeHud();syncSwitches();notify(state.idleFade?'HUD recolhe após 8s sem input':'Recolhimento por inatividade desligado');}else{setVisibility(key,!state[key]);}refreshConfigEditor();return;}
         if(target.dataset.preset){applyPreset(target.dataset.preset);historyPush('Composição: '+target.dataset.preset);return;}
         if(target.dataset.settingsView){settingsView=target.dataset.settingsView;renderInterfaceSettings();return;}
-        if(target.dataset.format){configFormat=target.dataset.format;refreshConfigEditor();return;}
+        if(target.dataset.format){const editor=document.getElementById('settings-file');const saved=configFormat==='json'?JSON.stringify(hudConfig(),null,2):yamlConfig(hudConfig());if(editor&&editor.value!==saved&&!window.confirm('Trocar o formato vai descartar as edições ainda não aplicadas. Continuar?'))return;configFormat=target.dataset.format;refreshConfigEditor();return;}
         if(target.dataset.menuTab){openMenu(target.dataset.menuTab);return;}
         if(target.dataset.command){runCommand(target.dataset.command);return;}
         if(target.dataset.radial){const command=target.dataset.radial;closeRadial();if(command==='radial-close'){notify('Menu radial fechado');return;}if(command==='search'){openModal(searchModal);return;}runCommand(command);return;}
@@ -1117,8 +1191,24 @@
       setTimeout(() => { sincronizaLocalidades(); desenhaMinimapa(); }, 1600);
       searchInput.addEventListener('input',()=>renderSearch(searchInput.value));
       document.addEventListener('keydown',event=>{
+        const overlay=overlayAberto();
+        if(overlay&&event.key==='Escape'){
+          event.preventDefault();fecharOverlayMaisRecente();event.stopImmediatePropagation();return;
+        }
+        if(overlay&&event.key==='Tab'){
+          const items=focaveis(overlay);
+          if(items.length){
+            const current=items.indexOf(document.activeElement);
+            const next=current<0?(event.shiftKey?items.length-1:0):(current+(event.shiftKey?-1:1)+items.length)%items.length;
+            event.preventDefault();items[next].focus();
+          }
+          event.stopImmediatePropagation();return;
+        }
+        if(overlay&&!['ArrowDown','ArrowUp','Enter'].includes(event.key)){
+          if(event.altKey||((event.ctrlKey||event.metaKey)&&['k','z'].includes(event.key.toLowerCase())))event.preventDefault();
+          event.stopImmediatePropagation();return;
+        }
         const typing=event.target instanceof HTMLInputElement||event.target instanceof HTMLTextAreaElement;
-        if(event.key==='Escape'){if(!radialMenu.hidden){closeRadial();return;}if(!searchModal.hidden||!menuModal.hidden||!layoutModal.hidden||!batchModal.hidden){closeModals();return;}}
         if(!searchModal.hidden&&(event.key==='ArrowDown'||event.key==='ArrowUp')){const results=[...searchResults.querySelectorAll('.palette-result')];if(results.length){event.preventDefault();state.searchIndex=(state.searchIndex+(event.key==='ArrowDown'?1:-1)+results.length)%results.length;results.forEach((button,i)=>button.setAttribute('aria-selected',String(i===state.searchIndex)));results[state.searchIndex].scrollIntoView({block:'nearest'});}return;}
         if(!searchModal.hidden&&event.key==='Enter'){const selected=searchResults.querySelectorAll('.palette-result')[state.searchIndex];if(selected){event.preventDefault();selected.click();}return;}
         if(!typing&&(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();openModal(searchModal);return;}
@@ -1138,7 +1228,7 @@
           if(event.code==='KeyR'){event.preventDefault();openRadial();return;}
         }
         if(typing||event.metaKey||event.ctrlKey||event.altKey)return;
-      });
+      },true);
 
     </script>
   </body>

@@ -120,7 +120,7 @@
         { id:'lote', texto:'Executar um comando em lote e desfazê-lo', proposta:true },
         { id:'radial', texto:'Abrir o radial, usar um comando e fechar com Esc', proposta:true },
         { id:'minimizar', texto:'Minimizar o HUD e restaurar', proposta:true },
-        { id:'historico', texto:'Desfazer uma mudança com Ctrl/Cmd+Z e refazer com Shift+Z', proposta:true },
+        { id:'historico', texto:'Desfazer uma mudança de painel com Ctrl/Cmd+Z e refazer com Shift+Z', proposta:true },
       ];
       const CHAVE = 'terrinha:avaliacao-hud';
 
@@ -176,17 +176,18 @@
       }
 
       function csv() {
-        const linhas = [COLUNAS.join(',')];
+        const celula = (valor) => { const texto = String(valor ?? ''); return /[,\"\r\n]/.test(texto) ? `\"${texto.replace(/\"/g, '\"\"')}\"` : texto; };
+        const linhas = [COLUNAS.map(celula).join(',')];
         for (const t of TAREFAS) {
           const interfaces = t.proposta ? ['poc'] : ['atual','poc'];
           for (const iface of interfaces) {
             const r = registro(t.id, iface);
-            const nome = t.texto + (t.proposta ? ' (só na proposta)' : '');
+            const nome = t.texto;
             const concluiu = r.concluiu === null ? '' : (r.concluiu ? 's' : 'n');
             const tempo = r.concluiu === null ? '' : (r.tempo/1000).toFixed(1);
             const facil = r.facilidade === null ? '' : String(r.facilidade);
-            const nota = (r.nota || '').replace(/"/g,'""');
-            linhas.push([nome, iface === 'poc' ? 'PoC' : 'HUD atual', concluiu, tempo, r.concluiu===null?'':String(r.erros), facil, nota ? `"${nota}"` : ''].join(','));
+            const nota = r.nota || '';
+            linhas.push([nome, iface === 'poc' ? (t.proposta ? 'PoC (sem equivalente no HUD atual)' : 'PoC') : 'HUD atual', concluiu, tempo, r.concluiu===null?'':String(r.erros), facil, nota].map(celula).join(','));
           }
         }
         return linhas.join('\n');
