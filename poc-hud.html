@@ -864,7 +864,19 @@
       // Retorno de foco: ao fechar um overlay o foco volta para quem o abriu, em vez
       // de cair no body. Sem isto o teclado perde a posicao depois de qualquer modal.
       let focusReturn=null;
-      function rememberFocus() { focusReturn=document.activeElement instanceof HTMLElement?document.activeElement:null; }
+      // Quem abriu o overlay e o clique que o disparou, mesmo quando o navegador
+      // nao foca o botao (click programatico). Sem isto o Esc devolve o foco ao
+      // ultimo elemento focado antes do overlay, nao ao gatilho que o abriu.
+      let gatilhoRecente=null;
+      document.addEventListener('click',evento=>{
+        const alvo=evento.target instanceof Element?evento.target.closest('button,[href],[tabindex]:not([tabindex="-1"])'):null;
+        if(alvo)gatilhoRecente={alvo,em:Date.now()};
+      },true);
+      function rememberFocus() {
+        const atual=document.activeElement;
+        const peloClique=gatilhoRecente&&Date.now()-gatilhoRecente.em<300?gatilhoRecente.alvo:null;
+        focusReturn=peloClique||(atual instanceof HTMLElement&&atual!==document.body?atual:null);
+      }
       function restoreFocus() {
         if(!focusReturn)return;
         const alvo=focusReturn;focusReturn=null;
@@ -1204,11 +1216,15 @@
           }
           event.stopImmediatePropagation();return;
         }
-        if(overlay&&!['ArrowDown','ArrowUp','Enter'].includes(event.key)){
+        // Campos de texto digitaveis ficam fora do bloqueio: o overlay so impede
+        // atalhos que mutariam o HUD atras dele; a digitacao e o desfazer nativo
+        // do proprio campo continuam valendo enquanto o overlay esta aberto.
+        const editavel=event.target instanceof HTMLInputElement||event.target instanceof HTMLTextAreaElement||event.target.isContentEditable;
+        if(overlay&&!editavel&&!['ArrowDown','ArrowUp','Enter'].includes(event.key)){
           if(event.altKey||((event.ctrlKey||event.metaKey)&&['k','z'].includes(event.key.toLowerCase())))event.preventDefault();
-          event.stopImmediatePropagation();return;
+          return;
         }
-        const typing=event.target instanceof HTMLInputElement||event.target instanceof HTMLTextAreaElement;
+        const typing=editavel;
         if(!searchModal.hidden&&(event.key==='ArrowDown'||event.key==='ArrowUp')){const results=[...searchResults.querySelectorAll('.palette-result')];if(results.length){event.preventDefault();state.searchIndex=(state.searchIndex+(event.key==='ArrowDown'?1:-1)+results.length)%results.length;results.forEach((button,i)=>button.setAttribute('aria-selected',String(i===state.searchIndex)));results[state.searchIndex].scrollIntoView({block:'nearest'});}return;}
         if(!searchModal.hidden&&event.key==='Enter'){const selected=searchResults.querySelectorAll('.palette-result')[state.searchIndex];if(selected){event.preventDefault();selected.click();}return;}
         if(!typing&&(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();openModal(searchModal);return;}
