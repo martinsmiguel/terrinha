@@ -12,7 +12,14 @@ labels: ['backlog']
 
 - [ ] Critério 1 (teste manual ou automatizado)
 - [ ] Critério 2
-- [ ] `npm run lint` passa
+- [ ] Checks obrigatórios do CI passam (`npm run lint`, `npm test`, `npm run build`)
+
+## Evidências e acompanhamento
+
+<!-- Ao iniciar, registre abordagem/dependências. Ao abrir PR e em cada passada, atualize checkboxes e comente SHA, evidências, decisões e bloqueios. -->
+- [ ] Critérios demonstrados com evidência (comando, teste ou passos reproduzíveis)
+- [ ] PR vinculado e revisão independente concluída no SHA aprovado
+- [ ] Decisões, follow-ups e estado final registrados neste card
 
 ## Versão Alvo (SemVer)
 

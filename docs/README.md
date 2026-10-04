@@ -17,7 +17,8 @@ Páginas mais consultadas:
   [Eras e tecnologias](reference/tecnologias-eras.md)
 - [Hospedar na Wi-Fi](how-to/hospedar-partida-wifi.md) ·
   [Lançar uma release](how-to/lancar-release.md) ·
-  [Fluxo de desenvolvimento](how-to/fluxo-de-desenvolvimento.md)
+  [Fluxo de desenvolvimento](how-to/fluxo-de-desenvolvimento.md) ·
+  [Revisar pull requests](how-to/revisar-pull-requests.md)
 
 Decisões arquiteturais são registradas como **ADRs** em
 [`explanation/adr/`](explanation/adr/):

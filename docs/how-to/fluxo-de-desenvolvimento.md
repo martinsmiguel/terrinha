@@ -22,9 +22,14 @@ git commit -m "feat(combat): adiciona checagem de vitória [#14]"
 git push -u origin HEAD
 gh pr create --fill
 
-# 5. CI verde → review → merge → card em Done
+# 5. CI verde → review independente no SHA atual → merge → card em Done
 # 6. Release: bump SemVer + CHANGELOG (automatizado pelo workflow)
 ```
+
+Na abertura do PR, mova o card para `In Review`, vincule o PR e mantenha os
+critérios de aceite atualizados com evidências. A revisão registra SHA, provas,
+achados e veredito conforme [Revisar pull requests](revisar-pull-requests.md).
+Após correções, a nova passada confirma o SHA atualizado antes do merge.
 
 ## Mover cards na API do GitHub
 

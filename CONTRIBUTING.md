@@ -23,7 +23,8 @@ Issue criada (card) → Ready → In Progress → In Review → Done
    citar `#<número da issue>` — um commit = uma parte descritível de um card.
 4. **Abra um PR** apontando para `main`, citando `#<número>` no corpo.
 5. **CI deve passar** (`npm run lint`, testes).
-6. **Merge** → card vai para Done → bump de versão SemVer + CHANGELOG.
+6. **Review independente** no SHA atual, com evidências e veredito registrados conforme o [roteiro de revisão](docs/how-to/revisar-pull-requests.md).
+7. **Merge** → card vai para Done → bump de versão SemVer + CHANGELOG.
 
 ### Formato dos commits
 
