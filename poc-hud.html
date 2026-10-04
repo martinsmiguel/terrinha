@@ -40,39 +40,39 @@
       .restore-hud { position:absolute; z-index:40; top:12px; left:50%; transform:translateX(-50%); display:none; align-items:center; gap:8px; padding:9px 13px; border:1px solid rgba(211,181,119,.5); border-radius:12px; color:var(--gold-bright); background:rgba(19,25,21,.96); box-shadow:var(--shadow); cursor:pointer; }
       .hud-minimized .restore-hud { display:flex; }
 
-      .topbar { position: absolute; z-index: 5; left: 16px; right: 16px; top: 14px; min-height: 66px; display: flex; align-items: center; gap: 12px; pointer-events: none; }
+      .topbar { position: absolute; z-index: 5; left: 16px; right: 16px; top: 10px; min-height: 46px; display: flex; align-items: center; gap: 10px; pointer-events: none; }
       .topbar > * { pointer-events: auto; }
-      .brand { display: flex; align-items: center; gap: 10px; min-width: 183px; padding: 9px 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); box-shadow: var(--shadow); }
-      .brand-mark { width: 30px; height: 30px; display: grid; place-items: center; color: var(--gold-bright); border: 1px solid rgba(211,181,119,.5); border-radius: 9px; font: 700 10px/1 ui-monospace, monospace; letter-spacing: .08em; }
-      .brand-name { font: 650 12px/1.2 Georgia, serif; letter-spacing: .12em; text-transform: uppercase; }
-      .brand-sub { color: var(--muted); margin-top: 3px; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
-      .resources { display: flex; flex: 1; justify-content: center; gap: 7px; min-width: 0; }
-      .resource { min-width: 95px; padding: 9px 12px; display: flex; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: 12px; color: inherit; background: var(--panel); box-shadow: var(--shadow); text-align: left; cursor: pointer; transition: border-color .16s, background .16s, transform .16s; }
+      .brand { display: flex; align-items: center; gap: 8px; min-width: 146px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: var(--shadow); }
+      .brand-mark { width: 26px; height: 26px; display: grid; place-items: center; color: var(--gold-bright); border: 1px solid rgba(211,181,119,.5); border-radius: 8px; font: 700 10px/1 ui-monospace, monospace; letter-spacing: .08em; }
+      .brand-name { font: 650 11px/1.2 Georgia, serif; letter-spacing: .1em; text-transform: uppercase; }
+      .brand-sub { color: var(--muted); margin-top: 2px; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+      .resources { display: flex; flex: 1; justify-content: center; gap: 6px; min-width: 0; }
+      .resource { min-width: 74px; padding: 6px 9px; display: flex; gap: 7px; align-items: center; border: 1px solid var(--line); border-radius: 10px; color: inherit; background: var(--panel); box-shadow: var(--shadow); text-align: left; cursor: pointer; transition: border-color .16s, background .16s, transform .16s; }
       .resource:hover, .resource:focus-visible { border-color: rgba(241,213,148,.65); background: rgba(36,47,38,.98); transform: translateY(-1px); }
-      .resource-mark { color: var(--gold); font: 700 11px/1 ui-monospace, monospace; width: 20px; height: 20px; display: grid; place-items: center; border: 1px solid rgba(211,181,119,.35); border-radius: 6px; }
+      .resource-mark { color: var(--gold); font: 700 10px/1 ui-monospace, monospace; width: 18px; height: 18px; display: grid; place-items: center; border: 1px solid rgba(211,181,119,.35); border-radius: 5px; }
       .resource:nth-child(2) .resource-mark { color: #cf997c; border-color: rgba(207,153,124,.35); }
       .resource:nth-child(3) .resource-mark { color: #d7c481; border-color: rgba(215,196,129,.35); }
       .resource:nth-child(4) .resource-mark { color: #aab4b0; border-color: rgba(170,180,176,.35); }
-      .resource-label { color: var(--muted); font-size: 9px; line-height: 1.15; letter-spacing: .1em; text-transform: uppercase; }
-      .resource-value { margin-top: 3px; font: 650 14px/1 ui-monospace, monospace; font-variant-numeric: tabular-nums; }
-      .resource-rate { display: block; margin-top: 4px; color: var(--green); font: 10px/1 ui-monospace, monospace; }
-      .top-actions { display: flex; align-items: center; gap: 7px; }
-      .era-pill { min-width: 112px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: var(--shadow); }
+      .resource-label { display: block; color: var(--muted); font-size: 8px; line-height: 1.1; letter-spacing: .08em; text-transform: uppercase; }
+      .resource-value { display: block; margin-top: 1px; font: 650 12px/1 ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+      .resource-rate { display: block; margin-top: 2px; color: var(--green); font: 9px/1 ui-monospace, monospace; }
+      .top-actions { display: flex; align-items: center; gap: 6px; }
+      .era-pill { min-width: 84px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); }
       .eyebrow { color: var(--muted); font-size: 9px; letter-spacing: .15em; text-transform: uppercase; }
-      .era-name { margin-top: 4px; color: var(--gold-bright); font: 600 12px/1 Georgia, serif; }
-      .square-button, .top-button { height: 42px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel); cursor: pointer; transition: background .16s, border-color .16s, transform .16s; }
-      .square-button { width: 42px; font: 700 12px/1 ui-monospace, monospace; }
-      .top-button { padding: 0 13px; font-size: 11px; }
+      .era-name { margin-top: 3px; color: var(--gold-bright); font: 600 11px/1 Georgia, serif; }
+      .square-button, .top-button { height: 34px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); cursor: pointer; transition: background .16s, border-color .16s, transform .16s; }
+      .square-button { width: 34px; font: 700 11px/1 ui-monospace, monospace; }
+      .top-button { padding: 0 10px; font-size: 10px; }
       .square-button:hover, .top-button:hover, .nav-button:hover, .command-button:hover { background: rgba(54,67,53,.96); border-color: rgba(241,213,148,.55); transform: translateY(-1px); }
 
-      .mode-switch { position: absolute; z-index: 5; top: 98px; left: 16px; display: grid; gap: 6px; width: var(--rail-width); padding: 7px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); box-shadow: var(--shadow); }
+      .mode-switch { position: absolute; z-index: 5; top: 70px; left: 16px; display: grid; gap: 6px; width: var(--rail-width); padding: 7px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); box-shadow: var(--shadow); }
       .mode-button { min-height: 53px; display: grid; justify-items: center; align-content: center; gap: 4px; border: 1px solid rgba(199,184,139,.14); border-radius: 10px; color: var(--muted); background: rgba(255,255,255,.015); cursor: pointer; }
       .mode-button:hover { border-color: rgba(199,184,139,.38); background: rgba(255,255,255,.04); }
       .mode-button .mode-code { width: 23px; height: 23px; display: grid; place-items: center; border-radius: 7px; font: 700 10px/1 ui-monospace, monospace; background: rgba(255,255,255,.05); }
       .mode-button small { font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
       .mode-button[aria-pressed="true"] { color: var(--ink); background: rgba(211,181,119,.12); border-color: rgba(211,181,119,.31); }
 
-      .nav-rail { position: absolute; z-index: 5; left: 16px; top: 300px; bottom: 20px; width: var(--rail-width); display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 7px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); box-shadow: var(--shadow); }
+      .nav-rail { position: absolute; z-index: 5; left: 16px; top: 268px; bottom: 20px; width: var(--rail-width); display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 7px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); box-shadow: var(--shadow); }
       .rail-divider { height: 1px; margin: 2px 4px; background: var(--line); }
       .nav-button { min-height: 48px; display: grid; justify-items: center; align-content: center; gap: 3px; border: 1px solid transparent; border-radius: 10px; color: var(--muted); background: transparent; cursor: pointer; transition: .16s; }
       .nav-button .nav-code { font: 650 10px/1 ui-monospace, monospace; color: var(--gold); }
@@ -81,16 +81,13 @@
       .rail-spacer { flex: 1; }
       .rail-label { color: var(--dim); font-size: 8px; line-height: 1.3; text-align: center; letter-spacing: .12em; text-transform: uppercase; }
 
-      .map-label { position: absolute; z-index: 2; top: 104px; left: calc(var(--rail-width) + 36px); color: rgba(239,229,198,.88); text-shadow: 0 2px 12px #172419; pointer-events: none; }
-      .map-label strong { display: block; font: 600 clamp(16px,1.6vw,23px)/1.2 Georgia, serif; letter-spacing: .06em; }
-      .map-label span { display: block; margin-top: 4px; color: rgba(239,229,198,.7); font-size: 9px; letter-spacing: .18em; text-transform: uppercase; }
-      .map-actions { position: absolute; z-index: 3; top: 101px; right: 338px; display: flex; gap: 6px; }
-      .map-action { min-height: 31px; padding: 0 9px; border: 1px solid rgba(232,220,186,.3); border-radius: 9px; color: #e9e2d1; background: rgba(19,25,21,.74); backdrop-filter: blur(8px); font-size: 10px; cursor: pointer; }
-      .map-action:hover { background: rgba(30,43,34,.94); border-color: rgba(241,213,148,.7); }
-      .scene-note { position: absolute; z-index: 3; left: calc(var(--rail-width) + 37px); bottom: 132px; color: rgba(240,232,207,.84); font-size: 10px; text-shadow: 0 1px 5px #111; pointer-events: none; }
+      .map-label { position: absolute; z-index: 2; top: 76px; left: calc(var(--rail-width) + 36px); color: rgba(239,229,198,.88); text-shadow: 0 2px 12px #172419; pointer-events: none; }
+      .map-label strong { display: block; font: 600 clamp(15px,1.4vw,20px)/1.2 Georgia, serif; letter-spacing: .06em; }
+      .map-label span { display: block; margin-top: 3px; color: rgba(239,229,198,.7); font-size: 9px; letter-spacing: .18em; text-transform: uppercase; }
+      .scene-note { position: absolute; z-index: 3; left: calc(var(--rail-width) + 37px); bottom: 116px; color: rgba(240,232,207,.84); font-size: 10px; text-shadow: 0 1px 5px #111; pointer-events: none; }
       .scene-note b { color: var(--gold-bright); font-weight: 600; }
 
-      .side-panel { position: absolute; z-index: 4; top: 95px; right: 16px; bottom: 118px; width: 305px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(14px); transition: transform .2s, opacity .2s; }
+      .side-panel { position: absolute; z-index: 4; top: 70px; right: 16px; bottom: 102px; width: 288px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(14px); transition: transform .2s, opacity .2s; }
       .side-panel.closed { transform: translateX(calc(100% + 28px)); opacity: 0; pointer-events: none; }
       .panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 17px 17px 13px; border-bottom: 1px solid var(--line); }
       .panel-head h2 { margin: 5px 0 0; font: 600 18px/1.1 Georgia, serif; }
@@ -130,26 +127,26 @@
       .catalog-tile small { margin-top: 4px; color: var(--muted); font-size: 9px; }
       .panel-footer { padding: 11px 14px; border-top: 1px solid var(--line); color: var(--dim); font-size: 9px; }
 
-      .bottom-dock { position: absolute; z-index: 4; left: calc(var(--rail-width) + 40px); right: 338px; bottom: 16px; min-height: 84px; display: flex; align-items: stretch; gap: 11px; padding: 10px; border: 1px solid var(--line); border-radius: 17px; background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(12px); transition: transform .2s, opacity .2s; }
+      .bottom-dock { position: absolute; z-index: 4; left: calc(var(--rail-width) + 40px); right: 320px; bottom: 14px; min-height: 72px; display: flex; align-items: stretch; gap: 9px; padding: 8px; border: 1px solid var(--line); border-radius: 17px; background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(12px); transition: transform .2s, opacity .2s; }
       .bottom-dock.closed { transform: translateY(calc(100% + 25px)); opacity: 0; pointer-events: none; }
-      .selection { width: 224px; min-width: 195px; display: flex; align-items: center; gap: 12px; padding: 0 14px 0 7px; border-right: 1px solid var(--line); }
-      .portrait { width: 54px; height: 54px; flex: 0 0 54px; display: grid; place-items: center; border: 1px solid rgba(211,181,119,.45); border-radius: 12px; color: var(--gold-bright); background: radial-gradient(circle at 50% 35%,#67745b,#253126 72%); font: 700 15px/1 Georgia, serif; }
+      .selection { width: 196px; min-width: 170px; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 6px; border-right: 1px solid var(--line); }
+      .portrait { width: 44px; height: 44px; flex: 0 0 44px; display: grid; place-items: center; border: 1px solid rgba(211,181,119,.45); border-radius: 11px; color: var(--gold-bright); background: radial-gradient(circle at 50% 35%,#67745b,#253126 72%); font: 700 13px/1 Georgia, serif; }
       .portrait.building { color: #d6c7a0; background: linear-gradient(145deg,#777059,#302b22); }
-      .selection h3 { margin: 0; font: 600 13px/1.15 Georgia, serif; }
-      .selection p { margin: 5px 0 0; color: var(--muted); font-size: 10px; }
-      .health { width: 116px; height: 4px; margin-top: 7px; overflow: hidden; border-radius: 9px; background: rgba(255,255,255,.1); }
+      .selection h3 { margin: 0; font: 600 12px/1.15 Georgia, serif; }
+      .selection p { margin: 4px 0 0; color: var(--muted); font-size: 9px; }
+      .health { width: 96px; height: 4px; margin-top: 5px; overflow: hidden; border-radius: 9px; background: rgba(255,255,255,.1); }
       .health i { display: block; width: 78%; height: 100%; background: #9db982; }
       .commands { display: flex; flex: 1; min-width: 0; align-items: center; gap: 6px; overflow-x: auto; }
-      .command-button { min-width: 70px; height: 61px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 5px 8px; border: 1px solid transparent; border-radius: 10px; color: #dad4c4; background: transparent; white-space: nowrap; cursor: pointer; }
+      .command-button { min-width: 60px; height: 50px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 4px 7px; border: 1px solid transparent; border-radius: 10px; color: #dad4c4; background: transparent; white-space: nowrap; cursor: pointer; }
       .command-button span:first-child { width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid rgba(211,181,119,.3); border-radius: 7px; color: var(--gold); font: 700 10px/1 ui-monospace, monospace; }
       .command-button small { color: var(--muted); font-size: 9px; }
       .command-button:disabled { opacity: .42; cursor: default; }
       .dock-handle { position: absolute; top: -26px; right: 12px; display: flex; gap: 4px; }
       .dock-handle button { padding: 5px 8px; border: 1px solid var(--line); border-radius: 7px 7px 0 0; color: var(--muted); background: var(--panel); font-size: 9px; cursor: pointer; }
 
-      .minimap { position: absolute; z-index: 4; right: 16px; bottom: 16px; width: 305px; height: 91px; display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 15px; background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(12px); transition: width .2s, height .2s, transform .2s, opacity .2s; }
+      .minimap { position: absolute; z-index: 4; right: 16px; bottom: 14px; width: 288px; height: 76px; display: flex; gap: 9px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 15px; background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(12px); transition: width .2s, height .2s, transform .2s, opacity .2s; }
       .minimap.collapsed { width: 156px; height: 46px; }
-      .mini-world { position: relative; flex: 1; height: 65px; overflow: hidden; border: 1px solid rgba(137,164,127,.3); border-radius: 9px; background: radial-gradient(ellipse at 50% 50%,#657747,#374c35 67%,#18363b 68%,#10272c); }
+      .mini-world { position: relative; flex: 1; height: 54px; overflow: hidden; border: 1px solid rgba(137,164,127,.3); border-radius: 9px; background: radial-gradient(ellipse at 50% 50%,#657747,#374c35 67%,#18363b 68%,#10272c); }
       .minimap.collapsed .mini-world { display: none; }
       .mini-land { position: absolute; inset: 10px 24px; border-radius: 48% 38% 44% 43%; background: #6d8150; transform: rotate(-12deg); box-shadow: inset 0 0 0 2px rgba(222,206,157,.48); }
       .mini-river { position: absolute; left: 45%; top: 7px; width: 2px; height: 54px; background: rgba(103,176,181,.85); transform: rotate(18deg); }
@@ -233,7 +230,7 @@
         .side-panel { width: 270px; right: 12px; }
         .bottom-dock { right: 294px; left: calc(var(--rail-width) + 32px); }
         .minimap { width: 270px; right: 12px; }
-        .map-actions,.help-hint { right: 302px; }
+        .help-hint { right: 302px; }
         .mode-switch { top: 90px; gap: 3px; padding: 5px; }
         .mode-button { min-height: 41px; }
         .nav-rail { top: 255px; gap: 3px; padding: 5px; }
@@ -278,7 +275,7 @@
         .map-label { top: 78px; left: 74px; }
         .map-label strong { font-size: 15px; }
         .map-label span { font-size: 7px; }
-        .map-actions,.help-hint { top: 80px; right: 10px; }
+        .help-hint { top: 80px; right: 10px; }
         .map-action { min-height: 27px; padding: 0 7px; font-size: 8px; }
         .help-hint { display: none; }
         .side-panel { top: auto; right: 8px; bottom: 194px; width: min(290px,calc(100vw - 82px)); max-height: min(40dvh,calc(100dvh - 280px)); border-radius: 14px; }
@@ -315,7 +312,7 @@
         .top-actions .top-button[data-action="search"] kbd { display: none; }
         .top-actions .top-button[data-action="search"]::after { content:"⌕"; font: 700 19px/1 ui-monospace,monospace; }
         .nav-rail { top: 241px; }
-        .map-actions,.scene-note { display:none; }
+        .scene-note { display:none; }
         .nav-button[data-nav="diplomacy"] { display: none; }
         .side-panel { max-height: min(42dvh,calc(100dvh - 280px)); bottom: calc(178px + env(safe-area-inset-bottom)); }
         .bottom-dock { left: calc(var(--rail-width) + 20px); right: 6px; bottom: max(6px,env(safe-area-inset-bottom)); }
@@ -410,7 +407,7 @@
           <button class="resource" type="button" data-resource="population" aria-label="Aldeões: 28 de 35, 6 disponíveis. Abrir população na economia." aria-controls="side-panel"><span class="resource-mark" aria-hidden="true">A</span><span><span class="resource-label">Aldeões</span><span class="resource-value">28/35</span><small class="resource-rate" style="color:var(--muted)">6 livres</small></span></button>
         </div>
         <div class="top-actions">
-          <div class="era-pill"><div class="eyebrow">Era atual</div><div class="era-name">Idade do Bronze</div></div>
+          <div class="era-pill"><div class="eyebrow">Era atual</div><div class="era-name">Era Colonial</div></div>
           <button class="top-button" data-action="search" aria-label="Buscar menu ou comando">Buscar <kbd style="margin-left:6px">⌘ K</kbd></button>
           <button class="top-button" data-action="customize">Interface</button>
           <button class="top-button" data-action="menus">Menu</button>
@@ -433,16 +430,16 @@
         <div class="rail-divider"></div>
         <button class="nav-button" data-action="minimap"><span class="nav-code">M</span><small>Minimapa</small></button>
         <button class="nav-button" data-action="customize"><span class="nav-code">I</span><small>Painéis</small></button>
+        <button class="nav-button" data-action="radial"><span class="nav-code">◎</span><small>Radial</small></button>
         <div class="rail-spacer"></div>
-        <div class="rail-label">Atalhos<br/>1–3</div>
+        <div class="rail-label">Atalhos<br/>Alt+1–3</div>
       </nav>
 
       <div class="map-label"><strong id="map-title">Partida de teste</strong><span id="map-subtitle">Cenário original preservado</span></div>
-      <div class="map-actions"><button class="map-action" data-action="radial">Radial <kbd style="opacity:.7">R</kbd></button><button class="map-action" data-action="toggle-panel">Recolher painel</button><button class="map-action" data-action="toggle-dock">Recolher seleção</button></div>
       <div class="help-hint">Prévia visual · comandos do jogo não estão conectados ao HUD</div>
       <div class="scene-note"><b>HUD demonstrativo</b> · Valores e ações exibidos são exemplos de interface</div>
 
-      <aside class="side-panel" id="side-panel" aria-label="Painel contextual">
+      <aside class="side-panel closed" id="side-panel" aria-label="Painel contextual">
         <div class="panel-head"><div><div class="eyebrow" id="panel-kicker">Resumo da vila</div><h2 id="panel-title">Sua aldeia</h2><div class="panel-subtitle" id="panel-subtitle">O essencial para decidir o próximo passo.</div></div><button class="panel-dismiss" data-action="toggle-panel" aria-label="Ocultar painel">×</button></div>
         <div class="panel-body" id="panel-body"></div>
         <div class="panel-footer" id="panel-footer">Painel contextual · atalho: <kbd>Q</kbd></div>
@@ -482,7 +479,7 @@
         <section class="layout-window" role="dialog" aria-modal="true" aria-labelledby="layout-title">
           <div class="modal-title-row"><div><div class="eyebrow">Composição da interface</div><h2 id="layout-title">Organize sua visão</h2></div><button class="close-modal" data-action="close-layout" aria-label="Fechar">×</button></div>
           <p>Escolha uma disposição pronta e mostre só os painéis úteis agora. Os números nesta tela são ilustrativos.</p>
-          <div class="preset-row"><button class="preset active" data-preset="balanced"><b>Equilibrada</b><small>Resumo, seleção e minimapa</small></button><button class="preset" data-preset="explorer"><b>Exploração</b><small>Mapa amplo e navegação</small></button><button class="preset" data-preset="strategist"><b>Estrategista</b><small>Economia e objetivos visíveis</small></button></div>
+          <div class="preset-row"><button class="preset active" data-preset="balanced"><b>Mapa primeiro</b><small>Só o essencial: seleção e minimapa</small></button><button class="preset" data-preset="explorer"><b>Exploração</b><small>Mapa amplo, minimapa e mundo</small></button><button class="preset" data-preset="strategist"><b>Gestão</b><small>Painel de economia aberto</small></button></div>
           <div class="toggle-list"><div class="toggle-row"><span>Painel contextual</span><button class="switch" role="switch" aria-checked="true" data-toggle="panel"></button></div><div class="toggle-row"><span>Seleção e ações</span><button class="switch" role="switch" aria-checked="true" data-toggle="dock"></button></div><div class="toggle-row"><span>Minimapa</span><button class="switch" role="switch" aria-checked="true" data-toggle="minimap"></button></div><div class="toggle-row"><span>Objetivos no painel</span><button class="switch" role="switch" aria-checked="true" data-toggle="objectives"></button></div></div>
         </section>
       </div>
@@ -519,7 +516,7 @@
       const layoutModal = document.getElementById('layout-modal');
       const searchInput = document.getElementById('search-input');
       const searchResults = document.getElementById('search-results');
-      const state = { mode: 'city', nav: 'overview', entity: 'villager', panel: true, dock: true, minimap: true, objectives: true, preset: 'balanced', menuTab: 'empire', searchIndex: 0, buildSelection: null, resourceFocus: null, locality: null, toastTimer: null, hudMinimized:false, hudKey:'Alt+H' };
+      const state = { mode: 'city', nav: 'overview', entity: 'villager', panel: false, dock: true, minimap: true, objectives: true, preset: 'balanced', menuTab: 'empire', searchIndex: 0, buildSelection: null, resourceFocus: null, locality: null, toastTimer: null, hudMinimized:false, hudKey:'Alt+H' };
       let settingsView='form';
       let configFormat='json';
 
@@ -561,12 +558,12 @@
         build: { kicker:'Obras',title:'Construções',subtitle:'Escolha o que erguer na região.',footer:'Construções demonstrativas · sem custo real',body:()=>buildPanel() },
         research: { kicker:'Conhecimento',title:'Pesquisa',subtitle:'Acompanhe a próxima melhoria da vila.',footer:'Árvore conceitual · progresso demonstrativo',body:()=>researchPanel() },
         diplomacy: { kicker:'Relações',title:'Vizinhos',subtitle:'Conheça as comunidades avistadas.',footer:'Diplomacia demonstrativa · sem efeitos de partida',body:()=>relationsPanel() },
-        world: { kicker:'Navegação',title:'Mapa-múndi',subtitle:'Localidades avistadas e a relação de cada uma com a vila.',footer:'Localidades ilustrativas · sem viagem real',body:()=>worldPanel() },
+        world: { kicker:'Exploração',title:'Mapa-múndi',subtitle:'Localidades avistadas e a relação de cada uma com a vila.',footer:'Localidades ilustrativas · sem viagem real',body:()=>worldPanel() },
       };
 
       function overviewPanel() {
-        const objectives = state.objectives ? `<div class="card"><div class="section-label">Próximos passos <button data-action="open-menu">Ver todos</button></div><div class="objective"><span class="check done">✓</span><span>Erguer um centro de vila em terreno elevado</span></div><div class="objective"><span class="check"></span><span>Construir uma fazenda para ampliar a reserva de comida</span></div><div class="objective"><span class="check"></span><span>Enviar um batedor até o caminho do rio</span></div></div>` : '';
-        return `<div class="card"><div class="card-title">Produção da aldeia <span class="state">Estável</span></div><div class="mini-stats"><div class="mini-stat"><span>Comida</span><b>+18/min</b></div><div class="mini-stat"><span>Madeira</span><b>+12/min</b></div><div class="mini-stat"><span>Pedra</span><b>+6/min</b></div></div></div>${objectives}<div class="card"><div class="section-label">Atividade</div><div class="objective"><span class="check">2</span><span>2 aldeões estão cortando madeira na orla oeste</span></div><div class="objective"><span class="check">1</span><span>Uma nova casa está em construção</span></div></div><div class="card"><div class="section-label">Aviso do reino</div><div class="objective"><span class="check" style="color:var(--gold-bright)">!</span><span>Um batedor avistou movimento ao norte. Abra Relações para consultar a região.</span></div></div>`;
+        const objectives = state.objectives ? `<div class="card"><div class="section-label">Próximos passos <button data-action="open-menu">Ver todos</button></div><div class="objective"><span class="check done">✓</span><span>Construir uma Casa Colonial para ampliar a população</span></div><div class="objective"><span class="check"></span><span>Construir uma Fazenda &amp; Granja para ampliar a reserva de comida</span></div><div class="objective"><span class="check"></span><span>Levar um aldeão até a pedreira ao pé da montanha</span></div></div>` : '';
+        return `<div class="card"><div class="card-title">Produção da aldeia <span class="state">Estável</span></div><div class="mini-stats"><div class="mini-stat"><span>Comida</span><b>+18/min</b></div><div class="mini-stat"><span>Madeira</span><b>+12/min</b></div><div class="mini-stat"><span>Pedra</span><b>+6/min</b></div></div></div>${objectives}<div class="card"><div class="section-label">Atividade</div><div class="objective"><span class="check">2</span><span>2 aldeões estão cortando madeira na orla oeste</span></div><div class="objective"><span class="check">1</span><span>Uma Casa Colonial está em construção</span></div></div><div class="card"><div class="section-label">Aviso do reino</div><div class="objective"><span class="check" style="color:var(--gold-bright)">!</span><span>Uma patrulha avistou movimento ao norte. Abra Relações para consultar a região.</span></div></div>`;
       }
       function economyPanel() {
         const focus=(key)=>state.resourceFocus===key?'resource-focus':'';
@@ -578,8 +575,8 @@
         panelBody.querySelector(`[data-resource-detail="${resource}"]`)?.scrollIntoView({block:'nearest',behavior:'smooth'});
         notify(resource==='population'?'População e vagas disponíveis':'Produção e estoque do recurso');
       }
-      function buildPanel() { return `<div class="section-label">Edifícios disponíveis <button data-action="toast" data-message="Catálogo completo demonstrativo.">Catálogo completo</button></div><div class="catalog-grid"><button class="catalog-tile" data-build="Casa"><span class="tile-mark">H</span><b>Casa</b><small>População +5 · Madeira 50</small></button><button class="catalog-tile" data-build="Fazenda"><span class="tile-mark">F</span><b>Fazenda</b><small>Comida +6/min · Madeira 80</small></button><button class="catalog-tile" data-build="Quartel"><span class="tile-mark">Q</span><b>Quartel</b><small>Treinar infantaria</small></button><button class="catalog-tile" data-build="Cais"><span class="tile-mark">C</span><b>Cais</b><small>Acesso à navegação</small></button></div><div class="card" style="margin-top:12px"><div class="card-title">Em construção <span class="state">1 obra</span></div><div class="progress-row"><span>Casa · aldeões 2</span><b>68%</b></div><div class="progress"><i style="width:68%"></i></div></div>`; }
-      function researchPanel() { return `<div class="card"><div class="card-title">Navegação <span class="state" style="color:var(--gold-bright)">Em pesquisa</span></div><div class="progress-row"><span>Biblioteca · 1 pesquisador</span><b>24%</b></div><div class="progress"><i style="width:24%"></i></div><div class="objective"><span class="check done">✓</span><span>Cartografia básica</span></div></div><div class="section-label">Próximas descobertas</div><div class="action-list"><button class="panel-action" data-action="toast" data-message="A pesquisa de Navegação já está em andamento."><span><b>Navegação</b><small style="display:block;margin-top:4px">Permite construir barcos e explorar o arquipélago</small></span><kbd>24%</kbd></button><button class="panel-action" data-action="toast" data-message="Metalurgia requer a próxima era."><span><b>Metalurgia</b><small style="display:block;margin-top:4px">Melhora ferramentas de coleta</small></span><small>Bloqueada</small></button><button class="panel-action" data-action="toast" data-message="Irrigação requer uma fazenda próxima ao rio."><span><b>Irrigação</b><small style="display:block;margin-top:4px">Aumenta a produção das fazendas</small></span><small>Disponível</small></button></div>`; }
+      function buildPanel() { return `<div class="section-label">Edifícios disponíveis <button data-action="toast" data-message="Catálogo completo demonstrativo.">Catálogo completo</button></div><div class="catalog-grid"><button class="catalog-tile" data-build="Casa Colonial"><span class="tile-mark">Q</span><b>Casa Colonial</b><small>+5 população máx. · 60 madeira · 8 s</small></button><button class="catalog-tile" data-build="Fazenda &amp; Granja"><span class="tile-mark">F</span><b>Fazenda &amp; Granja</b><small>+2 comida/s · 75 madeira · 9 s</small></button><button class="catalog-tile" data-build="Quartel Militar"><span class="tile-mark">W</span><b>Quartel Militar</b><small>Soldado e cavalaria · 120 madeira + 30 ouro</small></button><button class="catalog-tile" data-build="Cais &amp; Doca Naval"><span class="tile-mark">B</span><b>Cais &amp; Doca Naval</b><small>Barcos · 140 madeira · só em margem</small></button></div><div class="card" style="margin-top:12px"><div class="card-title">Em construção <span class="state">1 obra</span></div><div class="progress-row"><span>Casa Colonial · 2 aldeões</span><b>68%</b></div><div class="progress"><i style="width:68%"></i></div></div>`; }
+      function researchPanel() { return `<div class="card"><div class="card-title">Cartografia <span class="state" style="color:var(--gold-bright)">Em pesquisa</span></div><div class="progress-row"><span>Era do Comércio · 250 madeira + 200 ouro · 35 s</span><b>24%</b></div><div class="progress"><i style="width:24%"></i></div><div class="objective"><span class="check done">✓</span><span>Pré-requisito atendido: Cunhagem</span></div></div><div class="section-label">Próximas descobertas</div><div class="action-list"><button class="panel-action" data-action="toast" data-message="Corpo de Fuzileiros exige Estriamento do Cano."><span><b>Corpo de Fuzileiros</b><small style="display:block;margin-top:4px">+35% de dano da infantaria · 300 madeira + 250 ouro</small></span><kbd>Comércio</kbd></button><button class="panel-action" data-action="toast" data-message="Serrarias a Vapor exige a Era Industrial."><span><b>Serrarias a Vapor</b><small style="display:block;margin-top:4px">+40% de coleta de madeira · 400 madeira + 350 ouro</small></span><small>Bloqueada</small></button><button class="panel-action" data-action="toast" data-message="Canais de Irrigação custam 150 madeira + 60 ouro e levam 20 s."><span><b>Canais de Irrigação</b><small style="display:block;margin-top:4px">+25% de coleta de madeira · 150 madeira + 60 ouro</small></span><small>Disponível</small></button></div><div class="objective" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)"><span class="check">3</span><span>Fila única: era e tecnologias dividem no máximo 3 itens.</span></div>`; }
       function relationsPanel() { return `<div class="card"><div class="card-title">Clã do Rio <span class="state">Neutro</span></div><div class="objective"><span class="check">R</span><span>Avistados ao norte do vale. Ainda não houve contato formal.</span></div><button class="panel-action" data-action="toast" data-message="O batedor segue para o limite norte do mapa."><span>Enviar batedor</span><kbd>↗</kbd></button></div><div class="card"><div class="card-title">Ruínas da colina <span class="state" style="color:var(--gold-bright)">Não exploradas</span></div><div class="objective"><span class="check">?</span><span>Há uma estrutura antiga além da mata. Uma patrulha pode investigar.</span></div><button class="panel-action" data-action="mode" data-value="explore"><span>Planejar exploração</span><kbd>E</kbd></button></div>`; }
 
       function worldPanel() {
@@ -722,14 +719,14 @@
         if(key==='panel')panel.classList.toggle('closed',!value);
         if(key==='dock')dock.classList.toggle('closed',!value);
         if(key==='minimap')minimap.hidden=!value;
-        if(key==='objectives'&&state.nav==='overview')setNav('overview');
+        if(key==='objectives'&&state.nav==='overview')setNav('overview',false);
         syncSwitches();
       }
       function applyPreset(preset) {
         state.preset=preset;
         document.querySelectorAll('[data-preset]').forEach(b=>b.classList.toggle('active',b.dataset.preset===preset));
-        if(preset==='balanced'){setVisibility('panel',true);setVisibility('dock',true);setVisibility('minimap',true);state.objectives=true;}
-        if(preset==='explorer'){setVisibility('panel',false);setVisibility('dock',true);setVisibility('minimap',true);state.objectives=false;setMode('explore');}
+        if(preset==='balanced'){setVisibility('panel',false);setVisibility('dock',true);setVisibility('minimap',true);state.objectives=true;}
+        if(preset==='explorer'){setVisibility('panel',false);setVisibility('dock',true);setVisibility('minimap',true);state.objectives=false;setMode('explore');setNav('world',false);}
         if(preset==='strategist'){setVisibility('panel',true);setVisibility('dock',true);setVisibility('minimap',false);state.objectives=true;setNav('economy');}
         syncSwitches();
       }
@@ -739,7 +736,7 @@
       function openModal(modal) { modal.hidden=false; const input=modal.querySelector('input'); if(input){input.value='';renderSearch('');setTimeout(()=>input.focus(),30);} }
       function closeModals() { searchModal.hidden=true;menuModal.hidden=true;layoutModal.hidden=true;batchModal.hidden=true; }
       const actions=[
-        ['Abrir visão geral','Painel da aldeia','nav:overview','Q'],['Abrir economia','Produção e população','nav:economy',''],['Abrir construções','Catálogo de edifícios','nav:build',''],['Abrir pesquisa','Tecnologias e eras','nav:research','T'],['Abrir relações','Vizinhos e regiões avistadas','nav:diplomacy',''],['Modo: vila','Composição de cidade','mode:city','1'],['Modo: exploração','Campo e navegação','mode:explore','2'],['Modo: combate','Patrulha e ordens militares','mode:battle','3'],['Mostrar ou ocultar painel','Recolher painel contextual','toggle:panel','Q'],['Mostrar ou ocultar seleção','Recolher ações selecionadas','toggle:dock',''],['Alternar minimapa','Mostrar ou ocultar o minimapa','toggle:minimap','M'],['Modo minimalista','Ocultar todos os painéis e restaurar com Alt+H','minimize:all','Alt+H'],['Personalizar interface','Perfis e painéis visíveis','customize',''],['Abrir configurações do HUD','Disposição, atalhos e exportação','menu:interface',''],['Abrir menu do império','Áreas de gestão','menus',''],['Abrir mapa-múndi','Localidades e exploração','nav:world',''],['Menu radial de comandos','Comandos de interface em círculo','radial','R'],['Comando em lote: designar coleta','Prévia dos alvos com desfazer','batch:gather',''],['Comando em lote: patrulhar costa','Prévia dos alvos com desfazer','batch:patrol','']
+        ['Abrir visão geral','Painel da aldeia','nav:overview',''],['Abrir economia','Produção e população','nav:economy',''],['Abrir construções','Catálogo de edifícios','nav:build',''],['Abrir pesquisa','Tecnologias e eras','nav:research',''],['Abrir relações','Vizinhos e regiões avistadas','nav:diplomacy',''],['Modo: vila','Composição de cidade','mode:city','Alt+1'],['Modo: exploração','Campo e navegação','mode:explore','Alt+2'],['Modo: combate','Patrulha e ordens militares','mode:battle','Alt+3'],['Mostrar ou ocultar painel','Recolher painel contextual','toggle:panel','Alt+P'],['Mostrar ou ocultar seleção','Recolher ações selecionadas','toggle:dock',''],['Alternar minimapa','Mostrar ou ocultar o minimapa','toggle:minimap','Alt+M'],['Modo minimalista','Ocultar todos os painéis e restaurar com Alt+H','minimize:all','Alt+H'],['Personalizar interface','Perfis e painéis visíveis','customize',''],['Abrir configurações do HUD','Disposição, atalhos e exportação','menu:interface',''],['Abrir menu do império','Áreas de gestão','menus',''],['Abrir mapa-múndi','Localidades e exploração','nav:world',''],['Menu radial de comandos','Comandos de interface em círculo','radial','Alt+R'],['Comando em lote: designar coleta','Prévia dos alvos com desfazer','batch:gather',''],['Comando em lote: patrulhar costa','Prévia dos alvos com desfazer','batch:patrol','']
       ];
       function paletteActions() {
         return actions.concat(localities.map(l=>[`Ir para ${l.name}`,`Localidade · ${l.relation}`,'locality:'+l.id,'']));
@@ -802,7 +799,7 @@
         const cards=document.getElementById('menu-cards');cards.classList.add('interface-settings');
         cards.innerHTML=`<div class="settings-toolbar"><div class="segmented" aria-label="Modo de edição"><button data-settings-view="form" aria-pressed="${settingsView==='form'}">Formulário</button><button data-settings-view="code" aria-pressed="${settingsView==='code'}">JSON / YAML</button></div><button class="settings-actions-button" data-action="minimize-hud">Minimizar HUD</button></div>
           <div id="settings-form" class="settings-form" ${settingsView==='code'?'hidden':''}>
-            <label class="setting-field"><span>Disposição<small>Escolha o arranjo inicial dos painéis.</small></span><select id="setting-layout"><option value="balanced">Equilibrada</option><option value="explorer">Exploração</option><option value="strategist">Estrategista</option></select></label>
+            <label class="setting-field"><span>Disposição<small>Escolha o arranjo inicial dos painéis.</small></span><select id="setting-layout"><option value="balanced">Mapa primeiro</option><option value="explorer">Exploração</option><option value="strategist">Gestão</option></select></label>
             <div class="setting-field"><span>Painel contextual<small>Resumo e informações da partida.</small></span><button class="switch" role="switch" aria-checked="${state.panel}" data-pref="panel" aria-label="Mostrar painel contextual"></button></div>
             <div class="setting-field"><span>Seleção e ações<small>Comandos da entidade selecionada.</small></span><button class="switch" role="switch" aria-checked="${state.dock}" data-pref="dock" aria-label="Mostrar seleção e ações"></button></div>
             <div class="setting-field"><span>Minimapa<small>Prévia de navegação no canto da tela.</small></span><button class="switch" role="switch" aria-checked="${state.minimap}" data-pref="minimap" aria-label="Mostrar minimapa"></button></div>
@@ -860,7 +857,7 @@
         state.menuTab=tab;document.querySelectorAll('[data-menu-tab]').forEach(b=>b.classList.toggle('active',b.dataset.menuTab===tab));
         const cards=document.getElementById('menu-cards');cards.classList.remove('interface-settings');
         if(tab==='interface'){document.getElementById('menu-heading').textContent='Interface do HUD';document.getElementById('menu-description').textContent='Organize os painéis, escolha atalhos e leve sua configuração para outro dispositivo.';renderInterfaceSettings();return;}
-        const data={empire:['Império Português','Acompanhe o estado do reino e abra uma área de gestão sem perder o lugar no mapa.',['Território','1 região habitada · 3 áreas avistadas'],['População','28 aldeões · 6 disponíveis'],['Próximo marco','Concluir pesquisa de Navegação']],economy:['Economia','Consulte o ritmo de produção e redistribua trabalhadores.',['Produção','+40 recursos por minuto'],['Reserva','2.920 recursos armazenados'],['Gargalo','Comida abaixo da meta']],army:['Exército','Organize patrulhas e acompanhe a proteção da vila.',['Guarnição','4 unidades em patrulha'],['Recrutamento','Quartel disponível'],['Alerta','Movimento avistado a oeste']],research:['Conhecimento','Acompanhe descobertas e requisitos para avançar de era.',['Pesquisa atual','Navegação · 24%'],['Próxima era','Idade do Ferro'],['Disponíveis','Irrigação e cartografia']]};
+        const data={empire:['Império Português','Acompanhe o estado do reino e abra uma área de gestão sem perder o lugar no mapa.',['Território','1 região habitada · 3 áreas avistadas'],['População','28 aldeões · 6 disponíveis'],['Próximo marco','Concluir Cartografia']],economy:['Economia','Consulte o ritmo de produção e redistribua trabalhadores.',['Produção','+40 recursos por minuto'],['Reserva','2.920 recursos armazenados'],['Gargalo','Comida abaixo da meta']],army:['Exército','Organize patrulhas e acompanhe a proteção da vila.',['Guarnição','4 unidades em patrulha'],['Recrutamento','Quartel Militar disponível'],['Alerta','Movimento avistado a oeste']],research:['Conhecimento','Acompanhe descobertas e requisitos para avançar de era.',['Pesquisa atual','Cartografia · 24%'],['Próxima era','Era do Comércio'],['Disponíveis','Canais de Irrigação e Cunhagem']]};
         const x=data[tab]||data.empire;document.getElementById('menu-heading').textContent=x[0];document.getElementById('menu-description').textContent=x[1];cards.innerHTML=x.slice(2).map(c=>`<div class="menu-card"><b>${c[0]}</b><span>${c[1]}</span></div>`).join('');
       }
 
@@ -870,7 +867,7 @@
           state.preset=saved.layout;state.panel=Boolean(saved.panels.context);state.dock=Boolean(saved.panels.selection);state.minimap=Boolean(saved.panels.minimap);state.objectives=Boolean(saved.panels.objectives);state.hudKey=saved.shortcuts.minimizeHud;
         }
       } catch { /* A configuração local inválida não impede abrir a PoC. */ }
-      setNav('overview');renderSelection();setVisibility('panel',state.panel);setVisibility('dock',state.dock);setVisibility('minimap',state.minimap);setVisibility('objectives',state.objectives);
+      setNav('overview',false);renderSelection();setVisibility('panel',state.panel);setVisibility('dock',state.dock);setVisibility('minimap',state.minimap);setVisibility('objectives',state.objectives);
       historyPush('Estado inicial');
       document.addEventListener('click',event=>{
         const target=event.target.closest('button');if(!target)return;
@@ -914,12 +911,21 @@
         if(!searchModal.hidden&&event.key==='Enter'){const selected=searchResults.querySelectorAll('.palette-result')[state.searchIndex];if(selected){event.preventDefault();selected.click();}return;}
         if(!typing&&(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();openModal(searchModal);return;}
         if(!typing&&(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='z'){event.preventDefault();if(event.shiftKey)historyRedo();else historyUndo();return;}
-        const shortcutMatches=state.hudKey==='Alt+H'?event.altKey&&event.key.toLowerCase()==='h':state.hudKey==='Alt+J'?event.altKey&&event.key.toLowerCase()==='j':event.ctrlKey&&event.shiftKey&&event.key.toLowerCase()==='h';
-        if(!typing&&shortcutMatches){event.preventDefault();toggleHudMinimized(!state.hudMinimized);return;}
+        const altCombo=(code)=>event.altKey&&!event.ctrlKey&&!event.metaKey&&event.code===code;
+        const shortcutMatches=state.hudKey==='Alt+H'?altCombo('KeyH'):state.hudKey==='Alt+J'?altCombo('KeyJ'):(event.ctrlKey&&event.shiftKey&&event.code==='KeyH');
+        if(!typing&&shortcutMatches){event.preventDefault();toggleHudMinimized(!state.hudMinimized);historyPush(state.hudMinimized?'Modo minimalista':'Restaurar HUD');return;}
+        // As teclas simples H, C, M, K, Z, Q W E R T Y F B e 1-3 pertencem ao jogo
+        // (docs/reference/comandos-teclado.md). A Poc so usa Alt+ para nao competir
+        // com a memoria muscular de quem ja joga.
+        if(!typing&&event.altKey&&!event.ctrlKey&&!event.metaKey){
+          if(event.code==='Digit1'){event.preventDefault();setMode('city');historyPush('Modo: vila');return;}
+          if(event.code==='Digit2'){event.preventDefault();setMode('explore');historyPush('Modo: exploração');return;}
+          if(event.code==='Digit3'){event.preventDefault();setMode('battle');historyPush('Modo: combate');return;}
+          if(event.code==='KeyP'){event.preventDefault();setVisibility('panel',!state.panel);historyPush(state.panel?'Mostrar painel':'Ocultar painel');return;}
+          if(event.code==='KeyM'){event.preventDefault();setVisibility('minimap',!state.minimap);historyPush(state.minimap?'Mostrar minimapa':'Ocultar minimapa');return;}
+          if(event.code==='KeyR'){event.preventDefault();openRadial();return;}
+        }
         if(typing||event.metaKey||event.ctrlKey||event.altKey)return;
-        if(event.key==='1')setMode('city');if(event.key==='2')setMode('explore');if(event.key==='3')setMode('battle');
-        if(event.key.toLowerCase()==='q')setVisibility('panel',!state.panel);if(event.key.toLowerCase()==='m')setVisibility('minimap',!state.minimap);
-        if(event.key.toLowerCase()==='b')setNav('build');if(event.key.toLowerCase()==='t')setNav('research');if(event.key.toLowerCase()==='r')openRadial();
       });
 
     </script>
