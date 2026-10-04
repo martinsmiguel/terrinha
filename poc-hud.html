@@ -36,6 +36,10 @@
       .game.hud-minimized > :not(.world):not(.restore-hud) { visibility: hidden; opacity: 0; pointer-events: none; }
       .world { position: absolute; z-index: 0; inset: 0; overflow: hidden; background: #101710; }
       .world iframe { display: block; width: 100%; height: 100%; border: 0; background: #101710; }
+      /* O iframe do jogo fica fora da ordem de foco (tabindex="-1"): e a tela real
+         preservada, nao um controle da Poc. O Chromium nao expoe pseudo-classe de
+         foco no elemento do frame, entao mante-lo focavel criava um ponto de foco
+         sem indicador. O teclado da Poc percorre so os controles do HUD. */
       .map-vignette { display: none; }
       .restore-hud { position:absolute; z-index:40; top:12px; left:50%; transform:translateX(-50%); display:none; align-items:center; gap:8px; padding:9px 13px; border:1px solid rgba(211,181,119,.5); border-radius:12px; color:var(--gold-bright); background:rgba(19,25,21,.96); box-shadow:var(--shadow); cursor:pointer; }
       .hud-minimized .restore-hud { display:flex; }
@@ -454,7 +458,7 @@
     </svg>
     <main class="game" id="game" data-mode="city">
       <section class="world" aria-label="Partida original com o novo HUD sobreposto">
-        <iframe id="game-frame" src="/poc.html?hud-preview=1" title="Partida atual do Terrinha"></iframe>
+        <iframe id="game-frame" src="/poc.html?hud-preview=1" title="Partida atual do Terrinha" tabindex="-1"></iframe>
       </section>
       <button class="restore-hud" data-action="restore-hud"><span aria-hidden="true">◈</span> Mostrar HUD <kbd>Alt+H</kbd></button>
 
