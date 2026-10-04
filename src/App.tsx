@@ -116,6 +116,14 @@ export default function App() {
   // Collapsible bottom cards & minimap state
   const [isBottomCardCollapsed, setIsBottomCardCollapsed] = useState(false);
   const [isMinimapCollapsed, setIsMinimapCollapsed] = useState(false);
+  // O mapa-mundi e controlado aqui para o Esc fechar o mapa sem limpar a selecao.
+  const [isWorldMapOpen, setIsWorldMapOpen] = useState(false);
+  /**
+   * Modo desenvolvedor: só existe em build de desenvolvimento e partida solo.
+   * Fora daí a opção de revelar o mapa nem é renderizada, e nenhum comando
+   * equivalente fica disponível na partida normal.
+   */
+  const developerToolsEnabled = import.meta.env.DEV && role === 'single';
 
   // Sustainable Forestry & Gathering Proximity Leash
   // When active, any tree gathered by player villagers automatically replants with seedlings!
@@ -1309,6 +1317,13 @@ export default function App() {
       // Do not trigger game hotkeys if focused on text input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
+      // Com o mapa-múndi aberto o Esc apenas fecha o mapa: a partida retoma com
+      // a mesma seleção e as mesmas ordens pendentes.
+      if (isWorldMapOpen) {
+        if (e.key === 'Escape') setIsWorldMapOpen(false);
+        return;
+      }
+
       if (e.key === 'Escape') {
         if (buildMode) {
           setBuildMode(null);
@@ -1455,7 +1470,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [buildMode, playerSlot, selectedEntity]);
+  }, [buildMode, playerSlot, selectedEntity, isWorldMapOpen]);
 
   // Manage 3D Building Ghost in the scene during build mode
   useEffect(() => {
@@ -3106,12 +3121,16 @@ export default function App() {
             gameState={gameState}
             playerSlot={playerSlot}
             selectedEntityId={selectedEntity?.id ?? null}
+            visibility={visionGridRef.current}
             workZones={activeWorkZones}
             onOrderMove={handleMinimapOrderMove}
             isCameraLocked={isCameraAutoMoveLocked}
             onToggleCameraLock={toggleCameraLock}
             isCollapsed={isMinimapCollapsed}
             onToggleCollapse={() => setIsMinimapCollapsed((prev) => !prev)}
+            isWorldMapOpen={isWorldMapOpen}
+            onWorldMapOpenChange={setIsWorldMapOpen}
+            developerToolsEnabled={developerToolsEnabled}
           />
         </div>
 
