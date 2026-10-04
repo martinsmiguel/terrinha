@@ -40,52 +40,91 @@
       .restore-hud { position:absolute; z-index:40; top:12px; left:50%; transform:translateX(-50%); display:none; align-items:center; gap:8px; padding:9px 13px; border:1px solid rgba(211,181,119,.5); border-radius:12px; color:var(--gold-bright); background:rgba(19,25,21,.96); box-shadow:var(--shadow); cursor:pointer; }
       .hud-minimized .restore-hud { display:flex; }
 
-      .topbar { position: absolute; z-index: 5; left: 16px; right: 16px; top: 10px; min-height: 46px; display: flex; align-items: center; gap: 10px; pointer-events: none; }
+      /* Faixa superior: um contorno para o grupo, nao um cartao por dado. */
+      .topbar { position: absolute; z-index: 5; left: 16px; right: 16px; top: 10px; height: 56px; display: flex; align-items: center; gap: 12px; padding: 5px 8px; border: 1px solid rgba(199,184,139,.18); border-radius: 16px; background: linear-gradient(180deg, rgba(17,23,18,.94), rgba(14,19,15,.78)); box-shadow: 0 14px 40px rgba(0,0,0,.42); backdrop-filter: blur(14px); pointer-events: none; }
+      .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+      .icon { width: 18px; height: 18px; flex: 0 0 auto; display: inline-block; vertical-align: middle; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
       .topbar > * { pointer-events: auto; }
-      .brand { display: flex; align-items: center; gap: 8px; min-width: 146px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: var(--shadow); }
-      .brand-mark { width: 26px; height: 26px; display: grid; place-items: center; color: var(--gold-bright); border: 1px solid rgba(211,181,119,.5); border-radius: 8px; font: 700 10px/1 ui-monospace, monospace; letter-spacing: .08em; }
-      .brand-name { font: 650 11px/1.2 Georgia, serif; letter-spacing: .1em; text-transform: uppercase; }
-      .brand-sub { color: var(--muted); margin-top: 2px; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
-      .resources { display: flex; flex: 1; justify-content: center; gap: 6px; min-width: 0; }
-      .resource { min-width: 74px; padding: 6px 9px; display: flex; gap: 7px; align-items: center; border: 1px solid var(--line); border-radius: 10px; color: inherit; background: var(--panel); box-shadow: var(--shadow); text-align: left; cursor: pointer; transition: border-color .16s, background .16s, transform .16s; }
-      .resource:hover, .resource:focus-visible { border-color: rgba(241,213,148,.65); background: rgba(36,47,38,.98); transform: translateY(-1px); }
-      .resource-mark { color: var(--gold); font: 700 10px/1 ui-monospace, monospace; width: 18px; height: 18px; display: grid; place-items: center; border: 1px solid rgba(211,181,119,.35); border-radius: 5px; }
-      .resource:nth-child(2) .resource-mark { color: #cf997c; border-color: rgba(207,153,124,.35); }
-      .resource:nth-child(3) .resource-mark { color: #d7c481; border-color: rgba(215,196,129,.35); }
-      .resource:nth-child(4) .resource-mark { color: #aab4b0; border-color: rgba(170,180,176,.35); }
-      .resource-label { display: block; color: var(--muted); font-size: 8px; line-height: 1.1; letter-spacing: .08em; text-transform: uppercase; }
-      .resource-value { display: block; margin-top: 1px; font: 650 12px/1 ui-monospace, monospace; font-variant-numeric: tabular-nums; }
-      .resource-rate { display: block; margin-top: 2px; color: var(--green); font: 9px/1 ui-monospace, monospace; }
-      .top-actions { display: flex; align-items: center; gap: 6px; }
-      .era-pill { min-width: 84px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); }
-      .eyebrow { color: var(--muted); font-size: 9px; letter-spacing: .15em; text-transform: uppercase; }
-      .era-name { margin-top: 3px; color: var(--gold-bright); font: 600 11px/1 Georgia, serif; }
-      .square-button, .top-button { height: 34px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); cursor: pointer; transition: background .16s, border-color .16s, transform .16s; }
+      .topbar::after { content:''; position:absolute; left:10px; right:10px; bottom:-1px; height:1px; background: linear-gradient(90deg, transparent, rgba(211,181,119,.42), transparent); }
+      .brand { display: flex; align-items: center; gap: 8px; padding-right: 12px; border-right: 1px solid rgba(199,184,139,.16); }
+      .brand-mark { width: 26px; height: 26px; display: grid; place-items: center; color: #1b2419; background: linear-gradient(160deg, var(--gold-bright), #a98c4d); border-radius: 8px; font-size: 11px; }
+      .brand-name { font: 600 12px/1.15 Georgia, serif; letter-spacing: .14em; text-transform: uppercase; }
+      .brand-sub { color: var(--dim); margin-top: 3px; font-size: 8px; letter-spacing: .14em; text-transform: uppercase; }
+      .resources { display: flex; flex: 1; justify-content: center; align-items: center; gap: 2px; min-width: 0; flex-wrap: nowrap; transition: opacity .3s; }
+      .resource { position: relative; flex: 0 1 auto; min-width: 0; padding: 4px 10px; display: flex; gap: 8px; align-items: center; border: 0; border-radius: 10px; color: inherit; background: transparent; text-align: left; cursor: pointer; transition: background .16s; }
+      .resource + .resource::before { content:''; position:absolute; left:0; top:18%; bottom:18%; width:1px; background: rgba(199,184,139,.13); }
+      .resource:hover, .resource:focus-visible { background: rgba(211,181,119,.1); }
+      .resource-mark { display: grid; place-items: center; color: var(--gold); }
+      .resource-mark .icon { width: 17px; height: 17px; }
+      .resource[data-kind="wood"] .resource-mark { color: #c79a5e; }
+      .resource[data-kind="food"] .resource-mark { color: #9ec07a; }
+      .resource[data-kind="gold"] .resource-mark { color: #e6cd8c; }
+      .resource[data-kind="stone"] .resource-mark { color: #a9b6b2; }
+      .resource[data-kind="pop"] .resource-mark { color: #8fb6c9; }
+      .resource-label { display: block; color: var(--dim); font-size: 8px; line-height: 1.1; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+      .resource-value { display: block; margin-top: 2px; font: 650 14px/1 ui-monospace, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .resource-cap { color: var(--dim); font-size: 10px; }
+      .resource-rate { display: block; margin-top: 2px; color: #8fae74; font: 9px/1 ui-monospace, monospace; transition: opacity .35s; }
+      .resource-rate.muted { color: var(--dim); }
+      .resource[data-kind="gold"] .resource-value { color: #e6cd8c; }
+      .resource[data-kind="food"] .resource-rate { color: #9ec07a; }
+      .resource[data-kind="stone"] .resource-rate { color: #a9b6b2; }
+      .resource[data-kind="gold"] .resource-rate { color: #d9bd7c; }
+      .era-pill { display: flex; align-items: center; gap: 8px; padding: 4px 12px; border-left: 1px solid rgba(199,184,139,.16); border-right: 1px solid rgba(199,184,139,.16); }
+      .era-glyph { display: grid; place-items: center; color: var(--gold); }
+      .era-glyph .icon { width: 16px; height: 16px; }
+      .top-glyph { display: grid; place-items: center; }
+      .top-glyph .icon { width: 15px; height: 15px; }
+      .rail-glyph { display: grid; place-items: center; }
+      .rail-glyph .icon { width: 18px; height: 18px; }
+      .context-glyph { display: grid; place-items: center; color: var(--gold); }
+      .context-glyph .icon { width: 14px; height: 14px; }
+      .portrait .icon { width: 22px; height: 22px; }
+      .command-button .icon { width: 18px; height: 18px; }
+      .era-glyph { font-size: 15px; line-height: 1; }
+      .eyebrow { color: var(--dim); font-size: 8px; letter-spacing: .16em; text-transform: uppercase; }
+      .era-name { display: block; margin-top: 2px; color: var(--gold-bright); font: 600 12px/1 Georgia, serif; }
+      .top-actions { display: flex; align-items: center; gap: 4px; }
+      .square-button, .top-button { height: 34px; border: 1px solid transparent; border-radius: 9px; color: var(--ink); background: transparent; cursor: pointer; transition: background .16s, border-color .16s; }
       .square-button { width: 34px; font: 700 11px/1 ui-monospace, monospace; }
-      .top-button { padding: 0 10px; font-size: 10px; }
-      .square-button:hover, .top-button:hover, .nav-button:hover, .command-button:hover { background: rgba(54,67,53,.96); border-color: rgba(241,213,148,.55); transform: translateY(-1px); }
+      .top-button { padding: 0 11px; font-size: 10px; }
+      .square-button:hover, .top-button:hover, .rail-button:hover, .command-button:hover { background: rgba(211,181,119,.12); border-color: rgba(211,181,119,.3); }
+      .top-button kbd { margin-left: 6px; padding: 2px 5px; border: 1px solid rgba(199,184,139,.22); border-radius: 5px; color: var(--muted); font: 9px/1 ui-monospace, monospace; }
 
-      .mode-switch { position: absolute; z-index: 5; top: 70px; left: 16px; display: grid; gap: 6px; width: var(--rail-width); padding: 7px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); box-shadow: var(--shadow); }
-      .mode-button { min-height: 53px; display: grid; justify-items: center; align-content: center; gap: 4px; border: 1px solid rgba(199,184,139,.14); border-radius: 10px; color: var(--muted); background: rgba(255,255,255,.015); cursor: pointer; }
-      .mode-button:hover { border-color: rgba(199,184,139,.38); background: rgba(255,255,255,.04); }
-      .mode-button .mode-code { width: 23px; height: 23px; display: grid; place-items: center; border-radius: 7px; font: 700 10px/1 ui-monospace, monospace; background: rgba(255,255,255,.05); }
-      .mode-button small { font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
-      .mode-button[aria-pressed="true"] { color: var(--ink); background: rgba(211,181,119,.12); border-color: rgba(211,181,119,.31); }
+      /* Canto superior esquerdo: titulo da partida e resumo do modo atual. */
+      .corner-top { position: absolute; z-index: 3; top: 72px; left: calc(var(--rail-width) + 32px); width: 218px; display: grid; gap: 6px; padding: 8px 10px 9px 11px; border-radius: 13px; background: linear-gradient(180deg, rgba(12,17,13,.74), rgba(12,17,13,.44)); transition: opacity .35s; }
+      .map-label { padding-left: 10px; border-left: 2px solid rgba(211,181,119,.55); }
+      .map-label strong { display: block; color: rgba(243,236,215,.95); font: 600 clamp(13px,1.1vw,16px)/1.2 Georgia, serif; letter-spacing: .03em; text-shadow: 0 2px 10px rgba(10,16,11,.7); }
+      .map-label span { display: block; margin-top: 2px; color: rgba(233,226,209,.62); font-size: 8px; letter-spacing: .12em; text-transform: uppercase; }
+      .context-strip { display: grid; gap: 4px; }
+      /* Revelacao progressiva: so o indicador vital fica visivel; o resto abre no hover. */
+      .corner-top .context-row:nth-child(n+3) { display: none; }
+      .corner-top:hover .context-row, .corner-top:focus-within .context-row { display: flex; }
+      .context-title { color: var(--gold); font: 600 8px/1 Georgia, serif; letter-spacing: .14em; text-transform: uppercase; opacity: .9; }
+      .context-row { display: flex; align-items: center; gap: 7px; padding: 4px 7px; border-left: 2px solid rgba(211,181,119,.45); border-radius: 0 7px 7px 0; background: rgba(10,14,11,.66); font-size: 9px; }
+      .context-row .context-glyph { font-size: 13px; line-height: 1; }
+      .context-row b { color: var(--ink); font: 650 11px/1 ui-monospace, monospace; }
+      .context-row span { color: var(--muted); }
 
-      .nav-rail { position: absolute; z-index: 5; left: 16px; top: 268px; bottom: 20px; width: var(--rail-width); display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 7px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); box-shadow: var(--shadow); }
-      .rail-divider { height: 1px; margin: 2px 4px; background: var(--line); }
-      .nav-button { min-height: 48px; display: grid; justify-items: center; align-content: center; gap: 3px; border: 1px solid transparent; border-radius: 10px; color: var(--muted); background: transparent; cursor: pointer; transition: .16s; }
-      .nav-button .nav-code { font: 650 10px/1 ui-monospace, monospace; color: var(--gold); }
-      .nav-button small { font-size: 8px; letter-spacing: .04em; }
-      .nav-button.active { color: var(--ink); background: rgba(211,181,119,.12); border-color: rgba(211,181,119,.31); }
+      /* Rail unico: modos, paineis e ferramentas no mesmo contorno. */
+      .rail { position: absolute; z-index: 5; left: 16px; top: 74px; bottom: 20px; width: var(--rail-width); display: flex; flex-direction: column; gap: 3px; padding: 6px; border: 1px solid rgba(199,184,139,.18); border-radius: 16px; background: linear-gradient(180deg, rgba(17,23,18,.94), rgba(14,19,15,.8)); box-shadow: 0 14px 40px rgba(0,0,0,.42); backdrop-filter: blur(14px); transition: opacity .35s; }
+      .rail-group { display: grid; gap: 3px; }
+      .rail-button { position: relative; min-height: 46px; display: grid; justify-items: center; align-content: center; gap: 3px; border: 1px solid transparent; border-radius: 9px; color: var(--muted); background: transparent; cursor: pointer; transition: background .16s, color .16s; }
+      .rail-button .rail-glyph { font-size: 15px; line-height: 1; filter: saturate(.85); }
+      .rail-button small { font-size: 8px; letter-spacing: .04em; }
+      .rail-button:hover { color: var(--ink); background: rgba(255,255,255,.05); }
+      .rail-button.active, .rail-button[aria-pressed="true"] { color: var(--ink); background: rgba(211,181,119,.13); }
+      .rail-button.active::before, .rail-button[aria-pressed="true"]::before { content:''; position:absolute; left:-6px; top:22%; bottom:22%; width:2px; border-radius:2px; background: var(--gold-bright); }
+      .rail-divider { height: 1px; margin: 3px 6px; background: rgba(199,184,139,.16); }
       .rail-spacer { flex: 1; }
-      .rail-label { color: var(--dim); font-size: 8px; line-height: 1.3; text-align: center; letter-spacing: .12em; text-transform: uppercase; }
+      .rail-label { color: var(--dim); font-size: 7px; line-height: 1.3; text-align: center; letter-spacing: .12em; text-transform: uppercase; }
 
-      .map-label { position: absolute; z-index: 2; top: 76px; left: calc(var(--rail-width) + 36px); color: rgba(239,229,198,.88); text-shadow: 0 2px 12px #172419; pointer-events: none; }
-      .map-label strong { display: block; font: 600 clamp(15px,1.4vw,20px)/1.2 Georgia, serif; letter-spacing: .06em; }
-      .map-label span { display: block; margin-top: 3px; color: rgba(239,229,198,.7); font-size: 9px; letter-spacing: .18em; text-transform: uppercase; }
-      .scene-note { position: absolute; z-index: 3; left: calc(var(--rail-width) + 37px); bottom: 116px; color: rgba(240,232,207,.84); font-size: 10px; text-shadow: 0 1px 5px #111; pointer-events: none; }
-      .scene-note b { color: var(--gold-bright); font-weight: 600; }
+      /* Contexto define visibilidade — REI-2026-v3.1, Preview 03. */
+      .game.hud-idle .rail, .game.hud-idle .corner-top, .game.hud-idle .resource-rate { opacity: .34; }
+      .game.hud-idle .rail:hover, .game.hud-idle .corner-top:hover, .game.hud-idle .topbar:hover .resource-rate { opacity: 1; }
+      .game[data-mode="explore"] .resources { opacity: 0; pointer-events: none; }
+      .game[data-mode="explore"] .topbar:hover .resources, .game[data-mode="explore"] .resources:focus-within { opacity: 1; pointer-events: auto; }
+      .game[data-mode="battle"] .corner-top { opacity: 0; }
 
       .side-panel { position: absolute; z-index: 4; top: 70px; right: 16px; bottom: 102px; width: 288px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(14px); transition: transform .2s, opacity .2s; }
       .side-panel.closed { transform: translateX(calc(100% + 28px)); opacity: 0; pointer-events: none; }
@@ -130,15 +169,15 @@
       .bottom-dock { position: absolute; z-index: 4; left: calc(var(--rail-width) + 40px); right: 320px; bottom: 14px; min-height: 72px; display: flex; align-items: stretch; gap: 9px; padding: 8px; border: 1px solid var(--line); border-radius: 17px; background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(12px); transition: transform .2s, opacity .2s; }
       .bottom-dock.closed { transform: translateY(calc(100% + 25px)); opacity: 0; pointer-events: none; }
       .selection { width: 196px; min-width: 170px; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 6px; border-right: 1px solid var(--line); }
-      .portrait { width: 44px; height: 44px; flex: 0 0 44px; display: grid; place-items: center; border: 1px solid rgba(211,181,119,.45); border-radius: 11px; color: var(--gold-bright); background: radial-gradient(circle at 50% 35%,#67745b,#253126 72%); font: 700 13px/1 Georgia, serif; }
-      .portrait.building { color: #d6c7a0; background: linear-gradient(145deg,#777059,#302b22); }
+      .portrait { width: 44px; height: 44px; flex: 0 0 44px; display: grid; place-items: center; border: 1px solid rgba(211,181,119,.35); border-radius: 11px; background: radial-gradient(circle at 50% 30%,#5d6b52,#212c22 74%); font-size: 21px; line-height: 1; }
+      .portrait.building { background: linear-gradient(145deg,#6d6753,#2b261e); }
       .selection h3 { margin: 0; font: 600 12px/1.15 Georgia, serif; }
       .selection p { margin: 4px 0 0; color: var(--muted); font-size: 9px; }
       .health { width: 96px; height: 4px; margin-top: 5px; overflow: hidden; border-radius: 9px; background: rgba(255,255,255,.1); }
       .health i { display: block; width: 78%; height: 100%; background: #9db982; }
       .commands { display: flex; flex: 1; min-width: 0; align-items: center; gap: 6px; overflow-x: auto; }
       .command-button { min-width: 60px; height: 50px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 4px 7px; border: 1px solid transparent; border-radius: 10px; color: #dad4c4; background: transparent; white-space: nowrap; cursor: pointer; }
-      .command-button span:first-child { width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid rgba(211,181,119,.3); border-radius: 7px; color: var(--gold); font: 700 10px/1 ui-monospace, monospace; }
+      .command-button span:first-child { font-size: 16px; line-height: 1; filter: saturate(.9); }
       .command-button small { color: var(--muted); font-size: 9px; }
       .command-button:disabled { opacity: .42; cursor: default; }
       .dock-handle { position: absolute; top: -26px; right: 12px; display: flex; gap: 4px; }
@@ -221,21 +260,16 @@
       .modal-title-row { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
       .close-modal { width:30px;height:30px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer; }
 
-      .help-hint { display:none; }
 
       @media (max-width: 1180px) {
-        .brand { min-width: 150px; }
-        .resource { min-width: 78px; padding: 8px; }
+        .resource-label { display: none; }
         .top-actions .era-pill { display: none; }
         .side-panel { width: 270px; right: 12px; }
         .bottom-dock { right: 294px; left: calc(var(--rail-width) + 32px); }
         .minimap { width: 270px; right: 12px; }
-        .help-hint { right: 302px; }
-        .mode-switch { top: 90px; gap: 3px; padding: 5px; }
-        .mode-button { min-height: 41px; }
-        .nav-rail { top: 255px; gap: 3px; padding: 5px; }
-        .nav-button { min-height: 40px; }
-        .nav-rail .rail-label { display: none; }
+        .rail { gap: 2px; padding: 5px; }
+        .rail-button { min-height: 40px; }
+        .rail-label { display: none; }
       }
       @media (max-width: 980px) and (min-width: 821px) {
         .brand { min-width: 46px; padding: 7px; justify-content: center; }
@@ -251,33 +285,27 @@
       @media (max-width: 820px) {
         :root { --rail-width: 55px; }
         .game { min-height: 0; }
-        .topbar { left: 8px; right: 8px; top: 8px; gap: 6px; min-height: 54px; }
+        .topbar { left: 8px; right: 8px; top: 8px; gap: 6px; height: 54px; }
         .brand { min-width: 44px; padding: 7px; justify-content: center; }
         .brand-mark { width: 27px; height: 27px; }
         .brand-copy { display: none; }
         .resources { flex: 1 1 auto; justify-content: flex-start; overflow-x: auto; gap: 4px; scrollbar-width: none; }
         .resources::-webkit-scrollbar { display: none; }
-        .resource { min-width: 56px; padding: 6px; gap: 5px; border-radius: 9px; }
-        .resource-mark { width: 17px; height: 17px; font-size: 9px; }
+        .resource { flex: 0 0 auto; min-width: 0; padding: 6px; gap: 6px; border-radius: 9px; }
+        .resource-mark .icon { width: 15px; height: 15px; }
         .resource-label,.resource-rate { display: none; }
         .resource-value { margin: 0; font-size: 11px; }
         .top-actions { gap: 4px; }
         .top-button { height: 36px; padding: 0 8px; font-size: 9px; }
         .square-button { width: 36px; height: 36px; }
-        .mode-switch { top: 70px; left: 8px; width: 55px; padding: 4px; gap: 3px; border-radius: 13px; }
-        .mode-button { min-height: 45px; gap: 3px; }
-        .mode-button .mode-code { width: 20px; height: 20px; }
-        .mode-button small { font-size: 7px; }
-        .nav-rail { top: 244px; left: 8px; bottom: auto; width: 55px; padding: 4px; gap: 3px; border-radius: 13px; }
-        .nav-button { min-height: 41px; }
-        .nav-button small { font-size: 7px; }
-        .nav-rail .rail-spacer,.nav-rail .rail-label { display: none; }
-        .map-label { top: 78px; left: 74px; }
-        .map-label strong { font-size: 15px; }
+        .rail { top: 68px; left: 8px; width: 55px; padding: 4px; gap: 2px; border-radius: 13px; }
+        .rail-button { min-height: 40px; gap: 2px; }
+        .rail-glyph .icon { width: 16px; height: 16px; }
+        .rail-button small { font-size: 7px; }
+        .rail-spacer,.rail-label { display: none; }
+        .corner-top { top: 68px; left: 72px; width: 200px; }
+        .map-label strong { font-size: 14px; }
         .map-label span { font-size: 7px; }
-        .help-hint { top: 80px; right: 10px; }
-        .map-action { min-height: 27px; padding: 0 7px; font-size: 8px; }
-        .help-hint { display: none; }
         .side-panel { top: auto; right: 8px; bottom: 194px; width: min(290px,calc(100vw - 82px)); max-height: min(40dvh,calc(100dvh - 280px)); border-radius: 14px; }
         .side-panel.closed { transform: translateX(calc(100% + 18px)); }
         .panel-head { padding: 12px; }
@@ -297,7 +325,7 @@
         .minimap .mini-info span { font-size: 8px; }
         .mini-world { height: 52px; }
         .mini-toggle { width: 22px; height: 22px; flex-basis: 22px; }
-        .scene-note { left: 73px; bottom: 94px; font-size: 8px; }
+        .rail { bottom: auto; }
       }
       @media (max-width: 520px) {
         .top-actions .top-button[data-action="customize"] { display:none; }
@@ -311,9 +339,7 @@
         .top-actions .top-button[data-action="search"] { width: 36px; padding: 0; font-size: 0; }
         .top-actions .top-button[data-action="search"] kbd { display: none; }
         .top-actions .top-button[data-action="search"]::after { content:"⌕"; font: 700 19px/1 ui-monospace,monospace; }
-        .nav-rail { top: 241px; }
-        .scene-note { display:none; }
-        .nav-button[data-nav="diplomacy"] { display: none; }
+        .rail-button[data-nav="diplomacy"] { display: none; }
         .side-panel { max-height: min(42dvh,calc(100dvh - 280px)); bottom: calc(178px + env(safe-area-inset-bottom)); }
         .bottom-dock { left: calc(var(--rail-width) + 20px); right: 6px; bottom: max(6px,env(safe-area-inset-bottom)); }
         .selection { width: 105px; min-width: 99px; flex:0 0 99px; overflow:hidden; padding:0 9px 0 6px; gap:8px; }
@@ -388,6 +414,44 @@
     </style>
   </head>
   <body>
+    <!-- Iconografia da PoC: um sprite SVG unico, traco de 1.7px, currentColor.
+         Nenhuma dependencia externa e nenhum emoji. -->
+    <svg class="icon-sprite" aria-hidden="true" focusable="false" width="0" height="0">
+      <symbol id="i-wood" viewBox="0 0 24 24"><path d="M8 7.5h8.5a4.5 4.5 0 0 1 0 9H8z"/><ellipse cx="8" cy="12" rx="2.6" ry="4.5"/><ellipse cx="8" cy="12" rx="0.9" ry="1.6"/></symbol>
+      <symbol id="i-food" viewBox="0 0 24 24"><path d="M12 20.5V8"/><path d="M12 12.5c-3.2 0-4.6-2-4.6-4.4 2.8 0 4.6 1.7 4.6 4.4z"/><path d="M12 12.5c3.2 0 4.6-2 4.6-4.4-2.8 0-4.6 1.7-4.6 4.4z"/><path d="M12 17.2c-3.2 0-4.6-2-4.6-4.4 2.8 0 4.6 1.7 4.6 4.4z"/><path d="M12 17.2c3.2 0 4.6-2 4.6-4.4-2.8 0-4.6 1.7-4.6 4.4z"/></symbol>
+      <symbol id="i-gold" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="3.4"/><path d="M12 4.5v1.6M12 17.9v1.6"/></symbol>
+      <symbol id="i-stone" viewBox="0 0 24 24"><path d="M4.8 17.2 7.8 8.8l5-2.2 6.4 5.6-2.7 5z"/><path d="M7.8 8.8l3.9 4.5M11.7 13.3l1.4 6.3"/></symbol>
+      <symbol id="i-pop" viewBox="0 0 24 24"><circle cx="9.2" cy="8.4" r="3.1"/><path d="M3.4 19.2c0-3.1 2.6-5 5.8-5s5.8 1.9 5.8 5"/><circle cx="17.2" cy="9.6" r="2.3"/><path d="M15.6 14.7c2.7-.3 5.1 1.3 5.1 4.5"/></symbol>
+      <symbol id="i-era" viewBox="0 0 24 24"><path d="M7.5 4.5h9L12 12z"/><path d="M7.5 19.5h9L12 12z"/><path d="M6.5 4.5h11M6.5 19.5h11"/></symbol>
+      <symbol id="i-village" viewBox="0 0 24 24"><path d="M3.8 11 12 4.4 20.2 11"/><path d="M6.4 10.2v9.3h11.2v-9.3"/><path d="M10.3 19.5v-5.1h3.4v5.1"/></symbol>
+      <symbol id="i-explore" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M15.6 8.4 13.6 13.6 8.4 15.6 10.4 10.4z"/></symbol>
+      <symbol id="i-battle" viewBox="0 0 24 24"><path d="M12 3.6 14.1 6.2v8.4h-4.2V6.2z"/><path d="M8.2 14.6h7.6"/><path d="M12 14.6v4.6M10 19.6h4"/></symbol>
+      <symbol id="i-overview" viewBox="0 0 24 24"><path d="M3.6 9.8 12 4.4l8.4 5.4z"/><path d="M6.2 9.8v8.4M10.1 9.8v8.4M13.9 9.8v8.4M17.8 9.8v8.4"/><path d="M4.2 19.6h15.6"/></symbol>
+      <symbol id="i-economy" viewBox="0 0 24 24"><ellipse cx="12" cy="7.2" rx="6.8" ry="2.7"/><path d="M5.2 7.2v4c0 1.5 3 2.7 6.8 2.7s6.8-1.2 6.8-2.7v-4"/><path d="M5.2 11.2v4c0 1.5 3 2.7 6.8 2.7s6.8-1.2 6.8-2.7v-4"/></symbol>
+      <symbol id="i-build" viewBox="0 0 24 24"><path d="M6 6.2h6.6l3.6 3.6-2.6 2.6L10 8.8H6z"/><path d="M10.4 12.2 4.8 19.6"/></symbol>
+      <symbol id="i-research" viewBox="0 0 24 24"><path d="M9.8 3.8h4.4M11 3.8v5.4L6.6 17.6a2 2 0 0 0 1.8 3h7.2a2 2 0 0 0 1.8-3L13 9.2V3.8"/><path d="M8.4 14.4h7.2"/></symbol>
+      <symbol id="i-diplomacy" viewBox="0 0 24 24"><circle cx="9.2" cy="12" r="4.8"/><circle cx="14.8" cy="12" r="4.8"/></symbol>
+      <symbol id="i-world" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M4 12h16"/><path d="M12 4c2.6 2.6 2.6 13.4 0 16M12 4c-2.6 2.6-2.6 13.4 0 16"/></symbol>
+      <symbol id="i-minimap" viewBox="0 0 24 24"><path d="M4 7.4 9 5.4l6 2 5-2v11.2l-5 2-6-2-5 2z"/><path d="M9 5.4v11.2M15 7.4v11.2"/></symbol>
+      <symbol id="i-panels" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/></symbol>
+      <symbol id="i-radial" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 12V4M12 12l6.9 4M12 12 5.1 16"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.6" cy="10.6" r="5.6"/><path d="M14.7 14.7 19.6 19.6"/></symbol>
+      <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 8.4h9M19.4 8.4H20M4 15.6h3M13.4 15.6H20"/><circle cx="16.2" cy="8.4" r="2.2"/><circle cx="10.2" cy="15.6" r="2.2"/></symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7.2h16M4 12h16M4 16.8h16"/></symbol>
+      <symbol id="i-villager" viewBox="0 0 24 24"><circle cx="12" cy="8.2" r="3.4"/><path d="M5.6 20c0-3.6 2.9-6.1 6.4-6.1s6.4 2.5 6.4 6.1"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3.6 19 6.1v5.9c0 4-3 7-7 8.4-4-1.4-7-4.4-7-8.4V6.1z"/></symbol>
+      <symbol id="i-move" viewBox="0 0 24 24"><path d="M4 12h14.4"/><path d="M13.4 7 18.6 12l-5.2 5"/></symbol>
+      <symbol id="i-repair" viewBox="0 0 24 24"><path d="M15.4 4.4a4.6 4.6 0 0 0-6 6L4.5 15.3a2 2 0 0 0 2.8 2.8l4.9-4.9a4.6 4.6 0 0 0 6-6l-2.7 2.7-2.2-2.2z"/></symbol>
+      <symbol id="i-production" viewBox="0 0 24 24"><path d="M4.6 8 12 4.5 19.4 8v8L12 19.5 4.6 16z"/><path d="M4.6 8 12 11.5 19.4 8M12 11.5v8"/></symbol>
+      <symbol id="i-rally" viewBox="0 0 24 24"><path d="M6.2 20.4V4"/><path d="M6.2 4.8h9.2l-1.6 3.6 1.6 3.6H6.2z"/></symbol>
+      <symbol id="i-mine" viewBox="0 0 24 24"><path d="M4.6 19.4 14.4 9.6"/><path d="M11.6 4c3.4.5 6.4 2.9 8 6.4-2.5-1.5-5-2-7.8-1.5"/></symbol>
+      <symbol id="i-formation" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.4"/></symbol>
+      <symbol id="i-patrol" viewBox="0 0 24 24"><path d="M5 18.2c0-4 3-5 7-5s7-1.1 7-5.2"/><circle cx="5" cy="18.2" r="1.9"/><circle cx="19" cy="8" r="1.9"/></symbol>
+      <symbol id="i-retreat" viewBox="0 0 24 24"><path d="M8.4 8.2h5.4a4.2 4.2 0 0 1 0 8.4h-4"/><path d="M11 5.6 8.4 8.2 11 10.8"/></symbol>
+      <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20.2s-7.2-4.5-7.2-9.4A4.4 4.4 0 0 1 12 7.9a4.4 4.4 0 0 1 7.2 2.9c0 4.9-7.2 9.4-7.2 9.4z"/></symbol>
+      <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 4.4 20.8 19.6H3.2z"/><path d="M12 10v4.4M12 17.1v.4"/></symbol>
+      <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.2 3 6.4 13.6h4.9L10.8 21l6.8-10.6h-4.9z"/></symbol>
+    </svg>
     <main class="game" id="game" data-mode="city">
       <section class="world" aria-label="Partida original com o novo HUD sobreposto">
         <iframe id="game-frame" src="/poc.html?hud-preview=1" title="Partida atual do Terrinha"></iframe>
@@ -396,48 +460,53 @@
 
       <header class="topbar">
         <div class="brand" aria-label="Terrinha, PoC de interface">
-          <div class="brand-mark">TR</div>
-          <div class="brand-copy"><div class="brand-name">Terrinha</div><div class="brand-sub">HUD · números ilustrativos</div></div>
+          <div class="brand-mark" aria-hidden="true">◆</div>
+          <div class="brand-copy"><div class="brand-name">Terrinha</div><div class="brand-sub">números ilustrativos</div></div>
         </div>
         <div class="resources" aria-label="Recursos e população da vila">
-          <button class="resource" type="button" data-resource="wood" aria-label="Madeira: 1.250 armazenada, produção de mais 12 por minuto. Abrir economia." aria-controls="side-panel"><span class="resource-mark" aria-hidden="true">M</span><span><span class="resource-label">Madeira</span><span class="resource-value">1.250</span><small class="resource-rate">+12/min</small></span></button>
-          <button class="resource" type="button" data-resource="food" aria-label="Comida: 840 armazenada, produção de mais 18 por minuto. Abrir economia." aria-controls="side-panel"><span class="resource-mark" aria-hidden="true">C</span><span><span class="resource-label">Comida</span><span class="resource-value">840</span><small class="resource-rate">+18/min</small></span></button>
-          <button class="resource" type="button" data-resource="gold" aria-label="Ouro: 520 armazenado, produção de mais 4 por minuto. Abrir economia." aria-controls="side-panel"><span class="resource-mark" aria-hidden="true">O</span><span><span class="resource-label">Ouro</span><span class="resource-value">520</span><small class="resource-rate">+4/min</small></span></button>
-          <button class="resource" type="button" data-resource="stone" aria-label="Pedra: 310 armazenada, produção de mais 6 por minuto. Abrir economia." aria-controls="side-panel"><span class="resource-mark" aria-hidden="true">P</span><span><span class="resource-label">Pedra</span><span class="resource-value">310</span><small class="resource-rate">+6/min</small></span></button>
-          <button class="resource" type="button" data-resource="population" aria-label="Aldeões: 28 de 35, 6 disponíveis. Abrir população na economia." aria-controls="side-panel"><span class="resource-mark" aria-hidden="true">A</span><span><span class="resource-label">Aldeões</span><span class="resource-value">28/35</span><small class="resource-rate" style="color:var(--muted)">6 livres</small></span></button>
+          <button class="resource" type="button" data-resource="wood" data-kind="wood" aria-label="Madeira: 1.250 armazenada, produção de mais 12 por minuto. Abrir economia." aria-controls="side-panel"><span class="resource-mark" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-wood"/></svg></span><span class="resource-copy"><span class="resource-label">Madeira</span><span class="resource-value">1.250</span><small class="resource-rate">+12/min</small></span></button>
+          <button class="resource" type="button" data-resource="food" data-kind="food" aria-label="Comida: 840 armazenada, produção de mais 18 por minuto. Abrir economia." aria-controls="side-panel"><span class="resource-mark" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-food"/></svg></span><span class="resource-copy"><span class="resource-label">Comida</span><span class="resource-value">840</span><small class="resource-rate">+18/min</small></span></button>
+          <button class="resource" type="button" data-resource="gold" data-kind="gold" aria-label="Ouro: 520 armazenado, produção de mais 4 por minuto. Abrir economia." aria-controls="side-panel"><span class="resource-mark" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-gold"/></svg></span><span class="resource-copy"><span class="resource-label">Ouro</span><span class="resource-value">520</span><small class="resource-rate">+4/min</small></span></button>
+          <button class="resource" type="button" data-resource="stone" data-kind="stone" aria-label="Pedra: 310 armazenada, produção de mais 6 por minuto. Abrir economia." aria-controls="side-panel"><span class="resource-mark" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-stone"/></svg></span><span class="resource-copy"><span class="resource-label">Pedra</span><span class="resource-value">310</span><small class="resource-rate">+6/min</small></span></button>
+          <button class="resource" type="button" data-resource="population" data-kind="pop" aria-label="Aldeões: 28 de 35, 6 disponíveis. Abrir população na economia." aria-controls="side-panel"><span class="resource-mark" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-pop"/></svg></span><span class="resource-copy"><span class="resource-label">Aldeões</span><span class="resource-value">28<span class="resource-cap">/35</span></span><small class="resource-rate muted">6 livres</small></span></button>
         </div>
+        <div class="era-pill"><span class="era-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-era"/></svg></span><span class="era-copy"><span class="eyebrow">Era atual</span><span class="era-name">Era Colonial</span></span></div>
         <div class="top-actions">
-          <div class="era-pill"><div class="eyebrow">Era atual</div><div class="era-name">Era Colonial</div></div>
-          <button class="top-button" data-action="search" aria-label="Buscar menu ou comando">Buscar <kbd style="margin-left:6px">⌘ K</kbd></button>
-          <button class="top-button" data-action="customize">Interface</button>
-          <button class="top-button" data-action="menus">Menu</button>
+          <button class="top-button" data-action="search" aria-label="Buscar menu ou comando"><span class="top-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg></span> Buscar <kbd>⌘K</kbd></button>
+          <button class="top-button" data-action="customize" aria-label="Composição da interface"><span class="top-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-sliders"/></svg></span> Interface</button>
+          <button class="top-button" data-action="menus" aria-label="Menu do império"><span class="top-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg></span> Menu</button>
         </div>
       </header>
 
-      <nav class="mode-switch" aria-label="Contexto de visualização do HUD">
-        <button class="mode-button" data-mode-choice="city" aria-pressed="true"><span class="mode-code">V</span><small>Vila</small></button>
-        <button class="mode-button" data-mode-choice="explore" aria-pressed="false"><span class="mode-code">E</span><small>Explorar</small></button>
-        <button class="mode-button" data-mode-choice="battle" aria-pressed="false"><span class="mode-code">C</span><small>Combate</small></button>
-      </nav>
+      <section class="corner-top" id="corner-top" aria-label="Contexto da partida">
+        <div class="map-label"><strong id="map-title">Partida de teste</strong><span id="map-subtitle">Cenário original preservado</span></div>
+        <div class="context-strip" id="context-strip" aria-live="polite"></div>
+      </section>
 
-      <nav class="nav-rail" aria-label="Painéis de gestão">
-        <button class="nav-button active" data-nav="overview" aria-pressed="true"><span class="nav-code">V</span><small>Visão</small></button>
-        <button class="nav-button" data-nav="economy" aria-pressed="false"><span class="nav-code">E</span><small>Economia</small></button>
-        <button class="nav-button" data-nav="build" aria-pressed="false"><span class="nav-code">C</span><small>Construir</small></button>
-        <button class="nav-button" data-nav="research" aria-pressed="false"><span class="nav-code">P</span><small>Pesquisa</small></button>
-        <button class="nav-button" data-nav="diplomacy" aria-pressed="false"><span class="nav-code">R</span><small>Relações</small></button>
-        <button class="nav-button" data-nav="world" aria-pressed="false"><span class="nav-code">L</span><small>Mundo</small></button>
+      <nav class="rail" aria-label="Modos e painéis de gestão">
+        <div class="rail-group" aria-label="Contexto de visualização">
+          <button class="rail-button" data-mode-choice="city" aria-pressed="true"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-village"/></svg></span><small>Vila</small></button>
+          <button class="rail-button" data-mode-choice="explore" aria-pressed="false"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-explore"/></svg></span><small>Explorar</small></button>
+          <button class="rail-button" data-mode-choice="battle" aria-pressed="false"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-battle"/></svg></span><small>Combate</small></button>
+        </div>
         <div class="rail-divider"></div>
-        <button class="nav-button" data-action="minimap"><span class="nav-code">M</span><small>Minimapa</small></button>
-        <button class="nav-button" data-action="customize"><span class="nav-code">I</span><small>Painéis</small></button>
-        <button class="nav-button" data-action="radial"><span class="nav-code">◎</span><small>Radial</small></button>
+        <div class="rail-group" aria-label="Painéis">
+          <button class="rail-button active" data-nav="overview" aria-pressed="true"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-overview"/></svg></span><small>Visão</small></button>
+          <button class="rail-button" data-nav="economy" aria-pressed="false"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-economy"/></svg></span><small>Economia</small></button>
+          <button class="rail-button" data-nav="build" aria-pressed="false"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-build"/></svg></span><small>Construir</small></button>
+          <button class="rail-button" data-nav="research" aria-pressed="false"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-research"/></svg></span><small>Pesquisa</small></button>
+          <button class="rail-button" data-nav="diplomacy" aria-pressed="false"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-diplomacy"/></svg></span><small>Relações</small></button>
+          <button class="rail-button" data-nav="world" aria-pressed="false"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-world"/></svg></span><small>Mundo</small></button>
+        </div>
+        <div class="rail-divider"></div>
+        <div class="rail-group" aria-label="Ferramentas">
+          <button class="rail-button" data-action="minimap"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-minimap"/></svg></span><small>Minimapa</small></button>
+          <button class="rail-button" data-action="customize"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-panels"/></svg></span><small>Painéis</small></button>
+          <button class="rail-button" data-action="radial"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-radial"/></svg></span><small>Radial</small></button>
+        </div>
         <div class="rail-spacer"></div>
-        <div class="rail-label">Atalhos<br/>Alt+1–3</div>
+        <div class="rail-label">Alt+1–3</div>
       </nav>
-
-      <div class="map-label"><strong id="map-title">Partida de teste</strong><span id="map-subtitle">Cenário original preservado</span></div>
-      <div class="help-hint">Prévia visual · comandos do jogo não estão conectados ao HUD</div>
-      <div class="scene-note"><b>HUD demonstrativo</b> · Valores e ações exibidos são exemplos de interface</div>
 
       <aside class="side-panel closed" id="side-panel" aria-label="Painel contextual">
         <div class="panel-head"><div><div class="eyebrow" id="panel-kicker">Resumo da vila</div><h2 id="panel-title">Sua aldeia</h2><div class="panel-subtitle" id="panel-subtitle">O essencial para decidir o próximo passo.</div></div><button class="panel-dismiss" data-action="toggle-panel" aria-label="Ocultar painel">×</button></div>
@@ -516,7 +585,7 @@
       const layoutModal = document.getElementById('layout-modal');
       const searchInput = document.getElementById('search-input');
       const searchResults = document.getElementById('search-results');
-      const state = { mode: 'city', nav: 'overview', entity: 'villager', panel: false, dock: true, minimap: true, objectives: true, preset: 'balanced', menuTab: 'empire', searchIndex: 0, buildSelection: null, resourceFocus: null, locality: null, toastTimer: null, hudMinimized:false, hudKey:'Alt+H' };
+      const state = { mode: 'city', nav: 'overview', entity: 'villager', panel: false, dock: true, minimap: true, objectives: true, preset: 'balanced', menuTab: 'empire', searchIndex: 0, buildSelection: null, resourceFocus: null, locality: null, toastTimer: null, hudMinimized:false, hudKey:'Alt+H', idleFade:false };
       let settingsView='form';
       let configFormat='json';
 
@@ -679,34 +748,51 @@
 
       function entityData(type) {
         const data = {
-          villager: { portrait:'AV',className:'',name:'Aldeão selecionado',meta:'Construtor · 25/25 de vida',actions:[['M','Mover','Clique no mapa'],['C','Construir','Abrir catálogo'],['R','Reparar','Edifício próximo'],['G','Reunir','Aldeões livres']] },
-          building: { portrait:'CV',className:'building',name:'Centro da Vila',meta:'Edifício principal · 1.200/1.200',actions:[['A','Treinar aldeão','Comida 50'],['P','Produção','28 de 35 vagas'],['V','Ponto de reunião','Definir no mapa']] },
-          ore: { portrait:'MI',className:'building',name:'Veio de minério',meta:'Depósito · acesso por aldeões',actions:[['C','Designar coleta','1 aldeão livre'],['I','Inspecionar','Distância 7 células']] },
-          squad: { portrait:'GU',className:'',name:'Patrulha selecionada',meta:'4 unidades · prontas',actions:[['M','Mover','Clique no mapa'],['F','Formação','Em linha'],['P','Patrulhar','Definir área'],['R','Recuar','Centro da Vila']] },
+          villager: { portrait:'i-villager',className:'',name:'Aldeão selecionado',meta:'Construtor · 25/25 de vida',actions:[['i-move','Mover','Clique no mapa'],['i-build','Construir','Abrir catálogo'],['i-repair','Reparar','Edifício próximo'],['i-pop','Reunir','Aldeões livres']] },
+          building: { portrait:'i-overview',className:'building',name:'Centro da Vila',meta:'Edifício principal · 1.200/1.200',actions:[['i-battle','Treinar aldeão','Comida 50'],['i-production','Produção','28 de 35 vagas'],['i-rally','Ponto de reunião','Definir no mapa']] },
+          ore: { portrait:'i-stone',className:'building',name:'Veio de minério',meta:'Depósito · acesso por aldeões',actions:[['i-mine','Designar coleta','1 aldeão livre'],['i-search','Inspecionar','Distância 7 células']] },
+          squad: { portrait:'i-shield',className:'',name:'Patrulha selecionada',meta:'4 unidades · prontas',actions:[['i-move','Mover','Clique no mapa'],['i-formation','Formação','Em linha'],['i-patrol','Patrulhar','Definir área'],['i-retreat','Recuar','Centro da Vila']] },
         };
         return data[type] || data.villager;
       }
       function renderSelection() {
         const item = state.mode === 'battle' ? entityData('squad') : entityData(state.entity);
-        const portrait=selectionCard.querySelector('.portrait'); portrait.textContent=item.portrait; portrait.className='portrait '+item.className;
+        const portrait=selectionCard.querySelector('.portrait'); portrait.innerHTML=icon(item.portrait); portrait.className='portrait '+item.className;
         selectionCard.querySelector('h3').textContent=item.name;
         selectionCard.querySelector('p').textContent=item.meta;
-        commandList.innerHTML=item.actions.map(([code,label,detail])=>`<button class="command-button" data-action="toast" data-message="${label}: ${detail}."><span>${code}</span><small>${label}</small></button>`).join('');
+        commandList.innerHTML=item.actions.map(([iconId,label,detail])=>`<button class="command-button" data-action="toast" data-message="${label}: ${detail}."><span>${icon(iconId)}</span><small>${label}</small></button>`).join('');
       }
       function setNav(nav, reveal=true) {
         state.nav=nav; document.querySelectorAll('[data-nav]').forEach(b=>{const active=b.dataset.nav===nav;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
         const page=pages[nav]||pages.overview; panelKicker.textContent=page.kicker;panelTitle.textContent=page.title;panelSubtitle.textContent=page.subtitle;panelBody.innerHTML=page.body();document.getElementById('panel-footer').innerHTML=page.footer;
         if(!state.panel && reveal){state.panel=true;panel.classList.remove('closed');syncSwitches();}
       }
+      // Tres estados do mesmo HUD (REI-2026-v3.1, Preview 03): o modo define quais
+      // informacoes ficam visiveis, sem adicionar nem remover paineis do runtime.
+      const modeContext = {
+        city: { title:'Modo construção · 5 painéis', subtitle:'Cenário original preservado', rows:[['i-wood','+12/min','madeira'],['i-pop','28/35','população'],['i-build','3 na fila','obras']] },
+        explore: { title:'Modo exploração · 2 painéis', subtitle:'Quase tudo oculto · só o vital', rows:[['i-heart','92%','vida'],['i-explore','opcional','minimapa']] },
+        battle: { title:'Modo combate · 6 painéis', subtitle:'Produção e tecnologia ocultas', rows:[['i-heart','68%','vida'],['i-battle','onda 3','inimigos'],['i-warning','1','ameaça'],['i-bolt','40%','energia']] },
+      };
+      function renderContext(mode) {
+        const ctx=modeContext[mode]||modeContext.city;
+        document.getElementById('map-subtitle').textContent=ctx.subtitle;
+        document.getElementById('context-strip').innerHTML=`<div class="context-title">${ctx.title}</div>`+ctx.rows.map(r=>`<div class="context-row"><span class="context-glyph" aria-hidden="true">${icon(r[0])}</span><b>${r[1]}</b><span>${r[2]}</span></div>`).join('');
+      }
       function setMode(mode) {
         state.mode=mode;game.dataset.mode=mode;
         document.querySelectorAll('[data-mode-choice]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.modeChoice===mode)));
-        const titles={city:['Partida de teste','Cenário original preservado'],explore:['Partida de teste','Contexto de exploração · prévia de HUD'],battle:['Partida de teste','Contexto de combate · prévia de HUD']};
-        document.getElementById('map-title').textContent=titles[mode][0];document.getElementById('map-subtitle').textContent=titles[mode][1];
-        const note={city:'<b>HUD demonstrativo</b> · Valores e ações exibidos são exemplos de interface',explore:'<b>HUD demonstrativo</b> · Esta seleção altera apenas o contexto visual',battle:'<b>HUD demonstrativo</b> · Esta seleção não envia ordens à partida'};
-        document.querySelector('.scene-note').innerHTML=note[mode];
+        document.getElementById('map-title').textContent='Partida de teste';
+        renderContext(mode);
         if(mode==='battle')state.nav='overview';renderSelection();setNav(state.nav,false);
         notify(mode==='city'?'Visão da vila':mode==='explore'?'Visão de exploração':'Visão de combate');
+      }
+      // Sem input por 8s, tudo que nao e essencial se recolhe (REI-2026-v3.1).
+      let idleTimer=null;
+      function wakeHud() {
+        game.classList.remove('hud-idle');
+        clearTimeout(idleTimer);
+        idleTimer=setTimeout(()=>{if(state.idleFade&&!state.hudMinimized)game.classList.add('hud-idle');},8000);
       }
       function syncSwitches() {
         document.querySelector('[data-toggle="panel"]').setAttribute('aria-checked',String(state.panel));
@@ -730,6 +816,8 @@
         if(preset==='strategist'){setVisibility('panel',true);setVisibility('dock',true);setVisibility('minimap',false);state.objectives=true;setNav('economy');}
         syncSwitches();
       }
+      // Referencia um simbolo do sprite SVG. Nenhum icone e emoji.
+      function icon(id,extra='') { return `<svg class="icon${extra?' '+extra:''}" aria-hidden="true"><use href="#${id}"/></svg>`; }
       function notify(message) {
         const toast=document.getElementById('toast');toast.textContent=message;toast.classList.add('show');clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>toast.classList.remove('show'),2100);
       }
@@ -793,6 +881,7 @@
         document.querySelector('[data-pref="dock"]').setAttribute('aria-checked',String(state.dock));
         document.querySelector('[data-pref="minimap"]').setAttribute('aria-checked',String(state.minimap));
         document.querySelector('[data-pref="objectives"]').setAttribute('aria-checked',String(state.objectives));
+        document.querySelector('[data-pref="idleFade"]').setAttribute('aria-checked',String(state.idleFade));
         refreshConfigEditor();
       }
       function renderInterfaceSettings() {
@@ -804,6 +893,7 @@
             <div class="setting-field"><span>Seleção e ações<small>Comandos da entidade selecionada.</small></span><button class="switch" role="switch" aria-checked="${state.dock}" data-pref="dock" aria-label="Mostrar seleção e ações"></button></div>
             <div class="setting-field"><span>Minimapa<small>Prévia de navegação no canto da tela.</small></span><button class="switch" role="switch" aria-checked="${state.minimap}" data-pref="minimap" aria-label="Mostrar minimapa"></button></div>
             <div class="setting-field"><span>Objetivos<small>Mostrar próximos passos no resumo.</small></span><button class="switch" role="switch" aria-checked="${state.objectives}" data-pref="objectives" aria-label="Mostrar objetivos"></button></div>
+            <div class="setting-field"><span>Recolher após 8s sem input<small>Hipótese do runtime: esmaecer o que não é essencial. Desligado por padrão.</small></span><button class="switch" role="switch" aria-checked="${state.idleFade}" data-pref="idleFade" aria-label="Recolher HUD após inatividade"></button></div>
             <label class="setting-field"><span>Atalho para minimizar HUD<small>Escolha uma combinação rápida.</small></span><select id="setting-hotkey"><option>Alt+H</option><option>Alt+J</option><option>Ctrl+Shift+H</option></select></label>
             <div class="settings-actions"><button data-action="save-form-config">Salvar neste navegador</button><button data-action="copy-config">Copiar configuração</button><button data-action="download-config">Salvar arquivo</button></div>
           </div>
@@ -869,6 +959,9 @@
       } catch { /* A configuração local inválida não impede abrir a PoC. */ }
       setNav('overview',false);renderSelection();setVisibility('panel',state.panel);setVisibility('dock',state.dock);setVisibility('minimap',state.minimap);setVisibility('objectives',state.objectives);
       historyPush('Estado inicial');
+      renderContext(state.mode);
+      ['mousemove','mousedown','keydown','wheel','touchstart'].forEach(evt=>document.addEventListener(evt,wakeHud,{passive:true}));
+      wakeHud();
       document.addEventListener('click',event=>{
         const target=event.target.closest('button');if(!target)return;
         if(target.dataset.resource){openResource(target.dataset.resource);return;}
@@ -876,7 +969,7 @@
         if(target.dataset.nav){setNav(target.dataset.nav);return;}
         if(target.dataset.action){const action=target.dataset.action;if(action==='search'){closeModals();openModal(searchModal);}else if(action==='customize'){closeModals();openModal(layoutModal);}else if(action==='menus'||action==='open-menu'){closeModals();openMenu();openModal(menuModal);}else if(action==='close-menu')closeModals();else if(action==='close-layout')closeModals();else if(action==='toggle-panel'){setVisibility('panel',!state.panel);historyPush(state.panel?'Mostrar painel':'Ocultar painel');}else if(action==='toggle-dock'){setVisibility('dock',!state.dock);historyPush(state.dock?'Mostrar seleção':'Ocultar seleção');}else if(action==='minimap'){state.minimap=!state.minimap;setVisibility('minimap',state.minimap);historyPush(state.minimap?'Mostrar minimapa':'Ocultar minimapa');}else if(action==='mode'){setMode(target.dataset.value);historyPush('Modo: '+target.dataset.value);}else if(action==='minimize-hud'){toggleHudMinimized(true);historyPush('Modo minimalista');}else if(action==='restore-hud'){toggleHudMinimized(false);historyPush('Restaurar HUD');}else if(action==='save-form-config')saveFormConfig();else if(action==='copy-config')copyConfig();else if(action==='apply-config'){try{const raw=document.getElementById('settings-file').value;applyConfig(configFormat==='json'?JSON.parse(raw):parseHudYaml(raw));}catch(error){notify(error instanceof Error?error.message:'JSON inválido.');}}else if(action==='download-config'){const ext=configFormat==='yaml'?'yml':'json';const content=configFormat==='yaml'?yamlConfig(hudConfig()):JSON.stringify(hudConfig(),null,2);const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([content],{type:'text/plain;charset=utf-8'}));link.download=`terrinha-hud.${ext}`;link.click();URL.revokeObjectURL(link.href);}else if(action==='toast')notify(target.dataset.message);else if(action==='radial')openRadial(event.clientX,event.clientY);else if(action==='batch-confirm')confirmBatch();else if(action==='batch-cancel')cancelBatch();else if(action==='batch-undo')undoBatch();else if(action==='locality-clear'){setLocality(null);historyPush('Limpar foco');}else if(action==='history-undo')historyUndo();else if(action==='history-redo')historyRedo();return;}
         if(target.dataset.toggle){const key=target.dataset.toggle;setVisibility(key,!state[key]);return;}
-        if(target.dataset.pref){const key=target.dataset.pref;setVisibility(key,!state[key]);refreshConfigEditor();return;}
+        if(target.dataset.pref){const key=target.dataset.pref;if(key==='idleFade'){state.idleFade=!state.idleFade;if(!state.idleFade)game.classList.remove('hud-idle');else wakeHud();syncSwitches();notify(state.idleFade?'HUD recolhe após 8s sem input':'Recolhimento por inatividade desligado');}else{setVisibility(key,!state[key]);}refreshConfigEditor();return;}
         if(target.dataset.preset){applyPreset(target.dataset.preset);historyPush('Composição: '+target.dataset.preset);return;}
         if(target.dataset.settingsView){settingsView=target.dataset.settingsView;renderInterfaceSettings();return;}
         if(target.dataset.format){configFormat=target.dataset.format;refreshConfigEditor();return;}
