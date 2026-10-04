@@ -15,6 +15,15 @@ export type UnitType = 'villager' | 'soldier' | 'cavalry' | 'fishing_boat' | 'tr
 export const BOAT_UNIT_TYPES: readonly UnitType[] = ['fishing_boat', 'trade_boat', 'warship'];
 
 export const isBoatUnit = (type: UnitType): boolean => BOAT_UNIT_TYPES.includes(type);
+
+export const BOAT_CAPACITY: Record<UnitType, number> = {
+  villager: 0,
+  soldier: 0,
+  cavalry: 0,
+  fishing_boat: 2,
+  trade_boat: 4,
+  warship: 0,
+};
 export type BuildingType =
   | 'town_center'
   | 'house'
@@ -43,6 +52,8 @@ export interface Unit {
   gatherRadiusLimit?: number; // Maximum search radius for consecutive resources
   gatherTimeLimitSeconds?: number; // Configured work shift timer in seconds (0 = infinite)
   gatherShiftSecondsRemaining?: number; // Real-time remaining seconds for current gathering shift
+  passengers?: Unit[];
+  embarkTargetId?: string;
 }
 
 export interface Building {

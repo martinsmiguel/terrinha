@@ -1,4 +1,5 @@
 import { isBoatUnit, MAP_SIZE } from './engine';
+import { boardArrivedPassengers } from './navalTransport';
 import type { BuildingType, GameState, Unit, UnitType } from './engine';
 import { applyCost, canAfford, refinePlanks, UNIT_COSTS } from './economy';
 import { findPath, nextWaypoint } from './movement/pathfinding';
@@ -183,6 +184,12 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       return { ...unit, position: { x: nextX, z: nextZ }, state: 'moving' as const };
     }
 
+    return unit;
+  });
+
+  updatedUnits = boardArrivedPassengers(updatedUnits);
+
+  updatedUnits = updatedUnits.map((unit) => {
     if (unit.state === 'repairing' && unit.targetEntityId) {
       const targetId = unit.targetEntityId;
       const building = updatedBuildings.find((bd) => bd.id === targetId);
@@ -584,6 +591,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
           ? 24
           : 5,
       state: 'idle',
+      ...(boat ? { passengers: [] as Unit[] } : {}),
     };
     updatedUnits.push(newUnit);
 
