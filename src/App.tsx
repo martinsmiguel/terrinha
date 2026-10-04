@@ -115,9 +115,16 @@ export default function App() {
   const engineRef = useRef<GameEngine | null>(null);
   const multiRef = useRef<MultiplayerManager | null>(null);
 
+  // Rota de demonstracao da PoC de interface: abre uma partida solo direto,
+  // sem passar pelo lobby, e permite esconder o HUD do proprio jogo para que a
+  // proposta seja sobreposta a partida real. Fora dessa rota nada muda: o jogo
+  // em `/` continua abrindo no lobby como sempre.
+  const isSoloPreviewRoute = window.location.pathname === '/poc.html';
+  const isHudPreviewMode = isSoloPreviewRoute && new URLSearchParams(window.location.search).has('hud-preview');
+
   // Menu / Lobby state
-  const [isGameStarted, setIsGameStarted] = useState(false);
-  const [role, setRole] = useState<'host' | 'client' | 'single'>('host');
+  const [isGameStarted, setIsGameStarted] = useState(isSoloPreviewRoute);
+  const [role, setRole] = useState<'host' | 'client' | 'single'>(isSoloPreviewRoute ? 'single' : 'host');
   const [roomId, setRoomId] = useState('vila-principal');
   const [playerName, setPlayerName] = useState('Comandante');
   const [playerSlot, setPlayerSlot] = useState<PlayerSlot>('player1');
@@ -141,7 +148,7 @@ export default function App() {
   squadFormationRef.current = squadFormation;
 
   // HUD Display modes: 'full' (completo) | 'compact' (compacto tático) | 'hidden' (cinemático)
-  const [hudMode, setHudMode] = useState<'full' | 'compact' | 'hidden'>('full');
+  const [hudMode, setHudMode] = useState<'full' | 'compact' | 'hidden'>(isHudPreviewMode ? 'hidden' : 'full');
   const isHudVisible = hudMode !== 'hidden';
   const [isHoverPeeking, setIsHoverPeeking] = useState(false);
 
@@ -4322,6 +4329,7 @@ export default function App() {
   useEffect(() => {
     if (!isGameStarted || tutorialSeenCheckedRef.current) return;
     tutorialSeenCheckedRef.current = true;
+    if (isHudPreviewMode) return;
     try {
       if (window.localStorage.getItem(TUTORIAL_SEEN_KEY) !== '1') {
         setShowTutorial(true);
@@ -4329,7 +4337,57 @@ export default function App() {
     } catch {
       setShowTutorial(true);
     }
-  }, [isGameStarted]);
+  }, [isGameStarted, isHudPreviewMode]);
+
+  // Ponte da Poc de HUD: existe apenas na rota de preview. So LE o que o HUD precisa
+  // (mapa, camera, recursos e entidades) e permite centralizar a camera, que e
+  // navegacao. Nao envia ordens, nao toca economia e nao expoe rede.
+  useEffect(() => {
+    if (!isHudPreviewMode) return;
+    type Canto = { x: number; z: number };
+    const ponte = {
+      mapSize: MAP_SIZE,
+      map: () => proceduralMapRef.current,
+      islands: () => proceduralMapRef.current?.islands ?? [],
+      resources: () =>
+        gameStateRef.current.resourceNodes.map((r) => ({ x: r.position.x, z: r.position.z, type: r.type })),
+      entities: () => ({
+        units: gameStateRef.current.units.map((u) => ({ x: u.position.x, z: u.position.z, owner: u.owner, kind: 'unit' as const, type: u.type })),
+        buildings: gameStateRef.current.buildings.map((b) => ({ x: b.position.x, z: b.position.z, owner: b.owner, kind: 'building' as const, type: b.type })),
+      }),
+      playerSlot,
+      camera: () => {
+        const e = engineRef.current;
+        return e ? { x: e.cameraTarget.x, z: e.cameraTarget.z } : null;
+      },
+      // Pegada da camera no chao: projeta os quatro cantos da tela no plano y=0.
+      viewport: (): Canto[] | null => {
+        const e = engineRef.current;
+        if (!e) return null;
+        const cam = e.camera;
+        const cantos: Canto[] = [];
+        for (const [nx, ny] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+          const v = new THREE.Vector3(nx, ny, 0.5).unproject(cam);
+          const dir = v.sub(cam.position).normalize();
+          if (Math.abs(dir.y) < 1e-4) return null;
+          const t = -cam.position.y / dir.y;
+          cantos.push({ x: cam.position.x + dir.x * t, z: cam.position.z + dir.z * t });
+        }
+        return cantos;
+      },
+      centerOn: (x: number, z: number) => {
+        const e = engineRef.current;
+        if (!e) return false;
+        e.setCameraTarget(x, z);
+        return true;
+      },
+    };
+    const alvo = window as unknown as { __terrinhaPreview?: typeof ponte };
+    alvo.__terrinhaPreview = ponte;
+    return () => {
+      delete alvo.__terrinhaPreview;
+    };
+  }, [isHudPreviewMode, playerSlot]);
 
   const closeTutorial = () => {
     setShowTutorial(false);
@@ -4771,11 +4829,11 @@ export default function App() {
       {/* TOP HOVER TRIGGER ZONE FOR PEEKING WHEN HUD IS HIDDEN */}
       <div
         className="absolute top-0 left-0 right-0 h-4 z-30 pointer-events-auto"
-        onMouseEnter={() => setIsHoverPeeking(true)}
+        onMouseEnter={() => { if (!isHudPreviewMode) setIsHoverPeeking(true); }}
       />
 
       {/* MINIMAL RESTORE DOCK WHEN HUD IS HIDDEN (Cinematic Exploration Mode) */}
-      {hudMode === 'hidden' && !isHoverPeeking && (
+      {hudMode === 'hidden' && !isHoverPeeking && !isHudPreviewMode && (
         <div
           onMouseEnter={() => {
             setIsHoverPeeking(true);
@@ -4822,7 +4880,7 @@ export default function App() {
       )}
 
       {/* TOP RESOURCE & STATUS HUD (FULL / COMPACT / HOVER PEEK) */}
-      {(hudMode !== 'hidden' || isHoverPeeking) && (
+      {(hudMode !== 'hidden' || (isHoverPeeking && !isHudPreviewMode)) && (
         <header
           onMouseEnter={() => {
             setIsHoverPeeking(true);
@@ -7208,7 +7266,7 @@ export default function App() {
       />
 
       {/* MATCH RESULT SCREEN (vitoria / derrota / empate) */}
-      {showResultScreen && (
+      {showResultScreen && !isHudPreviewMode && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
           <div className="bg-slate-900/95 border border-slate-700/80 rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-5 text-center">
             <div className={`text-4xl font-black tracking-wide ${resultToneClass}`}>{resultLabel}</div>
