@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111611" />
+    <title>Terrinha — Avaliação da PoC de HUD</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --ink: #e9e2d1;
+        --muted: #a7aa9a;
+        --dim: #9aa194;
+        --panel: rgba(19, 25, 21, 0.94);
+        --line: rgba(199, 184, 139, 0.2);
+        --gold: #d3b577;
+        --gold-bright: #f1d594;
+        --green: #a7bd88;
+        --red: #d58e78;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; background: #0e1310; color: var(--ink); }
+      body { display: flex; flex-direction: column; font-size: 13px; }
+      button { font: inherit; color: inherit; cursor: pointer; }
+      button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+
+      header { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, rgba(17,23,18,.96), rgba(14,19,15,.86)); }
+      .marca { display: flex; align-items: center; gap: 9px; }
+      .marca-selo { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; color: #1b2419; background: linear-gradient(160deg, var(--gold-bright), #a98c4d); font-size: 11px; }
+      .marca-nome { font: 600 12px/1.15 Georgia, serif; letter-spacing: .14em; text-transform: uppercase; }
+      .marca-sub { margin-top: 3px; color: var(--dim); font-size: 8px; letter-spacing: .14em; text-transform: uppercase; }
+      .seletor { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+      .seletor span { color: var(--dim); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; }
+      .chip { padding: 7px 12px; border: 1px solid var(--line); border-radius: 9px; background: transparent; color: var(--muted); font-size: 11px; }
+      .chip[aria-pressed="true"] { border-color: rgba(211,181,119,.6); background: rgba(211,181,119,.14); color: var(--ink); }
+      .acao { padding: 8px 12px; border: 1px solid rgba(211,181,119,.45); border-radius: 9px; background: rgba(211,181,119,.1); color: var(--gold-bright); font-size: 11px; }
+      .acao:hover { background: rgba(211,181,119,.2); }
+
+      main { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 372px; }
+      .palco { position: relative; min-width: 0; background: #0b0f0c; }
+      .palco iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+      aside { min-height: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line); background: #121814; }
+      .painel-topo { padding: 12px 14px 10px; border-bottom: 1px solid var(--line); }
+      .painel-topo h1 { margin: 0; font: 600 15px/1.2 Georgia, serif; }
+      .painel-topo p { margin: 6px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+      .tarefas { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px 16px; display: grid; gap: 9px; }
+      .tarefa { padding: 9px 10px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.025); }
+      .tarefa.ativa { border-color: rgba(211,181,119,.65); background: rgba(211,181,119,.08); }
+      .tarefa.feita { border-color: rgba(167,189,136,.45); }
+      .tarefa-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+      .tarefa b { font: 600 12px/1.3 Georgia, serif; }
+      .selo { flex: 0 0 auto; padding: 3px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--dim); font: 9px/1 ui-monospace, monospace; letter-spacing: .06em; text-transform: uppercase; }
+      .selo.poc { color: var(--gold); border-color: rgba(211,181,119,.45); }
+      .cronometro { margin-top: 7px; font: 650 19px/1 ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+      .cronometro small { color: var(--dim); font: 9px/1 ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase; display: block; margin-bottom: 5px; }
+      .linha { display: flex; align-items: center; gap: 5px; margin-top: 7px; flex-wrap: wrap; }
+      .mini { padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--muted); font-size: 10px; }
+      .mini:hover { background: rgba(255,255,255,.05); color: var(--ink); }
+      .mini.principal { border-color: rgba(211,181,119,.5); background: rgba(211,181,119,.12); color: var(--gold-bright); }
+      .mini[aria-pressed="true"] { border-color: rgba(211,181,119,.7); background: rgba(211,181,119,.18); color: var(--ink); }
+      .rotulo { color: var(--dim); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+      .nota { width: 100%; margin-top: 8px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: rgba(0,0,0,.25); color: var(--ink); font-size: 11px; resize: vertical; min-height: 34px; }
+      .resultado { margin-top: 8px; color: var(--green); font: 10px/1.5 ui-monospace, monospace; }
+      .resultado.desistiu { color: var(--red); }
+
+      footer { padding: 10px 14px; border-top: 1px solid var(--line); background: #121814; }
+      textarea.saida { width: 100%; min-height: 56px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: rgba(0,0,0,.3); color: var(--muted); font: 10px/1.45 ui-monospace, monospace; }
+      .rodape-linha { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+      .rodape-linha span { color: var(--dim); font-size: 10px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="marca">
+        <div class="marca-selo" aria-hidden="true">◆</div>
+        <div><div class="marca-nome">Avaliação da PoC</div><div class="marca-sub">Terrinha · card #42</div></div>
+      </div>
+      <div class="seletor" role="group" aria-label="Interface em avaliação">
+        <span>Interface</span>
+        <button class="chip" data-interface="atual" aria-pressed="false">HUD atual</button>
+        <button class="chip" data-interface="poc" aria-pressed="true">PoC</button>
+      </div>
+      <button class="acao" data-acao="zerar">Zerar registros</button>
+    </header>
+
+    <main>
+      <section class="palco">
+        <iframe id="alvo" src="/poc-hud.html" title="Interface em avaliação"></iframe>
+      </section>
+
+      <aside>
+        <div class="painel-topo">
+          <h1>Tarefas observadas</h1>
+          <p>Inicie o cronômetro, execute a tarefa na interface ao lado e registre o resultado. Nada aqui altera a partida: é só medição. As tarefas com o selo <b>PoC</b> só existem na proposta — ao avaliar o HUD atual elas ficam ocultas e a comparação é qualitativa.</p>
+        </div>
+        <div class="tarefas" id="tarefas"></div>
+      </aside>
+    </main>
+
+    <footer>
+      <div class="rodape-linha">
+        <button class="acao" data-acao="csv">Baixar CSV</button>
+        <button class="acao" data-acao="copiar">Copiar CSV</button>
+        <span id="resumo">nenhum registro</span>
+      </div>
+      <textarea class="saida" id="saida" readonly aria-label="CSV gerado"></textarea>
+    </footer>
+
+    <script>
+      // Mesmas colunas do avaliacao-humana.csv, para o registro cair direto na revisao.
+      const COLUNAS = ['Tarefa', 'Interface', 'Concluiu sem ajuda (s/n)', 'Tempo (s)', 'Erros', 'Facilidade (1-5)', 'Observacao'];
+      const TAREFAS = [
+        { id:'madeira', texto:'Localizar Madeira e abrir o contexto do recurso', proposta:false },
+        { id:'aldeao', texto:'Selecionar um aldeão ocioso', proposta:false },
+        { id:'catalogo', texto:'Encontrar e abrir catálogo ou busca', proposta:false },
+        { id:'mundo', texto:'Abrir o mapa-múndi e localizar outra ilha', proposta:false },
+        { id:'localidade', texto:'Encontrar uma localidade e voltar ao foco anterior', proposta:true },
+        { id:'lote', texto:'Executar um comando em lote e desfazê-lo', proposta:true },
+        { id:'radial', texto:'Abrir o radial, usar um comando e fechar com Esc', proposta:true },
+        { id:'minimizar', texto:'Minimizar o HUD e restaurar', proposta:true },
+        { id:'historico', texto:'Desfazer uma mudança de painel com Ctrl/Cmd+Z e refazer com Shift+Z', proposta:true },
+      ];
+      const CHAVE = 'terrinha:avaliacao-hud';
+
+      const estado = { interface:'poc', registros:{}, ativo:null, inicio:0, decorrido:0, timer:null };
+      try { Object.assign(estado, JSON.parse(localStorage.getItem(CHAVE) || '{}'), { ativo:null, timer:null }); } catch {}
+      if (!estado.registros) estado.registros = {};
+
+      const alvo = document.getElementById('alvo');
+      const lista = document.getElementById('tarefas');
+      const saida = document.getElementById('saida');
+      const resumo = document.getElementById('resumo');
+
+      const chave = (id, iface) => `${id}|${iface}`;
+      const registro = (id, iface) => estado.registros[chave(id, iface)] || { concluiu:null, tempo:0, erros:0, facilidade:null, nota:'' };
+      const salvar = () => localStorage.setItem(CHAVE, JSON.stringify({ interface:estado.interface, registros:estado.registros }));
+      const mmss = (ms) => {
+        const s = ms / 1000;
+        return `${String(Math.floor(s / 60)).padStart(2,'0')}:${(s % 60).toFixed(1).padStart(4,'0')}`;
+      };
+      const aplicavel = (t) => !t.proposta || estado.interface === 'poc';
+
+      function renderTarefas() {
+        lista.innerHTML = TAREFAS.filter(aplicavel).map((t) => {
+          const r = registro(t.id, estado.interface);
+          const ativa = estado.ativo && estado.ativo.id === t.id && estado.ativo.iface === estado.interface;
+          const mostrado = ativa ? estado.decorrido : r.tempo;
+          return `<article class="tarefa ${ativa?'ativa':''} ${r.concluiu===true?'feita':''}" data-id="${t.id}">
+            <div class="tarefa-topo">
+              <b>${t.texto}</b>
+              <span class="selo ${estado.interface==='poc'?'poc':''}">${estado.interface==='poc'?'PoC':'Atual'}</span>
+            </div>
+            ${t.proposta && estado.interface==='atual' ? '' : ''}
+            <div class="cronometro"><small>Tempo</small>${mmss(mostrado)}</div>
+            <div class="linha">
+              ${ativa
+                ? `<button class="mini principal" data-acao="concluir">Concluí</button><button class="mini" data-acao="desistir">Desisti</button>`
+                : `<button class="mini principal" data-acao="iniciar">Iniciar</button>`}
+              ${r.tempo>0 && !ativa ? '<button class="mini" data-acao="reiniciar">Refazer</button>' : ''}
+            </div>
+            <div class="linha">
+              <span class="rotulo">Erros</span>
+              <button class="mini" data-acao="erro-menos" aria-label="Menos um erro">−</button>
+              <b class="rotulo" style="font-size:12px;color:var(--ink)">${r.erros}</b>
+              <button class="mini" data-acao="erro-mais" aria-label="Mais um erro">+</button>
+              <span class="rotulo" style="margin-left:8px">Facilidade</span>
+              ${[1,2,3,4,5].map((n)=>`<button class="mini" data-acao="facilidade" data-valor="${n}" aria-pressed="${r.facilidade===n}">${n}</button>`).join('')}
+            </div>
+            <textarea class="nota" data-acao="nota" placeholder="Observação (opcional)">${r.nota ? r.nota.replace(/</g,'&lt;') : ''}</textarea>
+            ${r.concluiu!==null ? `<div class="resultado ${r.concluiu?'':'desistiu'}">${r.concluiu?'concluída':'não concluída'} · ${(r.tempo/1000).toFixed(1)}s · ${r.erros} erro(s)${r.facilidade?` · facilidade ${r.facilidade}`:''}</div>` : ''}
+          </article>`;
+        }).join('');
+        atualizarSaida();
+      }
+
+      function csv() {
+        const celula = (valor) => { const texto = String(valor ?? ''); return /[,\"\r\n]/.test(texto) ? `\"${texto.replace(/\"/g, '\"\"')}\"` : texto; };
+        const linhas = [COLUNAS.map(celula).join(',')];
+        for (const t of TAREFAS) {
+          const interfaces = t.proposta ? ['poc'] : ['atual','poc'];
+          for (const iface of interfaces) {
+            const r = registro(t.id, iface);
+            const nome = t.texto;
+            const concluiu = r.concluiu === null ? '' : (r.concluiu ? 's' : 'n');
+            const tempo = r.concluiu === null ? '' : (r.tempo/1000).toFixed(1);
+            const facil = r.facilidade === null ? '' : String(r.facilidade);
+            const nota = r.nota || '';
+            linhas.push([nome, iface === 'poc' ? (t.proposta ? 'PoC (sem equivalente no HUD atual)' : 'PoC') : 'HUD atual', concluiu, tempo, r.concluiu===null?'':String(r.erros), facil, nota].map(celula).join(','));
+          }
+        }
+        return linhas.join('\n');
+      }
+
+      function atualizarSaida() {
+        saida.value = csv();
+        const feitos = Object.values(estado.registros).filter((r) => r.concluiu !== null).length;
+        resumo.textContent = feitos === 0 ? 'nenhum registro' : `${feitos} registro(s)`;
+      }
+
+      function pararTimer() {
+        if (estado.timer) cancelAnimationFrame(estado.timer);
+        estado.timer = null;
+      }
+
+      function tick() {
+        estado.decorrido = performance.now() - estado.inicio;
+        const el = lista.querySelector('.tarefa.ativa .cronometro');
+        if (el) el.innerHTML = `<small>Tempo</small>${mmss(estado.decorrido)}`;
+        estado.timer = requestAnimationFrame(tick);
+      }
+
+      function iniciar(id) {
+        pararTimer();
+        estado.ativo = { id, iface: estado.interface };
+        estado.inicio = performance.now();
+        estado.decorrido = 0;
+        renderTarefas();
+        estado.timer = requestAnimationFrame(tick);
+      }
+
+      function fechar(concluiu) {
+        if (!estado.ativo) return;
+        const r = registro(estado.ativo.id, estado.ativo.iface);
+        r.concluiu = concluiu;
+        r.tempo = estado.decorrido;
+        estado.registros[chave(estado.ativo.id, estado.ativo.iface)] = r;
+        pararTimer();
+        estado.ativo = null;
+        salvar();
+        renderTarefas();
+      }
+
+      lista.addEventListener('click', (event) => {
+        const botao = event.target.closest('button[data-acao]');
+        if (!botao) return;
+        const id = botao.closest('.tarefa').dataset.id;
+        const acao = botao.dataset.acao;
+        const r = registro(id, estado.interface);
+        if (acao === 'iniciar') iniciar(id);
+        else if (acao === 'concluir') fechar(true);
+        else if (acao === 'desistir') fechar(false);
+        else if (acao === 'reiniciar') { estado.registros[chave(id, estado.interface)] = { concluiu:null, tempo:0, erros:0, facilidade:null, nota:r.nota }; salvar(); renderTarefas(); }
+        else if (acao === 'erro-mais') { r.erros++; estado.registros[chave(id, estado.interface)] = r; salvar(); renderTarefas(); }
+        else if (acao === 'erro-menos') { r.erros = Math.max(0, r.erros - 1); estado.registros[chave(id, estado.interface)] = r; salvar(); renderTarefas(); }
+        else if (acao === 'facilidade') { const n = Number(botao.dataset.valor); r.facilidade = r.facilidade === n ? null : n; estado.registros[chave(id, estado.interface)] = r; salvar(); renderTarefas(); }
+      });
+
+      lista.addEventListener('input', (event) => {
+        if (!event.target.matches('textarea[data-acao="nota"]')) return;
+        const id = event.target.closest('.tarefa').dataset.id;
+        const r = registro(id, estado.interface);
+        r.nota = event.target.value;
+        estado.registros[chave(id, estado.interface)] = r;
+        salvar();
+        atualizarSaida();
+      });
+
+      document.querySelectorAll('[data-interface]').forEach((botao) => {
+        botao.addEventListener('click', () => {
+          pararTimer();
+          estado.ativo = null;
+          estado.interface = botao.dataset.interface;
+          document.querySelectorAll('[data-interface]').forEach((b) => b.setAttribute('aria-pressed', String(b === botao)));
+          alvo.src = estado.interface === 'poc' ? '/poc-hud.html' : '/poc.html';
+          salvar();
+          renderTarefas();
+        });
+      });
+
+      document.querySelector('[data-acao="copiar"]').addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(csv()); resumo.textContent = 'CSV copiado'; }
+        catch { saida.focus(); saida.select(); resumo.textContent = 'selecione o texto e copie'; }
+      });
+
+      document.querySelector('[data-acao="csv"]').addEventListener('click', () => {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(new Blob([csv()], { type: 'text/csv;charset=utf-8' }));
+        link.download = 'avaliacao-hud.csv';
+        link.click();
+        URL.revokeObjectURL(link.href);
+      });
+
+      document.querySelector('[data-acao="zerar"]').addEventListener('click', () => {
+        estado.registros = {};
+        estado.ativo = null;
+        pararTimer();
+        salvar();
+        renderTarefas();
+      });
+
+      // Restaura a interface escolhida antes de desenhar
+      if (estado.interface === 'atual') {
+        alvo.src = '/poc.html';
+        document.querySelectorAll('[data-interface]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.interface === 'atual')));
+      }
+      renderTarefas();
+    </script>
+  </body>
+</html>

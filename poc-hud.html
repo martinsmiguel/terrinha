@@ -1,0 +1,1251 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111611" />
+    <title>Terrinha — PoC de HUD</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --minimap-size: 184px;
+        --minimap-left: 100px;
+        --ink: #e9e2d1;
+        --muted: #a7aa9a;
+        --dim: #9aa194;
+        --panel: rgba(19, 25, 21, 0.94);
+        --panel-soft: rgba(25, 33, 27, 0.91);
+        --line: rgba(199, 184, 139, 0.2);
+        --gold: #d3b577;
+        --gold-bright: #f1d594;
+        --teal: #88b7aa;
+        --red: #d58e78;
+        --green: #a7bd88;
+        --shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+        --rail-width: 68px;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #111611; }
+      body { color: var(--ink); font-size: 13px; }
+      button, input { font: inherit; }
+      button { color: inherit; }
+      button:focus-visible, input:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 3px; }
+      [hidden] { display: none !important; }
+
+      .game { position: relative; width: 100%; height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; background: #26392b; isolation: isolate; }
+      .game.hud-minimized > :not(.world):not(.restore-hud) { visibility: hidden; opacity: 0; pointer-events: none; }
+      .world { position: absolute; z-index: 0; inset: 0; overflow: hidden; background: #101710; }
+      .world iframe { display: block; width: 100%; height: 100%; border: 0; background: #101710; }
+      /* O iframe do jogo fica fora da ordem de foco (tabindex="-1"): e a tela real
+         preservada, nao um controle da Poc. O Chromium nao expoe pseudo-classe de
+         foco no elemento do frame, entao mante-lo focavel criava um ponto de foco
+         sem indicador. O teclado da Poc percorre so os controles do HUD. */
+      .map-vignette { display: none; }
+      .restore-hud { position:absolute; z-index:40; top:12px; left:50%; transform:translateX(-50%); display:none; align-items:center; gap:8px; padding:9px 13px; border:1px solid rgba(211,181,119,.5); border-radius:12px; color:var(--gold-bright); background:rgba(19,25,21,.96); box-shadow:var(--shadow); cursor:pointer; }
+      .hud-minimized .restore-hud { display:flex; }
+
+      /* Faixa superior: um contorno para o grupo, nao um cartao por dado. */
+      .topbar { position: absolute; z-index: 5; left: 16px; right: 16px; top: 10px; height: 56px; display: flex; align-items: center; gap: 12px; padding: 5px 8px; border: 1px solid rgba(199,184,139,.18); border-radius: 16px; background: linear-gradient(180deg, rgba(17,23,18,.94), rgba(14,19,15,.78)); box-shadow: 0 14px 40px rgba(0,0,0,.42); backdrop-filter: blur(14px); pointer-events: none; }
+      .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+      .icon { width: 18px; height: 18px; flex: 0 0 auto; display: inline-block; vertical-align: middle; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+      .topbar > * { pointer-events: auto; }
+      .topbar::after { content:''; position:absolute; left:10px; right:10px; bottom:-1px; height:1px; background: linear-gradient(90deg, transparent, rgba(211,181,119,.42), transparent); }
+      .brand { display: flex; align-items: center; gap: 8px; padding-right: 12px; border-right: 1px solid rgba(199,184,139,.16); }
+      .brand-mark { width: 26px; height: 26px; display: grid; place-items: center; color: #1b2419; background: linear-gradient(160deg, var(--gold-bright), #a98c4d); border-radius: 8px; font-size: 11px; }
+      .brand-name { font: 600 12px/1.15 Georgia, serif; letter-spacing: .14em; text-transform: uppercase; }
+      .brand-sub { color: var(--dim); margin-top: 3px; font-size: 8px; letter-spacing: .14em; text-transform: uppercase; }
+      .resources { display: flex; flex: 1; justify-content: center; align-items: center; gap: 2px; min-width: 0; flex-wrap: nowrap; transition: opacity .3s; }
+      .resource { position: relative; flex: 0 1 auto; min-width: 0; padding: 4px 10px; display: flex; gap: 8px; align-items: center; border: 0; border-radius: 10px; color: inherit; background: transparent; text-align: left; cursor: pointer; transition: background .16s; }
+      .resource + .resource::before { content:''; position:absolute; left:0; top:18%; bottom:18%; width:1px; background: rgba(199,184,139,.13); }
+      .resource:hover, .resource:focus-visible { background: rgba(211,181,119,.1); }
+      .resource-mark { display: grid; place-items: center; color: var(--gold); }
+      .resource-mark .icon { width: 17px; height: 17px; }
+      .resource[data-kind="wood"] .resource-mark { color: #c79a5e; }
+      .resource[data-kind="food"] .resource-mark { color: #9ec07a; }
+      .resource[data-kind="gold"] .resource-mark { color: #e6cd8c; }
+      .resource[data-kind="stone"] .resource-mark { color: #a9b6b2; }
+      .resource[data-kind="pop"] .resource-mark { color: #8fb6c9; }
+      .resource-label { display: block; color: var(--dim); font-size: 8px; line-height: 1.1; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+      .resource-value { display: block; margin-top: 2px; font: 650 14px/1 ui-monospace, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .resource-cap { color: var(--dim); font-size: 10px; }
+      .resource-rate { display: block; margin-top: 2px; color: #8fae74; font: 9px/1 ui-monospace, monospace; transition: opacity .35s; }
+      .resource-rate.muted { color: var(--dim); }
+      .resource[data-kind="gold"] .resource-value { color: #e6cd8c; }
+      .resource[data-kind="food"] .resource-rate { color: #9ec07a; }
+      .resource[data-kind="stone"] .resource-rate { color: #a9b6b2; }
+      .resource[data-kind="gold"] .resource-rate { color: #d9bd7c; }
+      .era-pill { display: flex; align-items: center; gap: 8px; padding: 4px 12px; border-left: 1px solid rgba(199,184,139,.16); border-right: 1px solid rgba(199,184,139,.16); }
+      .era-glyph { display: grid; place-items: center; color: var(--gold); }
+      .era-glyph .icon { width: 16px; height: 16px; }
+      .top-glyph { display: grid; place-items: center; }
+      .top-glyph .icon { width: 15px; height: 15px; }
+      .rail-glyph { display: grid; place-items: center; }
+      .rail-glyph .icon { width: 18px; height: 18px; }
+      .context-glyph { display: grid; place-items: center; color: var(--gold); }
+      .context-glyph .icon { width: 14px; height: 14px; }
+      .portrait .icon { width: 22px; height: 22px; }
+      .command-button .icon { width: 18px; height: 18px; }
+      .era-glyph { font-size: 15px; line-height: 1; }
+      .eyebrow { color: var(--dim); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+      .era-name { display: block; margin-top: 2px; color: var(--gold-bright); font: 600 12px/1 Georgia, serif; }
+      .top-actions { display: flex; align-items: center; gap: 4px; }
+      .square-button, .top-button { height: 34px; border: 1px solid transparent; border-radius: 9px; color: var(--ink); background: transparent; cursor: pointer; transition: background .16s, border-color .16s; }
+      .square-button { width: 34px; font: 700 11px/1 ui-monospace, monospace; }
+      .top-button { padding: 0 11px; font-size: 10px; }
+      .square-button:hover, .top-button:hover, .rail-button:hover, .command-button:hover { background: rgba(211,181,119,.12); border-color: rgba(211,181,119,.3); }
+      .top-button kbd { margin-left: 6px; padding: 2px 5px; border: 1px solid rgba(199,184,139,.22); border-radius: 5px; color: var(--muted); font: 9px/1 ui-monospace, monospace; }
+
+      /* Canto superior esquerdo: titulo da partida e resumo do modo atual. */
+      .corner-top { position: absolute; z-index: 3; top: 72px; left: calc(var(--rail-width) + 32px); width: 218px; display: grid; gap: 6px; padding: 8px 10px 9px 11px; border-radius: 13px; background: linear-gradient(180deg, rgba(12,17,13,.74), rgba(12,17,13,.44)); transition: opacity .35s; }
+      .map-label { padding-left: 10px; border-left: 2px solid rgba(211,181,119,.55); }
+      .map-label strong { display: block; color: rgba(243,236,215,.95); font: 600 clamp(13px,1.1vw,16px)/1.2 Georgia, serif; letter-spacing: .03em; text-shadow: 0 2px 10px rgba(10,16,11,.7); }
+      .map-label span { display: block; margin-top: 2px; color: rgba(233,226,209,.62); font-size: 8px; letter-spacing: .12em; text-transform: uppercase; }
+      .context-strip { display: grid; gap: 4px; }
+      /* Revelacao progressiva: so o indicador vital fica visivel; o resto abre no hover. */
+      .corner-top .context-row:nth-child(n+3) { display: none; }
+      .corner-top:hover .context-row, .corner-top:focus-within .context-row { display: flex; }
+      .context-title { color: var(--gold); font: 600 8px/1 Georgia, serif; letter-spacing: .14em; text-transform: uppercase; opacity: .9; }
+      .context-row { display: flex; align-items: center; gap: 7px; padding: 4px 7px; border-left: 2px solid rgba(211,181,119,.45); border-radius: 0 7px 7px 0; background: rgba(10,14,11,.66); font-size: 9px; }
+      .context-row .context-glyph { font-size: 13px; line-height: 1; }
+      .context-row b { color: var(--ink); font: 650 11px/1 ui-monospace, monospace; }
+      .context-row span { color: var(--muted); }
+      /* Gate da Etapa 0 do DoD: dizer o que e ilustracao e o que e jogo real sem explicacao oral. */
+      .corner-note { color: var(--dim); font-size: 9px; line-height: 1.45; }
+      .corner-note b { color: var(--muted); font-weight: 600; }
+
+      /* Rail unico: modos, paineis e ferramentas no mesmo contorno. */
+      .rail { position: absolute; z-index: 5; left: 16px; top: 74px; bottom: 20px; width: var(--rail-width); display: flex; flex-direction: column; gap: 3px; padding: 6px; border: 1px solid rgba(199,184,139,.18); border-radius: 16px; background: linear-gradient(180deg, rgba(17,23,18,.94), rgba(14,19,15,.8)); box-shadow: 0 14px 40px rgba(0,0,0,.42); backdrop-filter: blur(14px); transition: opacity .35s; }
+      .rail-group { display: grid; gap: 3px; }
+      .rail-button { position: relative; min-height: 46px; display: grid; justify-items: center; align-content: center; gap: 3px; border: 1px solid transparent; border-radius: 9px; color: var(--muted); background: transparent; cursor: pointer; transition: background .16s, color .16s; }
+      .rail-button .rail-glyph { font-size: 15px; line-height: 1; filter: saturate(.85); }
+      .rail-button small { font-size: 8px; letter-spacing: .04em; }
+      .rail-button:hover { color: var(--ink); background: rgba(255,255,255,.05); }
+      .rail-button.active, .rail-button[aria-pressed="true"] { color: var(--ink); background: rgba(211,181,119,.13); }
+      .rail-button.active::before, .rail-button[aria-pressed="true"]::before { content:''; position:absolute; left:-6px; top:22%; bottom:22%; width:2px; border-radius:2px; background: var(--gold-bright); }
+      .rail-divider { height: 1px; margin: 3px 6px; background: rgba(199,184,139,.16); }
+      .rail-spacer { flex: 1; }
+      .rail-label { color: var(--dim); font-size: 10px; line-height: 1.3; text-align: center; letter-spacing: .08em; text-transform: uppercase; }
+
+      /* Contexto define visibilidade — REI-2026-v3.1, Preview 03. */
+      .game.hud-idle .rail, .game.hud-idle .corner-top, .game.hud-idle .resource-rate { opacity: .34; }
+      .game.hud-idle .rail:hover, .game.hud-idle .corner-top:hover, .game.hud-idle .topbar:hover .resource-rate { opacity: 1; }
+      .game[data-mode="explore"] .resources { opacity: 0; pointer-events: none; }
+      .game[data-mode="explore"] .topbar:hover .resources, .game[data-mode="explore"] .resources:focus-within { opacity: 1; pointer-events: auto; }
+      .game[data-mode="battle"] .corner-top { opacity: 0; }
+      /* Tela estreita: nao existe posicao em que o radial caiba sem cobrir o chrome.
+         O overlay modal recolhe o HUD persistente enquanto esta aberto. */
+      .game.radial-compacto .rail, .game.radial-compacto #bottom-dock,
+      .game.radial-compacto #corner-top, .game.radial-compacto .topbar,
+      .game.radial-compacto #minimap, .game.radial-compacto .restore-hud { opacity: 0; pointer-events: none; }
+
+      .side-panel { position: absolute; z-index: 4; top: 70px; right: 16px; bottom: 102px; width: 288px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(14px); transition: transform .2s, opacity .2s; }
+      .side-panel.closed { transform: translateX(calc(100% + 28px)); opacity: 0; pointer-events: none; }
+      .panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 17px 17px 13px; border-bottom: 1px solid var(--line); }
+      .panel-head h2 { margin: 5px 0 0; font: 600 18px/1.1 Georgia, serif; }
+      .panel-subtitle { margin-top: 6px; color: var(--muted); font-size: 10px; }
+      .panel-dismiss { width: 29px; height: 29px; border: 1px solid var(--line); border-radius: 9px; background: transparent; color: var(--muted); cursor: pointer; }
+      .panel-body { flex: 1; min-height: 0; overflow: auto; padding: 14px; scrollbar-color: #65725e transparent; }
+      .section-label { display: flex; align-items: center; justify-content: space-between; margin: 2px 1px 8px; color: var(--muted); font-size: 9px; font-weight: 650; letter-spacing: .15em; text-transform: uppercase; }
+      .section-label button { padding: 3px 0; border: 0; color: var(--gold); background: transparent; font-size: 9px; cursor: pointer; }
+      .card { margin-bottom: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 13px; background: rgba(255,255,255,.026); }
+      .card-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 9px; font: 600 13px/1.25 Georgia, serif; }
+      .card-title .state { color: var(--green); font: 9px/1 ui-monospace, monospace; letter-spacing: .1em; text-transform: uppercase; }
+      .progress-row { display: flex; justify-content: space-between; gap: 12px; margin: 9px 0 6px; color: var(--muted); font-size: 10px; }
+      .progress-row.resource-focus { margin-right: -5px; margin-left: -5px; padding: 7px 5px; border-radius: 7px; color: var(--ink); background: rgba(211,181,119,.12); outline: 1px solid rgba(211,181,119,.3); }
+      .card.resource-focus { background: rgba(211,181,119,.08); outline: 1px solid rgba(211,181,119,.3); }
+      .objective.resource-focus { color: var(--ink); background: rgba(211,181,119,.12); outline: 1px solid rgba(211,181,119,.3); }
+      .progress-row b { color: var(--ink); font: 10px/1 ui-monospace, monospace; }
+      .progress { height: 5px; overflow: hidden; border-radius: 9px; background: rgba(255,255,255,.08); }
+      .progress i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #8a9e70, #d6c08d); }
+      .objective { display: flex; align-items: flex-start; gap: 9px; padding: 9px 0; border-bottom: 1px solid rgba(199,184,139,.1); color: #d9d5c8; font-size: 11px; line-height: 1.4; }
+      .objective:last-child { padding-bottom: 0; border-bottom: 0; }
+      .check { width: 15px; height: 15px; flex: 0 0 15px; display: grid; place-items: center; border: 1px solid rgba(211,181,119,.4); border-radius: 5px; color: var(--green); font-size: 9px; }
+      .check.done { background: rgba(167,189,136,.12); border-color: rgba(167,189,136,.5); }
+      .mini-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; }
+      .mini-stat { padding: 9px 8px; border: 1px solid rgba(199,184,139,.12); border-radius: 10px; background: rgba(0,0,0,.11); }
+      .mini-stat span { display: block; color: var(--muted); font-size: 9px; }
+      .mini-stat b { display: block; margin-top: 5px; font: 600 12px/1 ui-monospace, monospace; }
+      .action-list { display: grid; gap: 7px; }
+      .panel-action { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 11px; border: 1px solid rgba(199,184,139,.17); border-radius: 10px; color: var(--ink); background: rgba(255,255,255,.025); text-align: left; cursor: pointer; }
+      .panel-action:hover { border-color: rgba(211,181,119,.55); background: rgba(211,181,119,.08); }
+      .panel-action small { color: var(--muted); font-size: 9px; }
+      .panel-action kbd { color: var(--gold); font: 10px/1 ui-monospace, monospace; }
+      .catalog-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; }
+      .catalog-tile { min-height: 88px; display: flex; flex-direction: column; justify-content: space-between; padding: 10px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.025); text-align: left; cursor: pointer; }
+      .catalog-tile:hover { border-color: rgba(211,181,119,.6); background: rgba(211,181,119,.07); }
+      .catalog-tile .tile-mark { width: 23px; height: 23px; display: grid; place-items: center; border-radius: 7px; color: var(--gold-bright); background: rgba(211,181,119,.13); font: 700 10px/1 ui-monospace, monospace; }
+      .catalog-tile b { margin-top: 10px; font: 600 11px/1.2 Georgia, serif; }
+      .catalog-tile small { margin-top: 4px; color: var(--muted); font-size: 9px; }
+      .panel-footer { padding: 11px 14px; border-top: 1px solid var(--line); color: var(--dim); font-size: 9px; }
+
+      .bottom-dock { position: absolute; z-index: 4; left: calc(var(--minimap-left) + var(--minimap-size) + 10px); right: 320px; bottom: 14px; min-height: 72px; display: flex; align-items: stretch; gap: 9px; padding: 8px; border: 1px solid var(--line); border-radius: 17px; background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(12px); transition: transform .2s, opacity .2s; }
+      .bottom-dock.closed { transform: translateY(calc(100% + 25px)); opacity: 0; pointer-events: none; }
+      .selection { width: 196px; min-width: 170px; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 6px; border-right: 1px solid var(--line); }
+      .portrait { width: 44px; height: 44px; flex: 0 0 44px; display: grid; place-items: center; border: 1px solid rgba(211,181,119,.35); border-radius: 11px; background: radial-gradient(circle at 50% 30%,#5d6b52,#212c22 74%); font-size: 21px; line-height: 1; }
+      .portrait.building { background: linear-gradient(145deg,#6d6753,#2b261e); }
+      .selection h3 { margin: 0; font: 600 12px/1.15 Georgia, serif; }
+      .selection p { margin: 4px 0 0; color: var(--muted); font-size: 9px; }
+      .health { width: 96px; height: 4px; margin-top: 5px; overflow: hidden; border-radius: 9px; background: rgba(255,255,255,.1); }
+      .health i { display: block; width: 78%; height: 100%; background: #9db982; }
+      .commands { display: flex; flex: 1; min-width: 0; align-items: center; gap: 6px; overflow-x: auto; }
+      .command-button { min-width: 60px; height: 50px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 4px 7px; border: 1px solid transparent; border-radius: 10px; color: #dad4c4; background: transparent; white-space: nowrap; cursor: pointer; }
+      .command-button span:first-child { font-size: 16px; line-height: 1; filter: saturate(.9); }
+      .command-button small { color: var(--muted); font-size: 9px; }
+      .command-button:disabled { opacity: .42; cursor: default; }
+      .dock-handle { position: absolute; top: -26px; right: 12px; display: flex; gap: 4px; }
+      .dock-handle button { padding: 5px 8px; border: 1px solid var(--line); border-radius: 7px 7px 0 0; color: var(--muted); background: var(--panel); font-size: 9px; cursor: pointer; }
+
+      /* Minimapa real, em canvas: relevo, recursos, entidades e area visivel lidos da
+         partida pela ponte de preview. Clique centraliza a camera. */
+      .minimap { position: absolute; z-index: 4; left: var(--minimap-left); bottom: 14px; width: var(--minimap-size); height: var(--minimap-size); padding: 7px; border: 1px solid rgba(199,184,139,.26); border-radius: 14px; background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(12px); transition: width .2s, height .2s, opacity .2s; }
+      .minimap canvas { display: block; width: 100%; height: 100%; border-radius: 8px; cursor: crosshair; }
+      .mini-norte { position: absolute; top: 11px; right: 12px; color: var(--gold-bright); font: 700 9px/1 ui-monospace, monospace; text-shadow: 0 1px 4px rgba(0,0,0,.85); pointer-events: none; }
+      .mini-toggle { position: absolute; bottom: 11px; right: 11px; width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); background: rgba(12,17,13,.86); cursor: pointer; }
+      .mini-toggle:hover { color: var(--ink); border-color: rgba(211,181,119,.6); }
+
+      .toast { position: absolute; z-index: 12; top: 93px; left: 50%; transform: translate(-50%,-8px); max-width: 80vw; padding: 10px 14px; border: 1px solid rgba(211,181,119,.45); border-radius: 11px; color: var(--ink); background: rgba(19,25,21,.96); box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s; }
+      .toast.show { opacity: 1; transform: translate(-50%,0); }
+      .modal-scrim { position: absolute; z-index: 9; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(5,8,6,.6); backdrop-filter: blur(8px); }
+      .palette { width: min(570px,96vw); max-height: min(650px,90vh); overflow: hidden; border: 1px solid rgba(211,181,119,.35); border-radius: 18px; background: #171e19; box-shadow: 0 35px 100px rgba(0,0,0,.66); }
+      .palette-input-wrap { display: flex; align-items: center; gap: 12px; padding: 17px 18px; border-bottom: 1px solid var(--line); }
+      .palette-symbol { color: var(--gold-bright); font: 700 16px/1 ui-monospace, monospace; }
+      .palette input { flex: 1; min-width: 0; border: 0; outline: none; color: var(--ink); background: transparent; font-size: 15px; }
+      .palette kbd { padding: 4px 7px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font: 10px/1 ui-monospace, monospace; }
+      .palette-label { padding: 12px 18px 5px; color: var(--muted); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; }
+      .palette-results { max-height: 390px; overflow: auto; padding: 5px 9px 11px; }
+      .palette-result { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 10px; border: 1px solid transparent; border-radius: 10px; color: var(--ink); background: transparent; text-align: left; cursor: pointer; }
+      .palette-result:hover, .palette-result:focus-visible, .palette-result[aria-selected="true"] { border-color: rgba(211,181,119,.28); background: rgba(211,181,119,.08); }
+      .palette-result b { font-size: 12px; font-weight: 550; }
+      .palette-result small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+      .palette-result kbd { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font: 9px/1 ui-monospace, monospace; }
+      .palette-help { display: flex; justify-content: space-between; padding: 11px 18px; border-top: 1px solid var(--line); color: var(--dim); font-size: 9px; }
+
+      .menu-window { width: min(760px,96vw); min-height: 470px; display: grid; grid-template-columns: 204px 1fr; overflow: hidden; border: 1px solid rgba(211,181,119,.35); border-radius: 19px; background: #171e19; box-shadow: 0 35px 100px rgba(0,0,0,.66); }
+      .menu-sidebar { display: flex; flex-direction: column; gap: 5px; padding: 18px 12px; border-right: 1px solid var(--line); background: rgba(0,0,0,.12); }
+      .menu-title { margin: 2px 8px 16px; color: var(--gold-bright); font: 600 15px/1.2 Georgia, serif; }
+      .menu-item { padding: 11px 10px; border: 1px solid transparent; border-radius: 9px; color: var(--muted); background: transparent; text-align: left; cursor: pointer; }
+      .menu-item.active, .menu-item:hover { color: var(--ink); border-color: rgba(211,181,119,.24); background: rgba(211,181,119,.09); }
+      .menu-content { padding: 28px; }
+      .menu-content { min-width:0; max-height:min(76dvh,720px); overflow:auto; }
+      .menu-content h2 { margin: 6px 0 8px; font: 600 24px/1.1 Georgia, serif; }
+      .menu-content > p { max-width: 440px; margin: 0; color: var(--muted); line-height: 1.6; }
+      .menu-cards { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin-top: 25px; }
+      .menu-cards.interface-settings { display:block; margin-top:16px; }
+      .menu-card { min-height: 84px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.025); }
+      .menu-card b { display: block; font: 600 12px/1.2 Georgia, serif; }
+      .menu-card span { display: block; margin-top: 7px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+      .menu-close { margin-top: 19px; padding: 10px 13px; border: 1px solid rgba(211,181,119,.35); border-radius: 9px; color: var(--gold-bright); background: rgba(211,181,119,.08); cursor: pointer; }
+      .settings-toolbar { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:18px; }
+      .segmented { display:flex; gap:4px; padding:4px; border:1px solid var(--line); border-radius:10px; background:rgba(0,0,0,.16); }
+      .segmented button { padding:7px 10px; border:0; border-radius:7px; color:var(--muted); background:transparent; cursor:pointer; font-size:10px; }
+      .segmented button[aria-pressed="true"] { color:var(--gold-bright); background:rgba(211,181,119,.14); }
+      .settings-form { display:grid; gap:9px; margin-top:14px; }
+      .setting-field { display:grid; grid-template-columns:minmax(120px,1fr) minmax(130px,1.1fr); align-items:center; gap:12px; padding:10px 12px; border:1px solid rgba(199,184,139,.13); border-radius:10px; color:#ddd7c8; font-size:11px; }
+      .setting-field small { display:block; margin-top:4px; color:var(--muted); font-size:9px; line-height:1.4; }
+      .setting-field select,.setting-field input { width:100%; min-width:0; padding:8px 9px; border:1px solid var(--line); border-radius:8px; color:var(--ink); background:#111914; }
+      .settings-file { width:100%; min-height:250px; margin-top:12px; resize:vertical; padding:13px; border:1px solid var(--line); border-radius:11px; color:#dfe4d5; background:#0e1511; font:11px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; tab-size:2; }
+      .settings-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+      .settings-actions button,.settings-actions-button { padding:9px 11px; border:1px solid rgba(211,181,119,.32); border-radius:9px; color:var(--gold-bright); background:rgba(211,181,119,.08); cursor:pointer; font-size:10px; }
+      .settings-note { margin-top:10px; color:var(--muted); font-size:10px; line-height:1.5; }
+
+      .layout-window { width: min(520px,95vw); padding: 19px; border: 1px solid rgba(211,181,119,.35); border-radius: 17px; background: #171e19; box-shadow: 0 35px 100px rgba(0,0,0,.66); }
+      .layout-window h2 { margin: 4px 0 6px; font: 600 21px/1.1 Georgia, serif; }
+      .layout-window > p { margin: 0 0 16px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+      .preset-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+      .preset { min-height: 86px; display: flex; flex-direction: column; justify-content: space-between; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.025); text-align: left; cursor: pointer; }
+      .preset.active { border-color: rgba(211,181,119,.65); background: rgba(211,181,119,.1); }
+      .preset b { font: 600 11px/1.2 Georgia, serif; }
+      .preset small { color: var(--muted); font-size: 9px; line-height: 1.35; }
+      .toggle-list { display: grid; gap: 7px; margin-top: 15px; }
+      .toggle-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 11px; border: 1px solid rgba(199,184,139,.12); border-radius: 10px; color: #ddd7c8; font-size: 11px; }
+      .switch { position: relative; width: 37px; height: 21px; border: 1px solid rgba(199,184,139,.28); border-radius: 20px; background: #30392f; cursor: pointer; }
+      .switch::after { content:""; position: absolute; top: 3px; left: 3px; width: 13px; height: 13px; border-radius: 50%; background: #c9c1ad; transition: .15s; }
+      .switch[aria-checked="true"] { border-color: rgba(211,181,119,.55); background: rgba(211,181,119,.35); }
+      .switch[aria-checked="true"]::after { left: 19px; background: var(--gold-bright); }
+      .modal-title-row { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+      .close-modal { width:30px;height:30px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer; }
+
+
+      @media (max-width: 1180px) {
+        .resource-label { display: none; }
+        .top-actions .era-pill { display: none; }
+        .side-panel { width: 270px; right: 12px; }
+        :root { --minimap-size: 158px; --minimap-left: 92px; }
+        .bottom-dock { right: 300px; left: calc(var(--minimap-left) + var(--minimap-size) + 8px); }
+        .rail { gap: 2px; padding: 5px; }
+        .rail-button { min-height: 40px; }
+        .rail-label { display: none; }
+      }
+      @media (max-width: 980px) and (min-width: 821px) {
+        .brand { min-width: 46px; padding: 7px; justify-content: center; }
+        .brand-copy { display: none; }
+        .resources { justify-content: flex-start; overflow-x: auto; scrollbar-width: none; }
+        .resources::-webkit-scrollbar { display: none; }
+        .resource { flex: 0 0 auto; min-width: 61px; padding: 7px; }
+        .resource-label,.resource-rate { display: none; }
+        .resource-value { margin-top: 0; font-size: 11px; }
+        .top-actions { flex: 0 0 auto; }
+        .top-button { padding: 0 9px; }
+      }
+      @media (max-width: 820px) {
+        :root { --rail-width: 55px; }
+        .game { min-height: 0; }
+        .topbar { left: 8px; right: 8px; top: 8px; gap: 6px; height: 54px; }
+        .brand { min-width: 44px; padding: 7px; justify-content: center; }
+        .brand-mark { width: 27px; height: 27px; }
+        .brand-copy { display: none; }
+        .resources { flex: 1 1 auto; justify-content: flex-start; overflow-x: auto; gap: 4px; scrollbar-width: none; }
+        .resources::-webkit-scrollbar { display: none; }
+        .resource { flex: 0 0 auto; min-width: 0; padding: 6px; gap: 6px; border-radius: 9px; }
+        .resource-mark .icon { width: 15px; height: 15px; }
+        .resource-label,.resource-rate { display: none; }
+        .resource-value { margin: 0; font-size: 11px; }
+        .top-actions { gap: 4px; }
+        .top-button { height: 36px; padding: 0 8px; font-size: 9px; }
+        .square-button { width: 36px; height: 36px; }
+        .rail { top: 68px; left: 8px; width: 55px; padding: 4px; gap: 2px; border-radius: 13px; }
+        .rail-button { min-height: 40px; gap: 2px; }
+        .rail-glyph .icon { width: 16px; height: 16px; }
+        .rail-button small { font-size: 7px; }
+        .rail-spacer,.rail-label { display: none; }
+        .corner-top { top: 68px; left: 72px; width: 200px; }
+        .map-label strong { font-size: 14px; }
+        .map-label span { font-size: 7px; }
+        .side-panel { top: auto; right: 8px; bottom: 194px; width: min(290px,calc(100vw - 82px)); max-height: min(40dvh,calc(100dvh - 280px)); border-radius: 14px; }
+        .side-panel.closed { transform: translateX(calc(100% + 18px)); }
+        .panel-head { padding: 12px; }
+        .panel-body { padding: 10px; }
+        :root { --minimap-size: 96px; --minimap-left: 66px; }
+        .bottom-dock { left: 68px; right: 8px; bottom: 8px; min-height: 78px; gap: 5px; padding: 7px; border-radius: 14px; }
+        .selection { width: 130px; min-width: 115px; gap: 7px; padding-right: 7px; }
+        .portrait { width: 39px; height: 45px; flex-basis: 39px; border-radius: 8px; }
+        .selection h3 { font-size: 11px; }
+        .selection p { font-size: 8px; }
+        .health { width: 70px; }
+        .commands { gap: 2px; }
+        .command-button { min-width: 52px; height: 56px; padding: 4px; }
+        .command-button small { font-size: 8px; }
+        .minimap { left: 66px; bottom: 92px; width: 96px; height: 96px; padding: 5px; }
+        .mini-toggle { width: 22px; height: 22px; flex-basis: 22px; }
+        .rail { bottom: auto; }
+      }
+      @media (max-width: 520px) {
+        .top-actions .top-button[data-action="customize"] { display:none; }
+        .top-actions .top-button[data-action="menus"] { font-size: 0; width: 36px; padding:0; }
+        .top-actions .top-button[data-action="menus"]::after { content:"M"; font: 700 12px/1 ui-monospace,monospace; }
+        .resources { scrollbar-width: thin; scrollbar-color: rgba(211,181,119,.55) transparent; }
+        .resources::-webkit-scrollbar { display: block; height: 3px; }
+        .resources::-webkit-scrollbar-thumb { background: rgba(211,181,119,.55); border-radius: 5px; }
+        .topbar { right: 7px; gap: 4px; }
+        .top-actions { flex: 0 0 auto; }
+        .top-actions .top-button[data-action="search"] { width: 36px; padding: 0; font-size: 0; }
+        .top-actions .top-button[data-action="search"] kbd { display: none; }
+        .top-actions .top-button[data-action="search"]::after { content:"⌕"; font: 700 19px/1 ui-monospace,monospace; }
+        .rail-button[data-nav="diplomacy"] { display: none; }
+        .side-panel { max-height: min(42dvh,calc(100dvh - 280px)); bottom: calc(178px + env(safe-area-inset-bottom)); }
+        .bottom-dock { left: 62px; right: 6px; bottom: max(6px,env(safe-area-inset-bottom)); }
+        .selection { width: 105px; min-width: 99px; flex:0 0 99px; overflow:hidden; padding:0 9px 0 6px; gap:8px; }
+        .selection .health { width: 55px; }
+        .selection h3 { max-width: 62px; overflow:hidden; text-overflow:ellipsis; font-size: 9px; }
+        .selection p { max-width: 62px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .commands { scrollbar-width:none; }
+        .commands::-webkit-scrollbar { display:none; }
+        .command-button { min-width: 46px; }
+        .minimap { width: 84px; height: 84px; bottom: calc(90px + env(safe-area-inset-bottom)); }
+        .menu-window { min-height: min(520px,86vh); max-height:90dvh; grid-template-columns: 112px minmax(0,1fr); }
+        .menu-sidebar { padding: 13px 8px; }
+        .menu-title { font-size: 13px; margin: 2px 6px 12px; }
+        .menu-item { padding: 9px 7px; font-size: 10px; }
+        .menu-content { padding: 18px 13px; }
+        .menu-content h2 { font-size: 19px; }
+        .menu-cards { grid-template-columns: 1fr; gap: 7px; margin-top: 16px; }
+        .menu-card { min-height: 62px; padding: 9px; }
+        .menu-close { margin-top: 12px; }
+        .menu-content { padding:16px 12px; max-height:90dvh; }
+        .setting-field { grid-template-columns:1fr; gap:7px; padding:9px; }
+        .settings-file { min-height:190px; }
+        .preset-row { grid-template-columns: 1fr; }
+        .preset { min-height: 60px; }
+      }
+      /* PoC: mapa-múndi, menu radial e comandos em lote */
+      .locality-list { display: grid; gap: 8px; }
+      .locality { width: 100%; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 11px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: rgba(255,255,255,.026); text-align: left; cursor: pointer; }
+      .locality:hover, .locality:focus-visible { border-color: rgba(241,213,148,.6); background: rgba(36,47,38,.98); }
+      .locality.focused { border-color: rgba(211,181,119,.65); background: rgba(211,181,119,.1); }
+      .locality b { font: 600 12px/1.2 Georgia, serif; }
+      .locality small { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+      .locality .relation { flex: 0 0 auto; padding: 3px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font: 9px/1 ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
+      .locality .relation.ally { color: var(--green); border-color: rgba(167,189,136,.5); }
+      .locality .relation.hostile { color: var(--red); border-color: rgba(213,142,120,.5); }
+
+      .radial-scrim { position: absolute; z-index: 45; inset: 0; background: rgba(9,13,11,.36); }
+      .radial { position: absolute; z-index: 46; width: min(460px,88vw); aspect-ratio: 1; left: 50%; top: 50%; transform: translate(-50%,-50%); }
+      .radial-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 104px; height: 104px; display: grid; place-items: center; align-content: center; gap: 4px; padding: 8px; border: 1px solid rgba(211,181,119,.5); border-radius: 50%; background: var(--panel); box-shadow: var(--shadow); text-align: center; }
+      .radial-center b { font: 600 12px/1.2 Georgia, serif; }
+      .radial-center small { color: var(--muted); font-size: 9px; }
+      .radial-item { position: absolute; width: 88px; height: 88px; display: grid; place-items: center; align-content: center; gap: 3px; padding: 6px; border: 1px solid var(--line); border-radius: 50%; color: var(--ink); background: var(--panel); box-shadow: var(--shadow); text-align: center; cursor: pointer; }
+      .radial-item:hover, .radial-item:focus-visible { border-color: rgba(241,213,148,.72); background: rgba(36,47,38,.99); }
+      .radial-item span { color: var(--gold); font: 700 10px/1 ui-monospace, monospace; }
+      .radial-item small { font-size: 8px; line-height: 1.15; letter-spacing: .03em; }
+      .radial-note { position: absolute; left: 50%; bottom: -30px; transform: translateX(-50%); width: max-content; max-width: 88vw; color: var(--muted); font-size: 10px; text-align: center; }
+
+      .batch-list { display: grid; gap: 6px; margin: 14px 0 4px; }
+      .batch-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid rgba(199,184,139,.16); border-radius: 9px; background: rgba(0,0,0,.14); font-size: 11px; }
+      .batch-row b { color: var(--gold); font: 10px/1.3 ui-monospace, monospace; }
+      .batch-bar { flex: 0 0 auto; max-width: 230px; display: flex; flex-direction: column; justify-content: center; gap: 7px; padding: 9px 11px; border: 1px solid rgba(211,181,119,.4); border-radius: 11px; background: rgba(211,181,119,.1); font-size: 10px; }
+      .batch-bar span { color: var(--ink); line-height: 1.35; }
+      .batch-bar button { align-self: flex-start; padding: 5px 10px; border: 1px solid rgba(211,181,119,.5); border-radius: 8px; color: var(--gold-bright); background: transparent; font-size: 10px; cursor: pointer; }
+      .batch-bar button:hover { background: rgba(211,181,119,.16); }
+
+      .history-list { display: grid; gap: 5px; max-height: 220px; overflow: auto; }
+      .history-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 9px; border: 1px solid rgba(199,184,139,.14); border-radius: 8px; color: var(--muted); font-size: 10px; }
+      .history-row.current { border-color: rgba(211,181,119,.6); color: var(--ink); background: rgba(211,181,119,.1); }
+      .history-row b { color: var(--dim); font: 9px/1.3 ui-monospace, monospace; }
+
+      @media (max-width: 900px) {
+        .radial-item { width: 72px; height: 72px; }
+        .radial-center { width: 86px; height: 86px; }
+        .batch-bar { max-width: none; }
+      }
+      @media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+    </style>
+  </head>
+  <body>
+    <!-- Iconografia da PoC: um sprite SVG unico, traco de 1.7px, currentColor.
+         Nenhuma dependencia externa e nenhum emoji. -->
+    <svg class="icon-sprite" aria-hidden="true" focusable="false" width="0" height="0">
+      <symbol id="i-wood" viewBox="0 0 24 24"><path d="M8 7.5h8.5a4.5 4.5 0 0 1 0 9H8z"/><ellipse cx="8" cy="12" rx="2.6" ry="4.5"/><ellipse cx="8" cy="12" rx="0.9" ry="1.6"/></symbol>
+      <symbol id="i-food" viewBox="0 0 24 24"><path d="M12 20.5V8"/><path d="M12 12.5c-3.2 0-4.6-2-4.6-4.4 2.8 0 4.6 1.7 4.6 4.4z"/><path d="M12 12.5c3.2 0 4.6-2 4.6-4.4-2.8 0-4.6 1.7-4.6 4.4z"/><path d="M12 17.2c-3.2 0-4.6-2-4.6-4.4 2.8 0 4.6 1.7 4.6 4.4z"/><path d="M12 17.2c3.2 0 4.6-2 4.6-4.4-2.8 0-4.6 1.7-4.6 4.4z"/></symbol>
+      <symbol id="i-gold" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="3.4"/><path d="M12 4.5v1.6M12 17.9v1.6"/></symbol>
+      <symbol id="i-stone" viewBox="0 0 24 24"><path d="M4.8 17.2 7.8 8.8l5-2.2 6.4 5.6-2.7 5z"/><path d="M7.8 8.8l3.9 4.5M11.7 13.3l1.4 6.3"/></symbol>
+      <symbol id="i-pop" viewBox="0 0 24 24"><circle cx="9.2" cy="8.4" r="3.1"/><path d="M3.4 19.2c0-3.1 2.6-5 5.8-5s5.8 1.9 5.8 5"/><circle cx="17.2" cy="9.6" r="2.3"/><path d="M15.6 14.7c2.7-.3 5.1 1.3 5.1 4.5"/></symbol>
+      <symbol id="i-era" viewBox="0 0 24 24"><path d="M7.5 4.5h9L12 12z"/><path d="M7.5 19.5h9L12 12z"/><path d="M6.5 4.5h11M6.5 19.5h11"/></symbol>
+      <symbol id="i-village" viewBox="0 0 24 24"><path d="M3.8 11 12 4.4 20.2 11"/><path d="M6.4 10.2v9.3h11.2v-9.3"/><path d="M10.3 19.5v-5.1h3.4v5.1"/></symbol>
+      <symbol id="i-explore" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M15.6 8.4 13.6 13.6 8.4 15.6 10.4 10.4z"/></symbol>
+      <symbol id="i-battle" viewBox="0 0 24 24"><path d="M12 3.6 14.1 6.2v8.4h-4.2V6.2z"/><path d="M8.2 14.6h7.6"/><path d="M12 14.6v4.6M10 19.6h4"/></symbol>
+      <symbol id="i-overview" viewBox="0 0 24 24"><path d="M3.6 9.8 12 4.4l8.4 5.4z"/><path d="M6.2 9.8v8.4M10.1 9.8v8.4M13.9 9.8v8.4M17.8 9.8v8.4"/><path d="M4.2 19.6h15.6"/></symbol>
+      <symbol id="i-economy" viewBox="0 0 24 24"><ellipse cx="12" cy="7.2" rx="6.8" ry="2.7"/><path d="M5.2 7.2v4c0 1.5 3 2.7 6.8 2.7s6.8-1.2 6.8-2.7v-4"/><path d="M5.2 11.2v4c0 1.5 3 2.7 6.8 2.7s6.8-1.2 6.8-2.7v-4"/></symbol>
+      <symbol id="i-build" viewBox="0 0 24 24"><path d="M6 6.2h6.6l3.6 3.6-2.6 2.6L10 8.8H6z"/><path d="M10.4 12.2 4.8 19.6"/></symbol>
+      <symbol id="i-research" viewBox="0 0 24 24"><path d="M9.8 3.8h4.4M11 3.8v5.4L6.6 17.6a2 2 0 0 0 1.8 3h7.2a2 2 0 0 0 1.8-3L13 9.2V3.8"/><path d="M8.4 14.4h7.2"/></symbol>
+      <symbol id="i-diplomacy" viewBox="0 0 24 24"><circle cx="9.2" cy="12" r="4.8"/><circle cx="14.8" cy="12" r="4.8"/></symbol>
+      <symbol id="i-world" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M4 12h16"/><path d="M12 4c2.6 2.6 2.6 13.4 0 16M12 4c-2.6 2.6-2.6 13.4 0 16"/></symbol>
+      <symbol id="i-minimap" viewBox="0 0 24 24"><path d="M4 7.4 9 5.4l6 2 5-2v11.2l-5 2-6-2-5 2z"/><path d="M9 5.4v11.2M15 7.4v11.2"/></symbol>
+      <symbol id="i-panels" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/></symbol>
+      <symbol id="i-radial" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 12V4M12 12l6.9 4M12 12 5.1 16"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.6" cy="10.6" r="5.6"/><path d="M14.7 14.7 19.6 19.6"/></symbol>
+      <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 8.4h9M19.4 8.4H20M4 15.6h3M13.4 15.6H20"/><circle cx="16.2" cy="8.4" r="2.2"/><circle cx="10.2" cy="15.6" r="2.2"/></symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7.2h16M4 12h16M4 16.8h16"/></symbol>
+      <symbol id="i-villager" viewBox="0 0 24 24"><circle cx="12" cy="8.2" r="3.4"/><path d="M5.6 20c0-3.6 2.9-6.1 6.4-6.1s6.4 2.5 6.4 6.1"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3.6 19 6.1v5.9c0 4-3 7-7 8.4-4-1.4-7-4.4-7-8.4V6.1z"/></symbol>
+      <symbol id="i-move" viewBox="0 0 24 24"><path d="M4 12h14.4"/><path d="M13.4 7 18.6 12l-5.2 5"/></symbol>
+      <symbol id="i-repair" viewBox="0 0 24 24"><path d="M15.4 4.4a4.6 4.6 0 0 0-6 6L4.5 15.3a2 2 0 0 0 2.8 2.8l4.9-4.9a4.6 4.6 0 0 0 6-6l-2.7 2.7-2.2-2.2z"/></symbol>
+      <symbol id="i-production" viewBox="0 0 24 24"><path d="M4.6 8 12 4.5 19.4 8v8L12 19.5 4.6 16z"/><path d="M4.6 8 12 11.5 19.4 8M12 11.5v8"/></symbol>
+      <symbol id="i-rally" viewBox="0 0 24 24"><path d="M6.2 20.4V4"/><path d="M6.2 4.8h9.2l-1.6 3.6 1.6 3.6H6.2z"/></symbol>
+      <symbol id="i-mine" viewBox="0 0 24 24"><path d="M4.6 19.4 14.4 9.6"/><path d="M11.6 4c3.4.5 6.4 2.9 8 6.4-2.5-1.5-5-2-7.8-1.5"/></symbol>
+      <symbol id="i-formation" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.4"/></symbol>
+      <symbol id="i-patrol" viewBox="0 0 24 24"><path d="M5 18.2c0-4 3-5 7-5s7-1.1 7-5.2"/><circle cx="5" cy="18.2" r="1.9"/><circle cx="19" cy="8" r="1.9"/></symbol>
+      <symbol id="i-retreat" viewBox="0 0 24 24"><path d="M8.4 8.2h5.4a4.2 4.2 0 0 1 0 8.4h-4"/><path d="M11 5.6 8.4 8.2 11 10.8"/></symbol>
+      <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20.2s-7.2-4.5-7.2-9.4A4.4 4.4 0 0 1 12 7.9a4.4 4.4 0 0 1 7.2 2.9c0 4.9-7.2 9.4-7.2 9.4z"/></symbol>
+      <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 4.4 20.8 19.6H3.2z"/><path d="M12 10v4.4M12 17.1v.4"/></symbol>
+      <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.2 3 6.4 13.6h4.9L10.8 21l6.8-10.6h-4.9z"/></symbol>
+    </svg>
+    <main class="game" id="game" data-mode="city">
+      <section class="world" aria-label="Partida original com o novo HUD sobreposto">
+        <iframe id="game-frame" src="/poc.html?hud-preview=1" title="Partida atual do Terrinha" tabindex="-1"></iframe>
+      </section>
+      <button class="restore-hud" data-action="restore-hud"><span aria-hidden="true">◈</span> Mostrar HUD <kbd>Alt+H</kbd></button>
+
+      <header class="topbar">
+        <div class="brand" aria-label="Terrinha, PoC de interface">
+          <div class="brand-mark" aria-hidden="true">◆</div>
+          <div class="brand-copy"><div class="brand-name">Terrinha</div><div class="brand-sub">números ilustrativos</div></div>
+        </div>
+        <div class="resources" aria-label="Recursos e população da vila">
+          <button class="resource" type="button" data-resource="wood" data-kind="wood" aria-label="Madeira: 1.250 armazenada, produção de mais 12 por minuto. Abrir economia." aria-controls="side-panel"><span class="resource-mark" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-wood"/></svg></span><span class="resource-copy"><span class="resource-label">Madeira</span><span class="resource-value">1.250</span><small class="resource-rate">+12/min</small></span></button>
+          <button class="resource" type="button" data-resource="food" data-kind="food" aria-label="Comida: 840 armazenada, produção de mais 18 por minuto. Abrir economia." aria-controls="side-panel"><span class="resource-mark" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-food"/></svg></span><span class="resource-copy"><span class="resource-label">Comida</span><span class="resource-value">840</span><small class="resource-rate">+18/min</small></span></button>
+          <button class="resource" type="button" data-resource="gold" data-kind="gold" aria-label="Ouro: 520 armazenado, produção de mais 4 por minuto. Abrir economia." aria-controls="side-panel"><span class="resource-mark" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-gold"/></svg></span><span class="resource-copy"><span class="resource-label">Ouro</span><span class="resource-value">520</span><small class="resource-rate">+4/min</small></span></button>
+          <button class="resource" type="button" data-resource="stone" data-kind="stone" aria-label="Pedra: 310 armazenada, produção de mais 6 por minuto. Abrir economia." aria-controls="side-panel"><span class="resource-mark" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-stone"/></svg></span><span class="resource-copy"><span class="resource-label">Pedra</span><span class="resource-value">310</span><small class="resource-rate">+6/min</small></span></button>
+          <button class="resource" type="button" data-resource="population" data-kind="pop" aria-label="Aldeões: 28 de 35, 6 disponíveis. Abrir população na economia." aria-controls="side-panel"><span class="resource-mark" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-pop"/></svg></span><span class="resource-copy"><span class="resource-label">Aldeões</span><span class="resource-value">28<span class="resource-cap">/35</span></span><small class="resource-rate muted">6 livres</small></span></button>
+        </div>
+        <div class="era-pill"><span class="era-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-era"/></svg></span><span class="era-copy"><span class="eyebrow">Era atual</span><span class="era-name">Era Colonial</span></span></div>
+        <div class="top-actions">
+          <button class="top-button" data-action="search" aria-label="Buscar menu ou comando"><span class="top-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg></span> Buscar <kbd>⌘K</kbd></button>
+          <button class="top-button" data-action="customize" aria-label="Composição da interface"><span class="top-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-sliders"/></svg></span> Interface</button>
+          <button class="top-button" data-action="menus" aria-label="Menu do império"><span class="top-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg></span> Menu</button>
+        </div>
+      </header>
+
+      <section class="corner-top" id="corner-top" aria-label="Contexto da partida">
+        <div class="map-label"><strong id="map-title">Partida de teste</strong><span id="map-subtitle">Cenário original preservado</span></div>
+        <div class="context-strip" id="context-strip"></div>
+        <div class="corner-note"><b>HUD ilustrativo</b> · números de exemplo; a partida ao fundo é real</div>
+      </section>
+
+      <nav class="rail" aria-label="Modos e painéis de gestão">
+        <div class="rail-group" aria-label="Contexto de visualização">
+          <button class="rail-button" data-mode-choice="city" aria-pressed="true"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-village"/></svg></span><small>Vila</small></button>
+          <button class="rail-button" data-mode-choice="explore" aria-pressed="false"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-explore"/></svg></span><small>Explorar</small></button>
+          <button class="rail-button" data-mode-choice="battle" aria-pressed="false"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-battle"/></svg></span><small>Combate</small></button>
+        </div>
+        <div class="rail-divider"></div>
+        <div class="rail-group" aria-label="Painéis">
+          <button class="rail-button active" data-nav="overview" aria-pressed="true"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-overview"/></svg></span><small>Visão</small></button>
+          <button class="rail-button" data-nav="economy" aria-pressed="false"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-economy"/></svg></span><small>Economia</small></button>
+          <button class="rail-button" data-nav="build" aria-pressed="false"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-build"/></svg></span><small>Construir</small></button>
+          <button class="rail-button" data-nav="research" aria-pressed="false"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-research"/></svg></span><small>Pesquisa</small></button>
+          <button class="rail-button" data-nav="diplomacy" aria-pressed="false"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-diplomacy"/></svg></span><small>Relações</small></button>
+          <button class="rail-button" data-nav="world" aria-pressed="false"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-world"/></svg></span><small>Mundo</small></button>
+        </div>
+        <div class="rail-divider"></div>
+        <div class="rail-group" aria-label="Ferramentas">
+          <button class="rail-button" data-action="minimap" aria-pressed="true"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-minimap"/></svg></span><small>Minimapa</small></button>
+          <button class="rail-button" data-action="customize"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-panels"/></svg></span><small>Painéis</small></button>
+          <button class="rail-button" data-action="radial"><span class="rail-glyph" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-radial"/></svg></span><small>Radial</small></button>
+        </div>
+        <div class="rail-spacer"></div>
+        <div class="rail-label">Alt+1–3</div>
+      </nav>
+
+      <aside class="side-panel closed" id="side-panel" aria-label="Painel contextual">
+        <div class="panel-head"><div><div class="eyebrow" id="panel-kicker">Resumo da vila</div><h2 id="panel-title">Sua aldeia</h2><div class="panel-subtitle" id="panel-subtitle">O essencial para decidir o próximo passo.</div></div><button class="panel-dismiss" data-action="toggle-panel" aria-label="Ocultar painel">×</button></div>
+        <div class="panel-body" id="panel-body"></div>
+        <div class="panel-footer" id="panel-footer">Painel contextual · atalho: <kbd>Alt+P</kbd></div>
+      </aside>
+
+      <section class="bottom-dock" id="bottom-dock" aria-label="Seleção e ações">
+        <div class="dock-handle"><button data-action="toggle-dock" aria-label="Ocultar painel de seleção">Recolher</button></div>
+        <div class="selection" id="selection-card"><div class="portrait">AV</div><div><h3>Grupo de aldeões</h3><p>3 selecionados · disponíveis</p><div class="health"><i></i></div></div></div>
+        <div class="commands" id="command-list" aria-label="Ações disponíveis"></div>
+        <div class="batch-bar" id="batch-bar" hidden><span id="batch-status"></span><button data-action="batch-undo">Desfazer</button></div>
+      </section>
+
+      <aside class="minimap" id="minimap" aria-label="Minimapa da partida">
+        <canvas id="mini-canvas" width="352" height="352" aria-hidden="true"></canvas>
+        <span class="mini-norte" aria-hidden="true">N</span>
+        <button class="mini-toggle" data-action="minimap" aria-label="Recolher ou expandir minimapa">−</button>
+      </aside>
+
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+      <div class="modal-scrim" id="search-modal" hidden>
+        <section class="palette" role="dialog" aria-modal="true" aria-labelledby="search-heading">
+          <div class="palette-input-wrap"><span class="palette-symbol">/</span><input id="search-input" type="search" placeholder="Buscar telas, painéis e ações..." autocomplete="off" /><kbd>ESC</kbd></div>
+          <div class="palette-label" id="search-heading">Acesso rápido</div><div class="palette-results" id="search-results"></div>
+          <div class="palette-help"><span>Setas navegam · Enter abre · prefixos: <b>!</b> lote · <b>#</b> tecnologias · <b>@</b> localidades</span><span>Busca no reino</span></div>
+        </section>
+      </div>
+
+      <div class="modal-scrim" id="menu-modal" hidden>
+        <section class="menu-window" role="dialog" aria-modal="true" aria-labelledby="menu-heading">
+          <nav class="menu-sidebar" aria-label="Categorias do menu"><div class="menu-title">Conselho do reino</div><button class="menu-item active" data-menu-tab="empire">Império</button><button class="menu-item" data-menu-tab="economy">Economia</button><button class="menu-item" data-menu-tab="army">Exército</button><button class="menu-item" data-menu-tab="research">Conhecimento</button><button class="menu-item" data-menu-tab="interface">Interface</button></nav>
+          <div class="menu-content"><div class="eyebrow">Visão geral</div><h2 id="menu-heading">Império Português</h2><p id="menu-description">Acompanhe o estado do reino e abra uma área de gestão sem perder o lugar no mapa.</p><div class="menu-cards" id="menu-cards"></div><button class="menu-close" data-action="close-menu">Voltar à partida</button></div>
+        </section>
+      </div>
+
+      <div class="modal-scrim" id="layout-modal" hidden>
+        <section class="layout-window" role="dialog" aria-modal="true" aria-labelledby="layout-title">
+          <div class="modal-title-row"><div><div class="eyebrow">Composição da interface</div><h2 id="layout-title">Organize sua visão</h2></div><button class="close-modal" data-action="close-layout" aria-label="Fechar">×</button></div>
+          <p>Escolha uma disposição pronta e mostre só os painéis úteis agora. Os números nesta tela são ilustrativos.</p>
+          <div class="preset-row" role="group" aria-label="Composições disponíveis"><button class="preset active" data-preset="balanced"><b>Mapa primeiro</b><small>Só o essencial: seleção e minimapa</small></button><button class="preset" data-preset="explorer"><b>Exploração</b><small>Mapa amplo, minimapa e mundo</small></button><button class="preset" data-preset="strategist"><b>Gestão</b><small>Painel de economia aberto</small></button></div>
+          <div class="toggle-list"><div class="toggle-row"><span>Painel contextual</span><button class="switch" role="switch" aria-checked="true" data-toggle="panel"></button></div><div class="toggle-row"><span>Seleção e ações</span><button class="switch" role="switch" aria-checked="true" data-toggle="dock"></button></div><div class="toggle-row"><span>Minimapa</span><button class="switch" role="switch" aria-checked="true" data-toggle="minimap"></button></div><div class="toggle-row"><span>Objetivos no painel</span><button class="switch" role="switch" aria-checked="true" data-toggle="objectives"></button></div></div>
+        </section>
+      </div>
+
+      <div class="radial-scrim" id="radial-scrim" hidden></div>
+      <div class="radial" id="radial-menu" role="dialog" aria-modal="true" aria-label="Menu radial de comandos" hidden></div>
+
+      <div class="modal-scrim" id="batch-modal" hidden>
+        <section class="menu-window" role="dialog" aria-modal="true" aria-labelledby="batch-heading" style="grid-template-columns:1fr">
+          <div class="menu-content">
+            <div class="eyebrow">Comando em lote</div>
+            <h2 id="batch-heading">Comando em lote</h2>
+            <p id="batch-scope"></p>
+            <div class="batch-list" id="batch-list"></div>
+            <div class="settings-actions"><button data-action="batch-confirm">Confirmar nos alvos listados</button><button data-action="batch-cancel">Cancelar</button></div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      const game = document.getElementById('game');
+      const panel = document.getElementById('side-panel');
+      const dock = document.getElementById('bottom-dock');
+      const minimap = document.getElementById('minimap');
+      const panelTitle = document.getElementById('panel-title');
+      const panelSubtitle = document.getElementById('panel-subtitle');
+      const panelKicker = document.getElementById('panel-kicker');
+      const panelBody = document.getElementById('panel-body');
+      const selectionCard = document.getElementById('selection-card');
+      const commandList = document.getElementById('command-list');
+      const searchModal = document.getElementById('search-modal');
+      const menuModal = document.getElementById('menu-modal');
+      const layoutModal = document.getElementById('layout-modal');
+      const searchInput = document.getElementById('search-input');
+      const searchResults = document.getElementById('search-results');
+      const state = { mode: 'city', nav: 'overview', entity: 'villager', panel: false, dock: true, minimap: true, objectives: true, preset: 'balanced', menuTab: 'empire', searchIndex: 0, buildSelection: null, resourceFocus: null, locality: null, toastTimer: null, hudMinimized:false, hudKey:'Alt+H', idleFade:false };
+      let settingsView='form';
+      let configFormat='json';
+
+      const radialMenu = document.getElementById('radial-menu');
+      const radialScrim = document.getElementById('radial-scrim');
+      const batchModal = document.getElementById('batch-modal');
+      const batchBar = document.getElementById('batch-bar');
+      let batchState = null;
+      const overlayStack = [];
+
+      // Localidades do mapa-múndi: dados ilustrativos que alimentam a busca
+      // rapida, o painel "Mundo" e o destaque no minimapa.
+      const localities = [
+        { id:'vale', name:'Vale do Rio', relation:'Sua vila', tone:'ally', meta:'1 região habitada · centro da partida', interest:'Ponto de partida. Reúne economia, população e o centro da vila.' },
+        { id:'norte', name:'Enseada do Norte', relation:'Neutro', tone:'', meta:'3 áreas avistadas · praia larga', interest:'Costa extensa com pedra na encosta. Candidata a segundo entreposto.' },
+        { id:'colina', name:'Ruínas da Colina', relation:'Não explorada', tone:'', meta:'Estrutura antiga além da mata', interest:'Uma patrulha pode investigar o que restou da construção.' },
+        { id:'sul', name:'Cabo do Sul', relation:'Hostil', tone:'hostile', meta:'Movimento avistado a oeste', interest:'Batedores avistados na região. Aproximar-se exige escolta.' },
+      ];
+
+      // Menu radial: apenas comandos de interface, para nao sugerir ordens
+      // que a partida nao recebe.
+      const radialCommands = [
+        ['Q','Recolher painel','toggle:panel'],
+        ['M','Alternar minimapa','toggle:minimap'],
+        ['B','Construções','nav:build'],
+        ['K','Buscar','search'],
+        ['Z','Modo minimalista','minimize:all'],
+        ['Esc','Fechar radial','radial-close'],
+      ];
+
+      const batchDefs = {
+        gather: { title:'Designar coleta de minério', scope:'Os 3 aldeões selecionados passam a coletar no veio de minério mais próximo.', targets:[['Aldeão 1','veio a 4 células'],['Aldeão 2','veio a 4 células'],['Aldeão 3','veio a 6 células']], result:'3 aldeões designados para o veio de minério.' },
+        patrol: { title:'Patrulhar a costa oeste', scope:'A patrulha selecionada cobre 3 pontos da costa oeste.', targets:[['Patrulha','3 unidades'],['Ponto 1','praia oeste'],['Ponto 2','enseada'],['Ponto 3','recife']], result:'Patrulha cobrindo 3 pontos da costa oeste.' },
+      };
+
+      const pages = {
+        overview: { kicker:'Resumo da vila',title:'Sua aldeia',subtitle:'O essencial para decidir o próximo passo.',footer:'Painel contextual · atalho: Alt+P',body:()=>overviewPanel() },
+        economy: { kicker:'Gestão',title:'Economia',subtitle:'Veja a produção e encontre o gargalo.',footer:'Ritmo de exemplo · não vem da partida',body:()=>economyPanel() },
+        build: { kicker:'Obras',title:'Construções',subtitle:'Escolha o que erguer na região.',footer:'Catálogo do jogo · sem integração com a partida',body:()=>buildPanel() },
+        research: { kicker:'Conhecimento',title:'Pesquisa',subtitle:'Acompanhe a próxima melhoria da vila.',footer:'Tecnologias do jogo · progresso de exemplo',body:()=>researchPanel() },
+        diplomacy: { kicker:'Relações',title:'Vizinhos',subtitle:'Conheça as comunidades avistadas.',footer:'Diplomacia demonstrativa · sem efeitos de partida',body:()=>relationsPanel() },
+        world: { kicker:'Exploração',title:'Mapa-múndi',subtitle:'Localidades avistadas e a relação de cada uma com a vila.',footer:'Nomes ilustrativos · posição real das ilhas',body:()=>worldPanel() },
+      };
+
+      function overviewPanel() {
+        const objectives = state.objectives ? `<div class="card"><div class="section-label">Próximos passos <button data-action="open-menu">Ver todos</button></div><div class="objective"><span class="check done">✓</span><span>Construir uma Casa Colonial para ampliar a população</span></div><div class="objective"><span class="check"></span><span>Construir uma Fazenda &amp; Granja para ampliar a reserva de comida</span></div><div class="objective"><span class="check"></span><span>Levar um aldeão até a pedreira ao pé da montanha</span></div></div>` : '';
+        return `<div class="card"><div class="card-title">Produção da aldeia <span class="state">Estável</span></div><div class="mini-stats"><div class="mini-stat"><span>Comida</span><b>+18/min</b></div><div class="mini-stat"><span>Madeira</span><b>+12/min</b></div><div class="mini-stat"><span>Pedra</span><b>+6/min</b></div></div></div>${objectives}<div class="card"><div class="section-label">Atividade</div><div class="objective"><span class="check">2</span><span>2 aldeões estão cortando madeira na orla oeste</span></div><div class="objective"><span class="check">1</span><span>Uma Casa Colonial está em construção</span></div></div><div class="card"><div class="section-label">Aviso do reino</div><div class="objective"><span class="check" style="color:var(--gold-bright)">!</span><span>Uma patrulha avistou movimento ao norte. Abra Relações para consultar a região.</span></div></div>`;
+      }
+      function economyPanel() {
+        const focus=(key)=>state.resourceFocus===key?'resource-focus':'';
+        return `<div class="card"><div class="card-title">Ritmo de produção <span class="state">+40/min</span></div><div class="progress-row ${focus('food')}" data-resource-detail="food"><span>Comida · 3 aldeões</span><b>+18/min</b></div><div class="progress"><i style="width:72%"></i></div><div class="progress-row ${focus('wood')}" data-resource-detail="wood"><span>Madeira · 2 aldeões</span><b>+12/min</b></div><div class="progress"><i style="width:54%"></i></div><div class="progress-row ${focus('stone')}" data-resource-detail="stone"><span>Pedra · 1 aldeão</span><b>+6/min</b></div><div class="progress"><i style="width:34%"></i></div><div class="progress-row ${focus('gold')}" data-resource-detail="gold"><span>Ouro · mercado</span><b>+4/min</b></div><div class="progress"><i style="width:22%"></i></div></div><div class="card ${focus('population')}" data-resource-detail="population"><div class="section-label">População</div><div class="mini-stats"><div class="mini-stat"><span>Trabalhando</span><b>22</b></div><div class="mini-stat"><span>Livres</span><b>6</b></div><div class="mini-stat"><span>Limite</span><b>35</b></div></div>${state.resourceFocus==='population'?'<div class="objective" style="margin-top:8px;padding-top:8px"><span class="check">A</span><span>28 aldeões usados · 7 vagas · 6 disponíveis</span></div>':''}</div><div class="card"><div class="section-label">Ajustes rápidos</div><button class="panel-action" data-action="toast" data-message="Prioridade de coleta alterada para comida."><span>Priorizar comida</span><small>2 aldeões disponíveis</small></button><button class="panel-action" data-action="toast" data-message="Resumo de produção aberto."><span>Detalhar produção</span><kbd>↗</kbd></button></div>`;
+      }
+      function openResource(resource) {
+        state.resourceFocus=resource;
+        setNav('economy');
+        panelBody.querySelector(`[data-resource-detail="${resource}"]`)?.scrollIntoView({block:'nearest',behavior:'smooth'});
+        notify(resource==='population'?'População e vagas disponíveis':'Produção e estoque do recurso');
+      }
+      function buildPanel() { return `<div class="section-label">Edifícios disponíveis <button data-action="toast" data-message="Catálogo completo demonstrativo.">Catálogo completo</button></div><div class="catalog-grid"><button class="catalog-tile" data-build="Casa Colonial"><span class="tile-mark">Q</span><b>Casa Colonial</b><small>+5 população máx. · 60 madeira · 8 s</small></button><button class="catalog-tile" data-build="Fazenda &amp; Granja"><span class="tile-mark">F</span><b>Fazenda &amp; Granja</b><small>+2 comida/s · 75 madeira · 9 s</small></button><button class="catalog-tile" data-build="Quartel Militar"><span class="tile-mark">W</span><b>Quartel Militar</b><small>Soldado e cavalaria · 120 madeira + 30 ouro</small></button><button class="catalog-tile" data-build="Cais &amp; Doca Naval"><span class="tile-mark">B</span><b>Cais &amp; Doca Naval</b><small>Barcos · 140 madeira · só em margem</small></button></div><div class="card" style="margin-top:12px"><div class="card-title">Em construção <span class="state">1 obra</span></div><div class="progress-row"><span>Casa Colonial · 2 aldeões</span><b>68%</b></div><div class="progress"><i style="width:68%"></i></div></div>`; }
+      function researchPanel() { return `<div class="card" data-technology="cartografia" tabindex="-1"><div class="card-title">Cartografia <span class="state" style="color:var(--gold-bright)">Em pesquisa</span></div><div class="progress-row"><span>Era do Comércio · 250 madeira + 200 ouro · 35 s</span><b>24%</b></div><div class="progress"><i style="width:24%"></i></div><div class="objective"><span class="check done">✓</span><span>Pré-requisito atendido: Cunhagem</span></div></div><div class="section-label">Próximas descobertas</div><div class="action-list"><button class="panel-action" data-technology="fuzileiros" data-action="toast" data-message="Corpo de Fuzileiros exige Estriamento do Cano."><span><b>Corpo de Fuzileiros</b><small style="display:block;margin-top:4px">+35% de dano da infantaria · 300 madeira + 250 ouro</small></span><kbd>Comércio</kbd></button><button class="panel-action" data-technology="serrarias" data-action="toast" data-message="Serrarias a Vapor exige a Era Industrial."><span><b>Serrarias a Vapor</b><small style="display:block;margin-top:4px">+40% de coleta de madeira · 400 madeira + 350 ouro</small></span><small>Bloqueada</small></button><button class="panel-action" data-technology="irrigacao" data-action="toast" data-message="Canais de Irrigação custam 150 madeira + 60 ouro e levam 20 s."><span><b>Canais de Irrigação</b><small style="display:block;margin-top:4px">+25% de coleta de madeira · 150 madeira + 60 ouro</small></span><small>Disponível</small></button></div><div class="objective" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)"><span class="check">3</span><span>Fila única: era e tecnologias dividem no máximo 3 itens.</span></div>`; }
+      function relationsPanel() { return `<div class="card"><div class="card-title">Clã do Rio <span class="state">Neutro</span></div><div class="objective"><span class="check">R</span><span>Avistados ao norte do vale. Ainda não houve contato formal.</span></div><button class="panel-action" data-action="toast" data-message="O batedor segue para o limite norte do mapa."><span>Enviar batedor</span><kbd>↗</kbd></button></div><div class="card"><div class="card-title">Ruínas da colina <span class="state" style="color:var(--gold-bright)">Não exploradas</span></div><div class="objective"><span class="check">?</span><span>Há uma estrutura antiga além da mata. Uma patrulha pode investigar.</span></div><button class="panel-action" data-action="mode" data-value="explore"><span>Planejar exploração</span><kbd>E</kbd></button></div>`; }
+
+      function worldPanel() {
+        const focused=localities.find(l=>l.id===state.locality);
+        const list=localities.map(l=>`<button class="locality ${state.locality===l.id?'focused':''}" data-locality="${l.id}" aria-pressed="${state.locality===l.id}"><span><b>${l.name}</b><small>${l.meta}<br/>${l.interest}</small></span><span class="relation ${l.tone}">${l.relation}</span></button>`).join('');
+        const note=focused?`<div class="objective"><span class="check">◎</span><span>Destacando <b>${focused.name}</b> no minimapa.</span></div><button class="panel-action" data-action="camera-focus"><span>Centralizar a câmera aqui</span><kbd>↗</kbd></button>`:`<div class="objective"><span class="check">—</span><span>Marque uma localidade para destacá-la no minimapa. O foco sozinho não move a câmera.</span></div>`;
+        return `<div class="section-label">Localidades avistadas <button data-action="open-menu">Ver relações</button></div><div class="locality-list">${list}</div><div class="card" style="margin-top:12px"><div class="section-label">Foco no mapa${focused?' <button data-action="locality-clear">Limpar foco</button>':''}</div>${note}</div>`;
+      }
+      function setLocality(id) {
+        state.locality=id;
+        setNav('world');
+        const locality=localities.find(l=>l.id===id);
+        notify(locality?`Foco no mapa: ${locality.name}`:'Foco no mapa removido');
+      }
+      // Historico de configuracao (REI-2026-v3.1, secao Undo/Redo): toda mudanca de
+      // painel, composicao, modo ou foco vira um estado reversivel, com limite de 50
+      // acoes e navegacao para qualquer ponto sem perder o trabalho posterior.
+      let historyStack=[], historyCursor=-1, historySilent=false, pointer={x:null,y:null};
+      function snapshot(){return {preset:state.preset,panel:state.panel,dock:state.dock,minimap:state.minimap,objectives:state.objectives,hudMinimized:state.hudMinimized,mode:state.mode,nav:state.nav,locality:state.locality};}
+      function historyPush(label){
+        if(historySilent)return;
+        historyStack=historyStack.slice(0,historyCursor+1);
+        historyStack.push({label,at:new Date().toLocaleTimeString('pt-BR',{hour12:false}),state:snapshot()});
+        if(historyStack.length>50)historyStack.shift();
+        historyCursor=historyStack.length-1;
+        renderHistory();
+      }
+      function applySnapshot(s){
+        historySilent=true;
+        state.preset=s.preset;state.panel=s.panel;state.dock=s.dock;state.minimap=s.minimap;state.objectives=s.objectives;state.hudMinimized=s.hudMinimized;state.mode=s.mode;state.locality=s.locality;
+        game.dataset.mode=s.mode;game.classList.toggle('hud-minimized',s.hudMinimized);
+        document.querySelectorAll('[data-preset]').forEach(b=>b.classList.toggle('active',b.dataset.preset===s.preset));
+        document.querySelectorAll('[data-mode-choice]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.modeChoice===s.mode)));
+        panel.classList.toggle('closed',!s.panel);dock.classList.toggle('closed',!s.dock);minimap.hidden=!s.minimap;
+        setNav(s.nav,false);syncSwitches();
+        historySilent=false;
+      }
+      function historyUndo() {
+        if(historyCursor<=0){notify('Nada para desfazer');return;}
+        const undone=historyStack[historyCursor].label;historyCursor--;
+        applySnapshot(historyStack[historyCursor].state);renderHistory();
+        notify(`Desfeito: ${undone}`);
+      }
+      function historyRedo() {
+        if(historyCursor>=historyStack.length-1){notify('Nada para refazer');return;}
+        historyCursor++;applySnapshot(historyStack[historyCursor].state);renderHistory();
+        notify(`Refeito: ${historyStack[historyCursor].label}`);
+      }
+      function renderHistory() {
+        const list=document.getElementById('history-list');if(!list)return;
+        list.innerHTML=historyStack.map((h,i)=>`<div class="history-row ${i===historyCursor?'current':''}"><span>${h.label}</span><b>${h.at}</b></div>`).join('');
+      }
+      function openRadial(clientX,clientY) {
+        closeModals();rememberFocus();
+        // Prime Pixel: o radial abre onde o cursor esta, e nao no centro da tela.
+        const size=Math.min(460,window.innerWidth*0.88), half=size/2, margin=8;
+        const limitaX=valor=>Math.min(Math.max(valor,half+margin),window.innerWidth-half-margin);
+        const limitaY=valor=>Math.min(Math.max(valor,half+margin),window.innerHeight-half-margin);
+        const cursorX=limitaX(clientX??(pointer.x??window.innerWidth/2));
+        const cursorY=limitaY(clientY??(pointer.y??window.innerHeight/2));
+        const centroX=limitaX(window.innerWidth/2), centroY=limitaY(window.innerHeight/2);
+        // Medir a caixa final e mais confiavel que testar o cursor: no canto inferior
+        // direito o cursor cai num vao entre a coluna do painel e o dock, e o radial
+        // abre por cima das duas ancoras.
+        const colideCom=(cx,cy,ancoras)=>ancoras.some(rect=>
+          cx+half>rect.left&&cx-half<rect.right&&cy+half>rect.top&&cy-half<rect.bottom);
+        const chrome=ancorasDoHud();
+        let x=cursorX, y=cursorY, compacto=false;
+        // 1a passada: fica no Pixel Nobre se a caixa final nao cobrir o chrome.
+        if(colideCom(x,y,chrome.map(a=>a.rect))){x=centroX;y=centroY;}
+        // 2a passada: centralizado tambem colide (tela estreita, onde o radial e mais
+        // largo que a faixa de mapa). O HUD persistente recolhe enquanto o overlay modal
+        // esta aberto, em vez de ficar coberto por ele.
+        if(colideCom(x,y,chrome.map(a=>a.rect))){
+          compacto=true;
+          // Remede sem o chrome recolhido para ainda escolher o melhor y da caixa.
+          const restantes=chrome.filter(a=>!a.recolhido).map(a=>a.rect);
+          x=centroX;
+          if(colideCom(x,y,restantes)){
+            const primeiroTopo=restantes.length?Math.min(...restantes.map(r=>r.top)):0;
+            y=limitaY(primeiroTopo-Math.max(0,(window.innerHeight-primeiroTopo-half*2)/2));
+          }
+        }
+        game.classList.toggle('radial-compacto',compacto);
+        radialMenu.style.left=`${x}px`;radialMenu.style.top=`${y}px`;radialMenu.style.width=`${size}px`;
+        const radius=36, total=radialCommands.length;
+        const items=radialCommands.map((command,index)=>{
+          const angle=(Math.PI*2*index)/total-Math.PI/2;
+          const left=50+radius*Math.cos(angle), top=50+radius*Math.sin(angle);
+          return `<button class="radial-item" style="left:${left.toFixed(2)}%;top:${top.toFixed(2)}%;transform:translate(-50%,-50%)" data-radial="${command[2]}"><span>${command[0]}</span><small>${command[1]}</small></button>`;
+        }).join('');
+        radialMenu.innerHTML=`${items}<div class="radial-center"><b>Radial</b><small>Esc fecha</small></div><div class="radial-note">Comandos de interface · nada é enviado à partida</div>`;
+        radialMenu.hidden=false;radialScrim.hidden=false;overlayStack.push(radialMenu);
+        setTimeout(()=>radialMenu.querySelector('.radial-item')?.focus(),30);
+      }
+      // Ancoras do HUD com o retangulo e a marca de quais o modo compacto recolhe.
+      const CHROME_DO_HUD=['.topbar','.rail','#bottom-dock','#minimap','#side-panel','#corner-top','.restore-hud'];
+      function ancorasDoHud() {
+        return CHROME_DO_HUD
+          .map((selector,indice)=>{
+            const element=document.querySelector(selector);
+            if(!element||element.hidden)return null;
+            const estilo=getComputedStyle(element);
+            // O modo compacto nao remove o rail do layout, apenas o apaga: sem olhar a
+            // opacidade a ancora continuaria sendo medida como se estivesse visivel.
+            if(estilo.visibility==='hidden'||estilo.display==='none'||Number(estilo.opacity)<=0.05)return null;
+            const rect=element.getBoundingClientRect();
+            if(rect.width<=2||rect.height<=2)return null;
+            // A ultima entrada e o botao "Mostrar HUD", que nao esta no modo compacto.
+            return { rect, recolhido:indice<CHROME_DO_HUD.length-1 };
+          })
+          .filter(Boolean);
+      }
+      function closeRadial() { radialMenu.hidden=true;radialScrim.hidden=true;game.classList.remove('radial-compacto');removeOverlay(radialMenu);restoreFocus(); }
+      function openBatch(id) {
+        const def=batchDefs[id];if(!def)return;
+        closeModals();rememberFocus();
+        batchState={ id, def, applied:false };
+        document.getElementById('batch-heading').textContent=def.title;
+        document.getElementById('batch-scope').textContent=`${def.scope} Prévia ilustrativa: confira os alvos antes de confirmar.`;
+        document.getElementById('batch-list').innerHTML=def.targets.map(t=>`<div class="batch-row"><span>${t[0]}</span><b>${t[1]}</b></div>`).join('');
+        batchModal.hidden=false;
+        overlayStack.push(batchModal);
+        setTimeout(()=>batchModal.querySelector('[data-action="batch-confirm"]')?.focus(),30);
+      }
+      function confirmBatch() {
+        if(!batchState)return;
+        batchState.applied=true;batchModal.hidden=true;removeOverlay(batchModal);restoreFocus();
+        document.getElementById('batch-status').textContent=batchState.def.result+' ';
+        batchBar.hidden=false;
+        notify('Comando aplicado em lote · desfazer disponível');
+      }
+      function cancelBatch() { batchModal.hidden=true;removeOverlay(batchModal);batchState=null;restoreFocus();notify('Comando em lote cancelado · nenhum alvo foi alterado'); }
+      function undoBatch() {
+        if(!batchState||!batchState.applied){notify('Nada para desfazer');return;}
+        batchState.applied=false;batchBar.hidden=true;
+        notify('Comando em lote desfeito · alvos voltaram ao estado anterior');
+      }
+
+      function entityData(type) {
+        const data = {
+          villager: { portrait:'i-villager',className:'',name:'Aldeão selecionado',meta:'Construtor · 25/25 de vida',actions:[['i-move','Mover','Clique no mapa'],['i-build','Construir','Abrir catálogo'],['i-repair','Reparar','Edifício próximo'],['i-pop','Reunir','Aldeões livres']] },
+          building: { portrait:'i-overview',className:'building',name:'Centro da Vila',meta:'Edifício principal · 1.200/1.200',actions:[['i-battle','Treinar aldeão','Comida 50'],['i-production','Produção','28 de 35 vagas'],['i-rally','Ponto de reunião','Definir no mapa']] },
+          ore: { portrait:'i-stone',className:'building',name:'Veio de minério',meta:'Depósito · acesso por aldeões',actions:[['i-mine','Designar coleta','1 aldeão livre'],['i-search','Inspecionar','Distância 7 células']] },
+          squad: { portrait:'i-shield',className:'',name:'Patrulha selecionada',meta:'4 unidades · prontas',actions:[['i-move','Mover','Clique no mapa'],['i-formation','Formação','Em linha'],['i-patrol','Patrulhar','Definir área'],['i-retreat','Recuar','Centro da Vila']] },
+        };
+        return data[type] || data.villager;
+      }
+      function renderSelection() {
+        const item = state.mode === 'battle' ? entityData('squad') : entityData(state.entity);
+        const portrait=selectionCard.querySelector('.portrait'); portrait.innerHTML=icon(item.portrait); portrait.className='portrait '+item.className;
+        selectionCard.querySelector('h3').textContent=item.name;
+        selectionCard.querySelector('p').textContent=item.meta;
+        commandList.innerHTML=item.actions.map(([iconId,label,detail])=>`<button class="command-button" data-action="toast" data-message="${label}: ${detail}."><span>${icon(iconId)}</span><small>${label}</small></button>`).join('');
+      }
+      function setNav(nav, reveal=true) {
+        state.nav=nav; document.querySelectorAll('[data-nav]').forEach(b=>{const active=b.dataset.nav===nav;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
+        const page=pages[nav]||pages.overview; panelKicker.textContent=page.kicker;panelTitle.textContent=page.title;panelSubtitle.textContent=page.subtitle;panelBody.innerHTML=page.body();document.getElementById('panel-footer').innerHTML=page.footer;
+        if(!state.panel && reveal){state.panel=true;panel.classList.remove('closed');syncSwitches();}
+      }
+      // Tres estados do mesmo HUD (REI-2026-v3.1, Preview 03): o modo define quais
+      // informacoes ficam visiveis, sem adicionar nem remover paineis do runtime.
+      const modeContext = {
+        city: { title:'Modo construção · 5 painéis', subtitle:'Cenário original preservado', rows:[['i-wood','+12/min','madeira'],['i-pop','28/35','população'],['i-build','3 na fila','obras']] },
+        explore: { title:'Modo exploração · 2 painéis', subtitle:'Quase tudo oculto · só o vital', rows:[['i-heart','92%','vida'],['i-explore','opcional','minimapa']] },
+        battle: { title:'Modo combate · 6 painéis', subtitle:'Produção e tecnologia ocultas', rows:[['i-heart','68%','vida'],['i-battle','onda 3','inimigos'],['i-warning','1','ameaça'],['i-bolt','40%','energia']] },
+      };
+      function renderContext(mode) {
+        const ctx=modeContext[mode]||modeContext.city;
+        document.getElementById('map-subtitle').textContent=ctx.subtitle;
+        document.getElementById('context-strip').innerHTML=`<div class="context-title">${ctx.title}</div>`+ctx.rows.map(r=>`<div class="context-row"><span class="context-glyph" aria-hidden="true">${icon(r[0])}</span><b>${r[1]}</b><span>${r[2]}</span></div>`).join('');
+      }
+      function setMode(mode) {
+        state.mode=mode;game.dataset.mode=mode;
+        document.querySelectorAll('[data-mode-choice]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.modeChoice===mode)));
+        document.getElementById('map-title').textContent='Partida de teste';
+        renderContext(mode);
+        if(mode==='battle')state.nav='overview';renderSelection();setNav(state.nav,false);
+        notify(mode==='city'?'Visão da vila':mode==='explore'?'Visão de exploração':'Visão de combate');
+      }
+      // Sem input por 8s, tudo que nao e essencial se recolhe (REI-2026-v3.1).
+      let idleTimer=null;
+      function wakeHud() {
+        game.classList.remove('hud-idle');
+        clearTimeout(idleTimer);
+        idleTimer=setTimeout(()=>{if(state.idleFade&&!state.hudMinimized)game.classList.add('hud-idle');},8000);
+      }
+      function syncSwitches() {
+        document.querySelector('[data-toggle="panel"]').setAttribute('aria-checked',String(state.panel));
+        document.querySelector('[data-toggle="dock"]').setAttribute('aria-checked',String(state.dock));
+        document.querySelector('[data-toggle="minimap"]').setAttribute('aria-checked',String(state.minimap));
+        document.querySelector('[data-toggle="objectives"]').setAttribute('aria-checked',String(state.objectives));
+        document.querySelectorAll('[data-action="minimap"]').forEach(button=>button.setAttribute('aria-pressed',String(state.minimap)));
+      }
+      function setVisibility(key,value) {
+        state[key]=value;
+        if(key==='panel')panel.classList.toggle('closed',!value);
+        if(key==='dock')dock.classList.toggle('closed',!value);
+        if(key==='minimap')minimap.hidden=!value;
+        if(key==='objectives'&&state.nav==='overview')setNav('overview',false);
+        syncSwitches();
+      }
+      function applyPreset(preset) {
+        state.preset=preset;
+        document.querySelectorAll('[data-preset]').forEach(b=>b.classList.toggle('active',b.dataset.preset===preset));
+        if(preset==='balanced'){setVisibility('panel',false);setVisibility('dock',true);setVisibility('minimap',true);state.objectives=true;}
+        if(preset==='explorer'){setVisibility('panel',false);setVisibility('dock',true);setVisibility('minimap',true);state.objectives=false;setMode('explore');setNav('world',false);}
+        if(preset==='strategist'){setVisibility('panel',true);setVisibility('dock',true);setVisibility('minimap',false);state.objectives=true;setNav('economy');}
+        syncSwitches();
+      }
+      // Referencia um simbolo do sprite SVG. Nenhum icone e emoji.
+      function icon(id,extra='') { return `<svg class="icon${extra?' '+extra:''}" aria-hidden="true"><use href="#${id}"/></svg>`; }
+      function notify(message) {
+        const toast=document.getElementById('toast');toast.textContent=message;toast.classList.add('show');clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>toast.classList.remove('show'),2100);
+      }
+      // Retorno de foco: ao fechar um overlay o foco volta para quem o abriu, em vez
+      // de cair no body. Sem isto o teclado perde a posicao depois de qualquer modal.
+      let focusReturn=null;
+      // Quem abriu o overlay e o clique que o disparou, mesmo quando o navegador
+      // nao foca o botao (click programatico). Sem isto o Esc devolve o foco ao
+      // ultimo elemento focado antes do overlay, nao ao gatilho que o abriu.
+      let gatilhoRecente=null;
+      document.addEventListener('click',evento=>{
+        const alvo=evento.target instanceof Element?evento.target.closest('button,[href],[tabindex]:not([tabindex="-1"])'):null;
+        if(alvo)gatilhoRecente={alvo,em:Date.now()};
+      },true);
+      function rememberFocus() {
+        const atual=document.activeElement;
+        const peloClique=gatilhoRecente&&Date.now()-gatilhoRecente.em<300?gatilhoRecente.alvo:null;
+        focusReturn=peloClique||(atual instanceof HTMLElement&&atual!==document.body?atual:null);
+      }
+      function restoreFocus() {
+        if(!focusReturn)return;
+        const alvo=focusReturn;focusReturn=null;
+        const usavel=alvo!==document.body&&document.contains(alvo)&&!alvo.closest('[hidden]');
+        const destino=usavel?alvo:document.querySelector('[data-action="search"]');
+        if(destino)destino.focus();
+      }
+      function removeOverlay(modal) { const index=overlayStack.lastIndexOf(modal);if(index>=0)overlayStack.splice(index,1); }
+      function focaveis(raiz) { return [...raiz.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter(el=>!el.disabled&&el.offsetParent!==null); }
+      function overlayAberto() { while(overlayStack.length&&overlayStack[overlayStack.length-1].hidden)overlayStack.pop();return overlayStack[overlayStack.length-1]||null; }
+      function fecharOverlayMaisRecente() {
+        const overlay=overlayAberto();if(!overlay)return;
+        overlayStack.pop();
+        if(overlay===radialMenu){radialMenu.hidden=true;radialScrim.hidden=true;}
+        else {overlay.hidden=true;if(overlay===batchModal)batchState=null;}
+        restoreFocus();
+      }
+      function openModal(modal) { rememberFocus();modal.hidden=false;overlayStack.push(modal);const input=modal.querySelector('input');if(input){input.value='';renderSearch('');setTimeout(()=>input.focus(),30);}else setTimeout(()=>focaveis(modal)[0]?.focus(),30); }
+      function closeModals() { searchModal.hidden=true;menuModal.hidden=true;layoutModal.hidden=true;batchModal.hidden=true;radialMenu.hidden=true;radialScrim.hidden=true;game.classList.remove('radial-compacto');overlayStack.length=0;restoreFocus(); }
+      const actions=[
+        ['Abrir visão geral','Painel da aldeia','nav:overview',''],['Abrir economia','Produção e população','nav:economy',''],['Abrir construções','Catálogo de edifícios','nav:build',''],['Abrir pesquisa','Tecnologias e eras','nav:research',''],['Abrir relações','Vizinhos e regiões avistadas','nav:diplomacy',''],['Modo: vila','Composição de cidade','mode:city','Alt+1'],['Modo: exploração','Campo e navegação','mode:explore','Alt+2'],['Modo: combate','Patrulha e ordens militares','mode:battle','Alt+3'],['Mostrar ou ocultar painel','Recolher painel contextual','toggle:panel','Alt+P'],['Mostrar ou ocultar seleção','Recolher ações selecionadas','toggle:dock',''],['Alternar minimapa','Mostrar ou ocultar o minimapa','toggle:minimap','Alt+M'],['Modo minimalista','Ocultar todos os painéis e restaurar com Alt+H','minimize:all','Alt+H'],['Personalizar interface','Perfis e painéis visíveis','customize',''],['Abrir configurações do HUD','Disposição, atalhos e exportação','menu:interface',''],['Abrir menu do império','Áreas de gestão','menus',''],['Abrir mapa-múndi','Localidades e exploração','nav:world',''],['Menu radial de comandos','Comandos de interface em círculo','radial','Alt+R'],['Comando em lote: designar coleta','Prévia dos alvos com desfazer','batch:gather',''],['Comando em lote: patrulhar costa','Prévia dos alvos com desfazer','batch:patrol',''],['Centralizar no meu nascedouro','Câmera no ponto de partida','camera:home',''],['Centralizar na localidade em foco','Câmera na localidade marcada','camera:focus','']
+      ];
+      function paletteActions() {
+        return actions.concat(technologyActions,localities.map(l=>[`Ir para ${l.name}`,`Localidade · ${l.relation}`,'locality:'+l.id,'']));
+      }
+      // Prefixos da paleta (Estudo de HUD para RTS, secao 4): @ localidade,
+      // ! comando em lote, # tecnologia.
+      const palettePrefixes={'!':'Comandos em lote','#':'Tecnologias','@':'Localidades'};
+      const technologyActions=[
+        ['Cartografia','Pesquisa atual · Era do Comércio','technology:cartografia',''],
+        ['Corpo de Fuzileiros','+35% de dano da infantaria · Comércio','technology:fuzileiros',''],
+        ['Serrarias a Vapor','+40% de coleta de madeira · bloqueada','technology:serrarias',''],
+        ['Canais de Irrigação','+25% de coleta de madeira · disponível','technology:irrigacao',''],
+      ];
+      function renderSearch(query) {
+        const normalized=query.trim().toLocaleLowerCase('pt-BR');
+        const sigil=palettePrefixes[normalized[0]]?normalized[0]:'';
+        const term=sigil?normalized.slice(1).trim():normalized;
+        let pool=paletteActions();
+        if(sigil==='!')pool=pool.filter(a=>a[2].startsWith('batch:'));
+        else if(sigil==='#')pool=pool.filter(a=>a[2].startsWith('technology:'));
+        else if(sigil==='@')pool=pool.filter(a=>a[2].startsWith('locality:')||a[2]==='nav:world');
+        const found=pool.filter(a=>{
+          if(!term)return true;
+          if(sigil==='@'&&a[2].startsWith('locality:')){
+            const locality=localities.find(item=>item.id===a[2].slice('locality:'.length));
+            return Boolean(locality&&locality.name.toLocaleLowerCase('pt-BR').startsWith(term));
+          }
+          return (a[0]+' '+a[1]).toLocaleLowerCase('pt-BR').includes(term);
+        });
+        state.searchIndex=0;
+        const heading=document.getElementById('search-heading');
+        if(heading)heading.textContent=sigil?`${palettePrefixes[sigil]} · prefixo ${sigil}`:'Acesso rápido';
+        searchResults.innerHTML=found.length?found.map((a,i)=>`<button class="palette-result" aria-selected="${i===0}" data-command="${a[2]}"><span><b>${a[0]}</b><small>${a[1]}</small></span>${a[3]?`<kbd>${a[3]}</kbd>`:''}</button>`).join(''):'<div style="padding:18px 12px;color:var(--muted);font-size:11px">Nenhum menu ou comando corresponde à busca.</div>';
+      }
+      function runCommand(command) {
+        closeModals();const [kind,value]=command.split(':');
+        if(kind==='nav')setNav(value);
+        else if(kind==='mode'){setMode(value);historyPush('Modo: '+value);}
+        else if(kind==='toggle'){setVisibility(value,!state[value]);historyPush(`${state[value]?'Mostrar':'Ocultar'} ${value}`);}
+        else if(kind==='minimize'){toggleHudMinimized(true);historyPush('Modo minimalista');}
+        else if(kind==='menu'){openMenu(value);openModal(menuModal);}
+        else if(kind==='customize')openModal(layoutModal);
+        else if(kind==='menus')openModal(menuModal);
+        else if(kind==='locality'){setLocality(value);historyPush('Foco: '+((localities.find(l=>l.id===value)||{}).name||value));}
+        else if(kind==='technology'){setNav('research');requestAnimationFrame(()=>{const target=panelBody.querySelector(`[data-technology="${value}"]`);target?.scrollIntoView({block:'center',behavior:'smooth'});target?.focus({preventScroll:true});});}
+        else if(kind==='radial')openRadial();
+        else if(kind==='batch')openBatch(value);
+        else if(kind==='camera')centralizaCamera(value);
+      }
+      function hudConfig() {
+        return {version:1,layout:state.preset,panels:{context:state.panel,selection:state.dock,minimap:state.minimap,objectives:state.objectives},shortcuts:{minimizeHud:state.hudKey}};
+      }
+      function yamlConfig(config) {
+        return [`version: ${config.version}`,`layout: ${config.layout}`,'panels:',`  context: ${config.panels.context}`,`  selection: ${config.panels.selection}`,`  minimap: ${config.panels.minimap}`,`  objectives: ${config.panels.objectives}`,'shortcuts:',`  minimizeHud: ${config.shortcuts.minimizeHud}`].join('\n');
+      }
+      function refreshConfigEditor() {
+        const editor=document.getElementById('settings-file');if(!editor)return;
+        const config=hudConfig();editor.value=configFormat==='json'?JSON.stringify(config,null,2):yamlConfig(config);
+        editor.readOnly=false;
+        document.querySelectorAll('[data-format]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.format===configFormat)));
+        const note=document.getElementById('settings-note');
+        note.textContent=`Edite o ${configFormat.toUpperCase()} e aplique para validar e guardar esta configuração neste navegador.`;
+      }
+      function syncSettingsForm() {
+        const layoutSelect=document.getElementById('setting-layout');if(!layoutSelect)return;
+        layoutSelect.value=state.preset;
+        document.getElementById('setting-hotkey').value=state.hudKey;
+        document.querySelector('[data-pref="panel"]').setAttribute('aria-checked',String(state.panel));
+        document.querySelector('[data-pref="dock"]').setAttribute('aria-checked',String(state.dock));
+        document.querySelector('[data-pref="minimap"]').setAttribute('aria-checked',String(state.minimap));
+        document.querySelector('[data-pref="objectives"]').setAttribute('aria-checked',String(state.objectives));
+        document.querySelector('[data-pref="idleFade"]').setAttribute('aria-checked',String(state.idleFade));
+        refreshConfigEditor();
+      }
+      function renderInterfaceSettings() {
+        const cards=document.getElementById('menu-cards');cards.classList.add('interface-settings');
+        cards.innerHTML=`<div class="settings-toolbar"><div class="segmented" role="group" aria-label="Modo de edição"><button data-settings-view="form" aria-pressed="${settingsView==='form'}">Formulário</button><button data-settings-view="code" aria-pressed="${settingsView==='code'}">JSON / YAML</button></div><button class="settings-actions-button" data-action="minimize-hud">Minimizar HUD</button></div>
+          <div id="settings-form" class="settings-form" ${settingsView==='code'?'hidden':''}>
+            <label class="setting-field"><span>Disposição<small>Escolha o arranjo inicial dos painéis.</small></span><select id="setting-layout"><option value="balanced">Mapa primeiro</option><option value="explorer">Exploração</option><option value="strategist">Gestão</option></select></label>
+            <div class="setting-field"><span>Painel contextual<small>Resumo e informações da partida.</small></span><button class="switch" role="switch" aria-checked="${state.panel}" data-pref="panel" aria-label="Mostrar painel contextual"></button></div>
+            <div class="setting-field"><span>Seleção e ações<small>Comandos da entidade selecionada.</small></span><button class="switch" role="switch" aria-checked="${state.dock}" data-pref="dock" aria-label="Mostrar seleção e ações"></button></div>
+            <div class="setting-field"><span>Minimapa<small>Prévia de navegação no canto da tela.</small></span><button class="switch" role="switch" aria-checked="${state.minimap}" data-pref="minimap" aria-label="Mostrar minimapa"></button></div>
+            <div class="setting-field"><span>Objetivos<small>Mostrar próximos passos no resumo.</small></span><button class="switch" role="switch" aria-checked="${state.objectives}" data-pref="objectives" aria-label="Mostrar objetivos"></button></div>
+            <div class="setting-field"><span>Recolher após 8s sem input<small>Hipótese do runtime: esmaecer o que não é essencial. Desligado por padrão.</small></span><button class="switch" role="switch" aria-checked="${state.idleFade}" data-pref="idleFade" aria-label="Recolher HUD após inatividade"></button></div>
+            <label class="setting-field"><span>Atalho para minimizar HUD<small>Escolha uma combinação rápida.</small></span><select id="setting-hotkey"><option>Alt+H</option><option>Alt+J</option><option>Ctrl+Shift+H</option></select></label>
+            <div class="settings-actions"><button data-action="save-form-config">Salvar neste navegador</button><button data-action="copy-config">Copiar configuração</button><button data-action="download-config">Salvar arquivo</button></div>
+          </div>
+          <div id="settings-code-view" ${settingsView==='form'?'hidden':''}>
+            <div class="settings-toolbar"><div class="segmented" role="group" aria-label="Formato de configuração"><button data-format="json" aria-pressed="${configFormat==='json'}">JSON editável</button><button data-format="yaml" aria-pressed="${configFormat==='yaml'}">YAML</button></div><span class="eyebrow">Configuração do HUD</span></div>
+            <textarea class="settings-file" id="settings-file" spellcheck="false" aria-label="Texto da configuração do HUD"></textarea>
+            <div class="settings-actions"><button data-action="apply-config">Aplicar ${configFormat.toUpperCase()}</button><button data-action="copy-config">Copiar configuração</button><button data-action="download-config">Salvar arquivo</button></div>
+            <p class="settings-note" id="settings-note"></p>
+          </div>
+          <div class="card" style="margin-top:14px"><div class="section-label">Histórico (undo/redo) <button data-action="history-redo">Refazer ⇧⌘Z</button></div><div class="history-list" id="history-list"></div><div class="settings-actions"><button data-action="history-undo">Desfazer ⌘Z</button></div></div>`;
+        syncSettingsForm();
+        renderHistory();
+      }
+      function applyConfig(config) {
+        if(!config||config.version!==1||!['balanced','explorer','strategist'].includes(config.layout)||!config.panels||!config.shortcuts)throw new Error('Estrutura de configuração inválida.');
+        if(!['Alt+H','Alt+J','Ctrl+Shift+H'].includes(config.shortcuts.minimizeHud))throw new Error('Atalho não reconhecido.');
+        applyPreset(config.layout);
+        state.panel=Boolean(config.panels.context);state.dock=Boolean(config.panels.selection);state.minimap=Boolean(config.panels.minimap);state.objectives=Boolean(config.panels.objectives);state.hudKey=config.shortcuts.minimizeHud;
+        setVisibility('panel',state.panel);setVisibility('dock',state.dock);setVisibility('minimap',state.minimap);setVisibility('objectives',state.objectives);
+        window.localStorage.setItem('terrinha:hud-config',JSON.stringify(hudConfig()));
+        syncSettingsForm();historyPush('Aplicar configuração');notify('Configuração do HUD aplicada e salva neste navegador.');
+      }
+      function parseHudYaml(value) {
+        const parsed={version:undefined,layout:undefined,panels:{},shortcuts:{}};
+        let section='';
+        for(const rawLine of value.split(/\r?\n/)) {
+          const line=rawLine.trim();if(!line||line.startsWith('#'))continue;
+          const match=line.match(/^([A-Za-z][\w]*):\s*(.*?)\s*$/);if(!match)throw new Error('Linha YAML inválida. Use chave: valor.');
+          const [,key,raw]=match;
+          if(!raw){section=key;if(!['panels','shortcuts'].includes(section))throw new Error(`Seção YAML desconhecida: ${key}.`);continue;}
+          let parsedValue=raw;
+          if(raw==='true')parsedValue=true;else if(raw==='false')parsedValue=false;else if(/^\d+$/.test(raw))parsedValue=Number(raw);
+          if(section==='panels')parsed.panels[key]=parsedValue;else if(section==='shortcuts')parsed.shortcuts[key]=parsedValue;else parsed[key]=parsedValue;
+        }
+        return parsed;
+      }
+      function saveFormConfig() {
+        window.localStorage.setItem('terrinha:hud-config',JSON.stringify(hudConfig()));
+        refreshConfigEditor();notify('Configuração do HUD salva neste navegador.');
+      }
+      function toggleHudMinimized(minimized) {
+        state.hudMinimized=minimized;game.classList.toggle('hud-minimized',minimized);
+        if(minimized)closeModals();
+      }
+      async function copyConfig() {
+        const value=configFormat==='json'?JSON.stringify(hudConfig(),null,2):yamlConfig(hudConfig());
+        try { await navigator.clipboard.writeText(value);notify('Configuração copiada. Você já pode compartilhar o texto.'); }
+        catch { const editor=document.getElementById('settings-file');editor.focus();editor.select();notify('Selecione o texto e copie para compartilhar.'); }
+      }
+      function openMenu(tab='empire') {
+        state.menuTab=tab;document.querySelectorAll('[data-menu-tab]').forEach(b=>b.classList.toggle('active',b.dataset.menuTab===tab));
+        const cards=document.getElementById('menu-cards');cards.classList.remove('interface-settings');
+        if(tab==='interface'){document.getElementById('menu-heading').textContent='Interface do HUD';document.getElementById('menu-description').textContent='Organize os painéis, escolha atalhos e leve sua configuração para outro dispositivo.';renderInterfaceSettings();return;}
+        const data={empire:['Império Português','Acompanhe o estado do reino e abra uma área de gestão sem perder o lugar no mapa.',['Território','1 região habitada · 3 áreas avistadas'],['População','28 aldeões · 6 disponíveis'],['Próximo marco','Concluir Cartografia']],economy:['Economia','Consulte o ritmo de produção e redistribua trabalhadores.',['Produção','+40 recursos por minuto'],['Reserva','2.920 recursos armazenados'],['Gargalo','Comida abaixo da meta']],army:['Exército','Organize patrulhas e acompanhe a proteção da vila.',['Guarnição','4 unidades em patrulha'],['Recrutamento','Quartel Militar disponível'],['Alerta','Movimento avistado a oeste']],research:['Conhecimento','Acompanhe descobertas e requisitos para avançar de era.',['Pesquisa atual','Cartografia · 24%'],['Próxima era','Era do Comércio'],['Disponíveis','Canais de Irrigação e Cunhagem']]};
+        const x=data[tab]||data.empire;document.getElementById('menu-heading').textContent=x[0];document.getElementById('menu-description').textContent=x[1];cards.innerHTML=x.slice(2).map(c=>`<div class="menu-card"><b>${c[0]}</b><span>${c[1]}</span></div>`).join('');
+      }
+
+      try {
+        const saved=JSON.parse(window.localStorage.getItem('terrinha:hud-config')||'null');
+        if(saved?.version===1&&['balanced','explorer','strategist'].includes(saved.layout)&&saved.panels&&['Alt+H','Alt+J','Ctrl+Shift+H'].includes(saved.shortcuts?.minimizeHud)){
+          state.preset=saved.layout;state.panel=Boolean(saved.panels.context);state.dock=Boolean(saved.panels.selection);state.minimap=Boolean(saved.panels.minimap);state.objectives=Boolean(saved.panels.objectives);state.hudKey=saved.shortcuts.minimizeHud;
+        }
+      } catch { /* A configuração local inválida não impede abrir a PoC. */ }
+      setNav('overview',false);renderSelection();setVisibility('panel',state.panel);setVisibility('dock',state.dock);setVisibility('minimap',state.minimap);setVisibility('objectives',state.objectives);
+      historyPush('Estado inicial');
+      renderContext(state.mode);
+      ['mousemove','mousedown','keydown','wheel','touchstart'].forEach(evt=>document.addEventListener(evt,wakeHud,{passive:true}));
+      wakeHud();
+      document.addEventListener('click',event=>{
+        const target=event.target.closest('button');if(!target)return;
+        if(target.dataset.resource){openResource(target.dataset.resource);return;}
+        if(target.dataset.modeChoice){setMode(target.dataset.modeChoice);return;}
+        if(target.dataset.nav){setNav(target.dataset.nav);return;}
+        if(target.dataset.action){const action=target.dataset.action;if(action==='search'){closeModals();openModal(searchModal);}else if(action==='customize'){closeModals();openModal(layoutModal);}else if(action==='menus'||action==='open-menu'){closeModals();openMenu();openModal(menuModal);}else if(action==='close-menu')closeModals();else if(action==='close-layout')closeModals();else if(action==='toggle-panel'){setVisibility('panel',!state.panel);historyPush(state.panel?'Mostrar painel':'Ocultar painel');}else if(action==='toggle-dock'){setVisibility('dock',!state.dock);historyPush(state.dock?'Mostrar seleção':'Ocultar seleção');}else if(action==='minimap'){state.minimap=!state.minimap;setVisibility('minimap',state.minimap);historyPush(state.minimap?'Mostrar minimapa':'Ocultar minimapa');}else if(action==='mode'){setMode(target.dataset.value);historyPush('Modo: '+target.dataset.value);}else if(action==='minimize-hud'){toggleHudMinimized(true);historyPush('Modo minimalista');}else if(action==='restore-hud'){toggleHudMinimized(false);historyPush('Restaurar HUD');}else if(action==='save-form-config')saveFormConfig();else if(action==='copy-config')copyConfig();else if(action==='apply-config'){try{const raw=document.getElementById('settings-file').value;applyConfig(configFormat==='json'?JSON.parse(raw):parseHudYaml(raw));}catch(error){notify(error instanceof Error?error.message:'JSON inválido.');}}else if(action==='download-config'){const ext=configFormat==='yaml'?'yml':'json';const content=configFormat==='yaml'?yamlConfig(hudConfig()):JSON.stringify(hudConfig(),null,2);const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([content],{type:'text/plain;charset=utf-8'}));link.download=`terrinha-hud.${ext}`;link.click();URL.revokeObjectURL(link.href);}else if(action==='toast')notify(target.dataset.message);else if(action==='radial')openRadial(event.clientX,event.clientY);else if(action==='batch-confirm')confirmBatch();else if(action==='batch-cancel')cancelBatch();else if(action==='batch-undo')undoBatch();else if(action==='locality-clear'){setLocality(null);historyPush('Limpar foco');}else if(action==='camera-focus')centralizaCamera('focus');else if(action==='history-undo')historyUndo();else if(action==='history-redo')historyRedo();return;}
+        if(target.dataset.toggle){const key=target.dataset.toggle;setVisibility(key,!state[key]);return;}
+        if(target.dataset.pref){const key=target.dataset.pref;if(key==='idleFade'){state.idleFade=!state.idleFade;if(!state.idleFade)game.classList.remove('hud-idle');else wakeHud();syncSwitches();notify(state.idleFade?'HUD recolhe após 8s sem input':'Recolhimento por inatividade desligado');}else{setVisibility(key,!state[key]);}refreshConfigEditor();return;}
+        if(target.dataset.preset){applyPreset(target.dataset.preset);historyPush('Composição: '+target.dataset.preset);return;}
+        if(target.dataset.settingsView){settingsView=target.dataset.settingsView;renderInterfaceSettings();return;}
+        if(target.dataset.format){const editor=document.getElementById('settings-file');const saved=configFormat==='json'?JSON.stringify(hudConfig(),null,2):yamlConfig(hudConfig());if(editor&&editor.value!==saved&&!window.confirm('Trocar o formato vai descartar as edições ainda não aplicadas. Continuar?'))return;configFormat=target.dataset.format;refreshConfigEditor();return;}
+        if(target.dataset.menuTab){openMenu(target.dataset.menuTab);return;}
+        if(target.dataset.command){runCommand(target.dataset.command);return;}
+        if(target.dataset.radial){const command=target.dataset.radial;closeRadial();if(command==='radial-close'){notify('Menu radial fechado');return;}if(command==='search'){openModal(searchModal);return;}runCommand(command);return;}
+        if(target.dataset.locality){setLocality(target.dataset.locality);historyPush('Foco: '+target.dataset.locality);return;}
+        if(target.dataset.build){state.buildSelection=target.dataset.build;notify(`${target.dataset.build} selecionada no catálogo demonstrativo.`);return;}
+      });
+      document.addEventListener('change',event=>{
+        const target=event.target;
+        if(target.id==='setting-layout'){applyPreset(target.value);historyPush('Composição: '+target.value);syncSettingsForm();}
+        else if(target.id==='setting-hotkey'){state.hudKey=target.value;refreshConfigEditor();}
+      });
+      document.addEventListener('click',event=>{if(event.target.classList.contains('modal-scrim'))closeModals();});
+      radialScrim.addEventListener('click',closeRadial);
+      document.addEventListener('mousemove',event=>{pointer.x=event.clientX;pointer.y=event.clientY;},{passive:true});
+      // O mapa e um iframe de mesma origem: sem isto, o cursor "desaparece" para o
+      // HUD enquanto esta sobre o campo de jogo, e o radial nao acharia o Prime Pixel.
+      const gameFrame=document.getElementById('game-frame');
+      function trackPointerFromFrame() {
+        const doc=gameFrame.contentDocument;if(!doc)return;
+        doc.addEventListener('mousemove',event=>{const rect=gameFrame.getBoundingClientRect();pointer.x=rect.left+event.clientX;pointer.y=rect.top+event.clientY;},{passive:true});
+      }
+      gameFrame.addEventListener('load',trackPointerFromFrame);
+      trackPointerFromFrame();
+
+      // ---- Minimapa real ------------------------------------------------------
+      // Le mapa, camera e entidades da partida pela ponte de preview (mesma origem).
+      // Relevo e desenhado uma vez; entidades e area visivel sao redesenhadas.
+      const miniCanvas = document.getElementById('mini-canvas');
+      const miniCtx = miniCanvas.getContext('2d');
+      const MINI = miniCanvas.width;
+      let miniBase = null;
+      const CORES = { ocean:'#132c36', shallow:'#21505c', beach:'#c9b787', plains:'#6f8a52', valley:'#5f7c48', hill:'#7c7950', mountain_peak:'#8e8c88', river:'#3d7f88', lake:'#3d7f88' };
+
+      // Centralizar a camera e navegacao, nao ordem: usa a ponte so para mover a vista,
+      // e existe no teclado pela paleta porque o minimapa em si e mouse.
+      function centralizaCamera(onde) {
+        const p = pontePreview();
+        if (!p || typeof p.centerOn !== 'function') { notify('Sem partida para centralizar'); return; }
+        if (onde === 'home') {
+          const ilhas = p.islands ? p.islands() : [];
+          const slot = Number(String(p.playerSlot || 'player1').replace(/\D/g, '')) || 1;
+          const ilha = ilhas[slot - 1] || ilhas[0];
+          if (ilha && ilha.center) { p.centerOn(ilha.center.x, ilha.center.z); notify('Câmera centralizada no seu nascedouro'); }
+          else notify('Nascedouro indisponível nesta partida');
+          return;
+        }
+        const alvo = localities.find((l) => l.id === state.locality && l.center);
+        if (alvo) { p.centerOn(alvo.center.x, alvo.center.z); notify(`Câmera centralizada em ${alvo.name}`); }
+        else notify('Nenhuma localidade em foco');
+      }
+      function pontePreview() {
+        try { return (gameFrame.contentWindow && gameFrame.contentWindow.__terrinhaPreview) || null; } catch { return null; }
+      }
+      function desenhaRelevo(p) {
+        const off = document.createElement('canvas'); off.width = MINI; off.height = MINI;
+        const ctx = off.getContext('2d');
+        ctx.fillStyle = CORES.ocean; ctx.fillRect(0, 0, MINI, MINI);
+        const mapa = p.map && p.map();
+        if (!mapa || typeof mapa.getCellAt !== 'function') return off;
+        const size = p.mapSize || 60, amostras = 176, passo = MINI / amostras;
+        for (let iy = 0; iy < amostras; iy++) {
+          for (let ix = 0; ix < amostras; ix++) {
+            const wx = ((ix + 0.5) / amostras) * size, wz = ((iy + 0.5) / amostras) * size;
+            let cor = CORES.ocean;
+            try { const c = mapa.getCellAt(wx, wz); cor = CORES[c.biome] || (c.isWater ? CORES.river : CORES.plains); } catch {}
+            ctx.fillStyle = cor;
+            ctx.fillRect(ix * passo, iy * passo, passo + 0.7, passo + 0.7);
+          }
+        }
+        return off;
+      }
+      function sincronizaLocalidades() {
+        const p = pontePreview();
+        if (!p || !p.islands) return;
+        const ilhas = p.islands() || [];
+        localities.forEach((l, i) => {
+          const ilha = ilhas[i];
+          if (ilha && ilha.center) {
+            l.center = ilha.center;
+            l.meta = `Ilha ${i + 1} · nascedouro em ${Math.round(ilha.center.x)}, ${Math.round(ilha.center.z)}`;
+          }
+        });
+      }
+      function desenhaMinimapa() {
+        const p = pontePreview();
+        miniCtx.clearRect(0, 0, MINI, MINI);
+        if (!p) {
+          miniCtx.fillStyle = '#121814'; miniCtx.fillRect(0, 0, MINI, MINI);
+          miniCtx.fillStyle = 'rgba(233,226,209,.85)'; miniCtx.font = '600 22px Georgia, serif'; miniCtx.textAlign = 'center';
+          miniCtx.fillText('sem partida', MINI / 2, MINI / 2);
+          return;
+        }
+        if (!miniBase) miniBase = desenhaRelevo(p);
+        const size = p.mapSize || 60, esc = MINI / size;
+        const px = (x) => x * esc, py = (z) => z * esc;
+        miniCtx.drawImage(miniBase, 0, 0);
+
+        for (const r of p.resources()) {
+          if (r.type === 'tree') miniCtx.fillStyle = 'rgba(22,88,48,.85)';
+          else if (r.type === 'gold_mine') miniCtx.fillStyle = 'rgba(214,178,92,.95)';
+          else if (r.type === 'stone') miniCtx.fillStyle = 'rgba(170,180,176,.95)';
+          else miniCtx.fillStyle = 'rgba(120,176,181,.95)';
+          miniCtx.fillRect(px(r.x) - 1, py(r.z) - 1, 2.4, 2.4);
+        }
+        const { units, buildings } = p.entities();
+        const meu = p.playerSlot;
+        for (const b of buildings) {
+          miniCtx.fillStyle = b.owner === meu ? '#8fd0ff' : '#ff8f7a';
+          miniCtx.fillRect(px(b.x) - 2.6, py(b.z) - 2.6, 5.2, 5.2);
+        }
+        for (const u of units) {
+          miniCtx.fillStyle = u.owner === meu ? '#dff2b0' : '#ff9a86';
+          miniCtx.fillRect(px(u.x) - 1.4, py(u.z) - 1.4, 2.8, 2.8);
+        }
+        const foco = localities.find((l) => l.id === state.locality && l.center);
+        if (foco) {
+          miniCtx.strokeStyle = '#f1d594'; miniCtx.lineWidth = 2;
+          miniCtx.beginPath(); miniCtx.arc(px(foco.center.x), py(foco.center.z), 10, 0, Math.PI * 2); miniCtx.stroke();
+        }
+        const cantos = p.viewport && p.viewport();
+        if (cantos && cantos.length === 4) {
+          miniCtx.beginPath();
+          cantos.forEach((c, i) => { const X = px(c.x), Y = py(c.z); if (i) miniCtx.lineTo(X, Y); else miniCtx.moveTo(X, Y); });
+          miniCtx.closePath();
+          miniCtx.fillStyle = 'rgba(241,213,148,.16)'; miniCtx.fill();
+          miniCtx.strokeStyle = 'rgba(241,213,148,.92)'; miniCtx.lineWidth = 1.6; miniCtx.stroke();
+        }
+      }
+      miniCanvas.addEventListener('click', (event) => {
+        const p = pontePreview();
+        if (!p) { notify('Minimapa sem partida para centralizar'); return; }
+        const r = miniCanvas.getBoundingClientRect();
+        const size = p.mapSize || 60;
+        const wx = ((event.clientX - r.left) / r.width) * size;
+        const wz = ((event.clientY - r.top) / r.height) * size;
+        if (p.centerOn(wx, wz)) notify(`Câmera centralizada em ${Math.round(wx)}, ${Math.round(wz)}`);
+      });
+      gameFrame.addEventListener('load', () => { miniBase = null; setTimeout(sincronizaLocalidades, 1400); });
+      setInterval(() => { if (!minimap.hidden) desenhaMinimapa(); }, 130);
+      setTimeout(() => { sincronizaLocalidades(); desenhaMinimapa(); }, 1600);
+      searchInput.addEventListener('input',()=>renderSearch(searchInput.value));
+      document.addEventListener('keydown',event=>{
+        const overlay=overlayAberto();
+        if(overlay&&event.key==='Escape'){
+          event.preventDefault();fecharOverlayMaisRecente();event.stopImmediatePropagation();return;
+        }
+        if(overlay&&event.key==='Tab'){
+          const items=focaveis(overlay);
+          if(items.length){
+            const current=items.indexOf(document.activeElement);
+            const next=current<0?(event.shiftKey?items.length-1:0):(current+(event.shiftKey?-1:1)+items.length)%items.length;
+            event.preventDefault();items[next].focus();
+          }
+          event.stopImmediatePropagation();return;
+        }
+        // Campos de texto digitaveis ficam fora do bloqueio: o overlay so impede
+        // atalhos que mutariam o HUD atras dele; a digitacao e o desfazer nativo
+        // do proprio campo continuam valendo enquanto o overlay esta aberto.
+        const editavel=event.target instanceof HTMLInputElement||event.target instanceof HTMLTextAreaElement||event.target.isContentEditable;
+        if(overlay&&!editavel&&!['ArrowDown','ArrowUp','Enter'].includes(event.key)){
+          if(event.altKey||((event.ctrlKey||event.metaKey)&&['k','z'].includes(event.key.toLowerCase())))event.preventDefault();
+          return;
+        }
+        const typing=editavel;
+        if(!searchModal.hidden&&(event.key==='ArrowDown'||event.key==='ArrowUp')){const results=[...searchResults.querySelectorAll('.palette-result')];if(results.length){event.preventDefault();state.searchIndex=(state.searchIndex+(event.key==='ArrowDown'?1:-1)+results.length)%results.length;results.forEach((button,i)=>button.setAttribute('aria-selected',String(i===state.searchIndex)));results[state.searchIndex].scrollIntoView({block:'nearest'});}return;}
+        if(!searchModal.hidden&&event.key==='Enter'){const selected=searchResults.querySelectorAll('.palette-result')[state.searchIndex];if(selected){event.preventDefault();selected.click();}return;}
+        if(!typing&&(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();openModal(searchModal);return;}
+        if(!typing&&(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='z'){event.preventDefault();if(event.shiftKey)historyRedo();else historyUndo();return;}
+        const altCombo=(code)=>event.altKey&&!event.ctrlKey&&!event.metaKey&&event.code===code;
+        const shortcutMatches=state.hudKey==='Alt+H'?altCombo('KeyH'):state.hudKey==='Alt+J'?altCombo('KeyJ'):(event.ctrlKey&&event.shiftKey&&event.code==='KeyH');
+        if(!typing&&shortcutMatches){event.preventDefault();toggleHudMinimized(!state.hudMinimized);historyPush(state.hudMinimized?'Modo minimalista':'Restaurar HUD');return;}
+        // As teclas simples H, C, M, K, Z, Q W E R T Y F B e 1-3 pertencem ao jogo
+        // (docs/reference/comandos-teclado.md). A Poc so usa Alt+ para nao competir
+        // com a memoria muscular de quem ja joga.
+        if(!typing&&event.altKey&&!event.ctrlKey&&!event.metaKey){
+          if(event.code==='Digit1'){event.preventDefault();setMode('city');historyPush('Modo: vila');return;}
+          if(event.code==='Digit2'){event.preventDefault();setMode('explore');historyPush('Modo: exploração');return;}
+          if(event.code==='Digit3'){event.preventDefault();setMode('battle');historyPush('Modo: combate');return;}
+          if(event.code==='KeyP'){event.preventDefault();setVisibility('panel',!state.panel);historyPush(state.panel?'Mostrar painel':'Ocultar painel');return;}
+          if(event.code==='KeyM'){event.preventDefault();setVisibility('minimap',!state.minimap);historyPush(state.minimap?'Mostrar minimapa':'Ocultar minimapa');return;}
+          if(event.code==='KeyR'){event.preventDefault();openRadial();return;}
+        }
+        if(typing||event.metaKey||event.ctrlKey||event.altKey)return;
+      },true);
+
+    </script>
+  </body>
+</html>

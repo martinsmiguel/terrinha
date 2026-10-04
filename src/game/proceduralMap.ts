@@ -4,8 +4,21 @@
  */
 
 import * as THREE from 'three';
-import { ResourceNode, Building, Unit } from './engine';
-import { v4 as uuidv4 } from 'uuid';
+import { ResourceNode } from './engine';
+import {
+  ArchipelagoLayout,
+  ElevData,
+  IslandProfile,
+  SeededRandom,
+  TerrainNoise,
+  coastRadiusAt,
+  computeArchipelago,
+  computeElevation,
+  computeReachableSet,
+  createNoise2D,
+  isLandBlocked,
+  resourcePlanFor,
+} from './archipelago';
 
 export interface MapCell {
   x: number;
@@ -13,11 +26,12 @@ export interface MapCell {
   height: number;
   isWater: boolean;
   isRiver: boolean;
+  isLake: boolean;
   isOcean: boolean;
   isShallow: boolean; // walkable river ford or beach shallows
   isCliff: boolean; // impassable Skyrim-like mountain crags
   isImpassable: boolean; // cannot be walked or built upon
-  biome: 'valley' | 'hill' | 'plains' | 'mountain_peak' | 'beach' | 'ocean' | 'river';
+  biome: 'valley' | 'hill' | 'plains' | 'mountain_peak' | 'beach' | 'ocean' | 'river' | 'lake';
 }
 
 export interface ProceduralMapResult {
@@ -26,12 +40,16 @@ export interface ProceduralMapResult {
   mapSize: number;
   islandRadius: number;
   islandCenter: { x: number; z: number };
+  /** Layout puro do arquipelago (perfis, lagos, rios) — usado tambem pelo minimapa. */
+  islands: ArchipelagoLayout['islands'];
   terrainMesh: THREE.Mesh;
   waterMesh: THREE.Mesh;
   riverBankDecorations: THREE.Group;
   resourceNodes: ResourceNode[];
   player1Spawn: { x: number; z: number };
   player2Spawn: { x: number; z: number };
+  player3Spawn: { x: number; z: number };
+  player4Spawn: { x: number; z: number };
   getCellAt: (x: number, z: number) => MapCell;
   getHeightAt: (x: number, z: number) => number;
   isWaterAt: (x: number, z: number) => boolean;
@@ -40,280 +58,65 @@ export interface ProceduralMapResult {
   isImpassableAt: (x: number, z: number) => boolean;
 }
 
-// Pseudo-random noise generator based on seed
-class SeededRandom {
-  private seed: number;
-  constructor(seed: number = 42) {
-    this.seed = seed % 2147483647;
-    if (this.seed <= 0) this.seed += 2147483646;
-  }
-  next(): number {
-    this.seed = (this.seed * 16807) % 2147483647;
-    return (this.seed - 1) / 2147483646;
-  }
-}
-
-// Multi-octave 2D Perlin-like gradient noise
-function createNoise2D(random: SeededRandom) {
-  const perm: number[] = [];
-  for (let i = 0; i < 256; i++) perm.push(i);
-  for (let i = 255; i > 0; i--) {
-    const j = Math.floor(random.next() * (i + 1));
-    const temp = perm[i];
-    perm[i] = perm[j];
-    perm[j] = temp;
-  }
-  const p = new Array(512);
-  for (let i = 0; i < 512; i++) {
-    p[i] = perm[i & 255];
-  }
-
-  function fade(t: number) {
-    return t * t * t * (t * (t * 6 - 15) + 10);
-  }
-  function lerp(t: number, a: number, b: number) {
-    return a + t * (b - a);
-  }
-  function grad(hash: number, x: number, y: number) {
-    const h = hash & 7;
-    const u = h < 4 ? x : y;
-    const v = h < 4 ? y : x;
-    return (h & 1 ? -u : u) + (h & 2 ? -2.0 * v : 2.0 * v);
-  }
-
-  return function noise(x: number, y: number): number {
-    const X = Math.floor(x) & 255;
-    const Y = Math.floor(y) & 255;
-    const xf = x - Math.floor(x);
-    const yf = y - Math.floor(y);
-    const u = fade(xf);
-    const v = fade(yf);
-
-    const aa = p[p[X] + Y];
-    const ab = p[p[X] + Y + 1];
-    const ba = p[p[X + 1] + Y];
-    const bb = p[p[X + 1] + Y + 1];
-
-    return lerp(
-      v,
-      lerp(u, grad(aa, xf, yf), grad(ba, xf - 1, yf)),
-      lerp(u, grad(ab, xf, yf - 1), grad(bb, xf - 1, yf - 1))
-    );
-  };
-}
+/** Paleta por perfil geografico: deixa as ilhas legivelmente distintas no terreno. */
+const PROFILE_PALETTES: Record<
+  IslandProfile,
+  { plain: number; dry: number; valley: number; rock: number; peak: number; snow: number }
+> = {
+  floresta: { plain: 0x4a7c2c, dry: 0x608e3a, valley: 0x386623, rock: 0x475569, peak: 0x94a3b8, snow: 0xe2e8f0 },
+  arida: { plain: 0xb0a06a, dry: 0xc4b078, valley: 0x8f9a52, rock: 0x8a7a5f, peak: 0xa89a80, snow: 0xd8d0c0 },
+  glacial: { plain: 0x9fb8c8, dry: 0x8fa8b8, valley: 0x7a95a8, rock: 0x6a8498, peak: 0xb8ccd8, snow: 0xf0f6fa },
+  montanhosa: { plain: 0x6a7a4a, dry: 0x7a8a55, valley: 0x55663a, rock: 0x4a5560, peak: 0x8a95a5, snow: 0xdde4ec },
+  ruintas: { plain: 0x7a6a8a, dry: 0x8a7a98, valley: 0x655a75, rock: 0x5a5068, peak: 0x9085a5, snow: 0xd8d2e4 },
+};
 
 /**
- * Procedural Island Map Generator (Ikariam-style Island + Skyrim-style Mountain Crags + Level Village Plains)
+ * Gerador de arquipelago: multiplas ilhas com perfis distintos, oceano
+ * continuo navegavel, rios/lagos endorreicos (bloqueiam barcos) e recursos
+ * validados por alcance terrestre (criterios de aceite do card #40).
  */
 export function generateProceduralTerrain(mapSize: number = 60, seed?: number): ProceduralMapResult {
   const actualSeed = seed ?? Math.floor(Math.random() * 100000);
-  const rng = new SeededRandom(actualSeed);
-  const elevNoise = createNoise2D(rng);
-  const detailNoise = createNoise2D(new SeededRandom(actualSeed + 9999));
-  const mountainNoise = createNoise2D(new SeededRandom(actualSeed + 55555));
-
-  const cx = mapSize / 2;
-  const cz = mapSize / 2;
-  const islandBaseRadius = mapSize * 0.40; // ~24m radius inside 60m map
-
-  // Starting village spawn plateaus (Level plains where buildings never sink)
-  const p1Spawn = { x: 18, z: 20 };
-  const p2Spawn = { x: 42, z: 40 };
-  const villageFlatRadius = 12.0; // expansive, perfectly flat building plains for colonies
-
-  // Meandering River: flows across island from upper center to lower right
-  const riverCurve = (z: number): number => {
-    const t = z / mapSize;
-    return (
-      mapSize * 0.50 +
-      Math.sin(t * Math.PI * 2.1 + 0.3) * 6.5 +
-      Math.cos(t * Math.PI * 4.0) * 2.2
-    );
+  const layout = computeArchipelago(mapSize, actualSeed);
+  const noise: TerrainNoise = {
+    elev: createNoise2D(new SeededRandom(actualSeed)),
+    detail: createNoise2D(new SeededRandom(actualSeed + 9999)),
+    mountain: createNoise2D(new SeededRandom(actualSeed + 55555)),
   };
-  const riverWidth = 3.6;
-  const shallowFordZ1 = mapSize * 0.35;
-  const shallowFordZ2 = mapSize * 0.65;
-  const fordWidth = 3.4;
+  const rng = new SeededRandom(actualSeed + 4242);
 
-  // Mountain Crag Centers (Skyrim-style impassable rocky peaks)
-  const mountainRidges = [
-    { x: 30, z: 9, radiusX: 10.0, radiusZ: 5.2, peakHeight: 4.8 }, // Northern High Peaks (Bleak Falls Massif)
-    { x: 30, z: 51, radiusX: 9.5, radiusZ: 4.8, peakHeight: 4.4 }, // Southern Dragon Spine Ridge
-    { x: 50, z: 23, radiusX: 5.8, radiusZ: 5.8, peakHeight: 3.8 }, // Eastern Jagged Crag
-    { x: 10, z: 41, radiusX: 5.2, radiusZ: 5.2, peakHeight: 3.6 }, // Western Sea Bluffs
-  ];
+  const calculateElevationData = (wx: number, wz: number): ElevData =>
+    computeElevation(layout, noise, wx, wz);
 
-  // Island Boundary evaluation with organic coastal inlets & bays
-  const getIslandCoastRadius = (angle: number): number => {
-    const a1 = Math.sin(angle * 3 + 0.4) * 2.5;
-    const a2 = Math.cos(angle * 5 + 1.2) * 1.5;
-    const a3 = Math.sin(angle * 7) * 0.8;
-    return islandBaseRadius + a1 + a2 + a3;
-  };
+  const p1Spawn = layout.islands[0].spawn;
+  const p2Spawn = layout.islands[1].spawn;
+  const p3Spawn = layout.islands[2].spawn;
+  const p4Spawn = layout.islands[3].spawn;
 
-  /**
-   * Unified, mathematically rigorous elevation calculator.
-   * Guaranteed to match between vertex generation and runtime query.
-   */
-  const calculateElevationData = (
-    wx: number,
-    wz: number
-  ): {
-    height: number;
-    isWater: boolean;
-    isRiver: boolean;
-    isOcean: boolean;
-    isShallow: boolean;
-    isCliff: boolean;
-    isBeach: boolean;
-  } => {
-    const dx = wx - cx;
-    const dz = wz - cz;
-    const distToCenter = Math.hypot(dx, dz);
-    const angle = Math.atan2(dz, dx);
-    const coastRadius = getIslandCoastRadius(angle);
-
-    // 1. OPEN OCEAN CHECK (Surrounding Ikariam-style Island)
-    if (distToCenter > coastRadius) {
-      const oceanDepthDist = distToCenter - coastRadius;
-      const oceanHeight = -0.15 - Math.min(3.0, oceanDepthDist * 0.55);
-      return {
-        height: oceanHeight,
-        isWater: true,
-        isRiver: false,
-        isOcean: true,
-        isShallow: oceanDepthDist < 1.0,
-        isCliff: false,
-        isBeach: oceanDepthDist < 0.8,
-      };
-    }
-
-    // 2. BEACH COASTLINE (Between island edge and inland)
-    const distFromCoast = coastRadius - distToCenter;
-    const isBeach = distFromCoast < 2.2;
-
-    // 3. STARTING VILLAGE PLATFORM (Flat fertile plateau, zero sinking!)
-    const dP1 = Math.hypot(wx - p1Spawn.x, wz - p1Spawn.z);
-    const dP2 = Math.hypot(wx - p2Spawn.x, wz - p2Spawn.z);
-    const spawnDist = Math.min(dP1, dP2);
-
-    if (spawnDist < villageFlatRadius) {
-      // 100% perfectly flat ground for starting base
-      return {
-        height: 0.32,
-        isWater: false,
-        isRiver: false,
-        isOcean: false,
-        isShallow: false,
-        isCliff: false,
-        isBeach: false,
-      };
-    }
-
-    // 4. SKYRIM-STYLE ROCKY PEAKS & MOUNTAIN RIDGES
-    let mountainBoost = 0;
-    let isMountainPeak = false;
-
-    mountainRidges.forEach((ridge) => {
-      const nx = (wx - ridge.x) / ridge.radiusX;
-      const nz = (wz - ridge.z) / ridge.radiusZ;
-      const rDist = Math.hypot(nx, nz);
-      if (rDist < 1.0) {
-        const falloff = 1 - rDist;
-        const smoothFalloff = falloff * falloff * (3 - 2 * falloff);
-        const mRough = mountainNoise(wx * 0.15, wz * 0.15) * 0.8;
-        const h = ridge.peakHeight * smoothFalloff + mRough * smoothFalloff;
-        if (h > mountainBoost) {
-          mountainBoost = h;
-          if (h > 1.8) isMountainPeak = true;
-        }
-      }
-    });
-
-    // 5. RIVER CARVING
-    const rx = riverCurve(wz);
-    const distToRiver = Math.abs(wx - rx);
-    const isNearFord =
-      distToRiver < riverWidth &&
-      (Math.abs(wz - shallowFordZ1) < fordWidth || Math.abs(wz - shallowFordZ2) < fordWidth);
-
-    let baseH = 0.32;
-
-    if (distFromCoast < 3.5) {
-      // Smooth beach slope up from sea level (0.02) to inland (0.32)
-      const beachT = distFromCoast / 3.5;
-      baseH = THREE.MathUtils.lerp(0.04, 0.32, beachT);
-    } else {
-      // Rolling plains & gentle hills
-      const n1 = elevNoise(wx * 0.04, wz * 0.04) * 0.6;
-      const n2 = detailNoise(wx * 0.1, wz * 0.1) * 0.25;
-      baseH = 0.32 + Math.max(-0.1, n1 + n2);
-    }
-
-    // Blend starting village buffer smoothly
-    if (spawnDist < villageFlatRadius + 3.0) {
-      const t = (spawnDist - villageFlatRadius) / 3.0;
-      baseH = THREE.MathUtils.lerp(0.32, baseH, t * t * (3 - 2 * t));
-    }
-
-    // Add mountain elevation if present
-    baseH += mountainBoost;
-
-    // Carve river channel
-    let isWater = false;
-    let isRiver = false;
-    let isShallow = false;
-
-    if (distToRiver < riverWidth) {
-      const riverT = distToRiver / riverWidth;
-      const riverDepth = isNearFord ? -0.06 : -0.65;
-      baseH = THREE.MathUtils.lerp(riverDepth, Math.max(0.12, baseH), Math.pow(riverT, 0.75));
-      if (baseH < 0.02) {
-        isWater = true;
-        isRiver = true;
-        isShallow = isNearFord;
-      }
-    } else if (distToRiver < riverWidth + 2.0) {
-      // River banks
-      const bankT = (distToRiver - riverWidth) / 2.0;
-      baseH = THREE.MathUtils.lerp(0.12, Math.max(0.2, baseH), bankT);
-    }
-
-    // Mark impassable cliffs (Skyrim-style steep rocky ridges where units cannot go)
-    const isCliff = (isMountainPeak && baseH > 1.6) || baseH > 2.2;
-
-    return {
-      height: baseH,
-      isWater,
-      isRiver,
-      isOcean: false,
-      isShallow,
-      isCliff,
-      isBeach: isBeach && baseH < 0.35,
-    };
-  };
-
-  // High-resolution mesh for smooth, beautiful island topography
+  // High-resolution mesh for smooth, beautiful archipelago topography
   const resolution = 96;
   const geo = new THREE.PlaneGeometry(mapSize, mapSize, resolution, resolution);
   geo.rotateX(-Math.PI / 2);
-  // Shift plane so (0, 0) is the bottom-left corner and (mapSize, mapSize) is the top-right
   geo.translate(mapSize / 2, 0, mapSize / 2);
 
   const posAttr = geo.attributes.position;
   const count = posAttr.count;
   const colors = new Float32Array(count * 3);
 
-  // Ikariam & Skyrim Palette
   const colOceanFloor = new THREE.Color(0x0e2f44);
   const colBeachSand = new THREE.Color(0xd4b483);
-  const colPlainsLush = new THREE.Color(0x4a7c2c);
-  const colPlainsDry = new THREE.Color(0x608e3a);
-  const colValley = new THREE.Color(0x386623);
   const colRiverBed = new THREE.Color(0x2a3820);
-  const colMountainRock = new THREE.Color(0x475569);
-  const colMountainPeak = new THREE.Color(0x94a3b8);
-  const colSnowRidge = new THREE.Color(0xe2e8f0);
+  const colLakeWater = new THREE.Color(0x1c3d5a);
+  const profileColorCache = new Map<string, THREE.Color>();
+
+  const profileColor = (key: string, hex: number): THREE.Color => {
+    let color = profileColorCache.get(key);
+    if (!color) {
+      color = new THREE.Color(hex);
+      profileColorCache.set(key, color);
+    }
+    return color;
+  };
 
   for (let i = 0; i < count; i++) {
     const wx = posAttr.getX(i);
@@ -322,24 +125,24 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
     const data = calculateElevationData(wx, wz);
     posAttr.setY(i, data.height);
 
-    // Vertex color assignment
-    let col = colPlainsLush;
+    let col: THREE.Color;
     if (data.isOcean) {
       col = colOceanFloor;
+    } else if (data.isLake) {
+      col = colLakeWater;
     } else if (data.isRiver) {
       col = colRiverBed;
     } else if (data.isBeach) {
       col = colBeachSand;
-    } else if (data.height > 3.4) {
-      col = colSnowRidge;
-    } else if (data.height > 2.2) {
-      col = colMountainPeak;
-    } else if (data.height > 1.4) {
-      col = colMountainRock;
-    } else if (data.height < 0.28) {
-      col = colValley;
-    } else if (data.height > 0.6) {
-      col = colPlainsDry;
+    } else {
+      const profile = data.island ? data.island.profile : 'floresta';
+      const pal = PROFILE_PALETTES[profile];
+      if (data.height > 3.4) col = profileColor(profile + '.snow', pal.snow);
+      else if (data.height > 2.2) col = profileColor(profile + '.peak', pal.peak);
+      else if (data.height > 1.4) col = profileColor(profile + '.rock', pal.rock);
+      else if (data.height < 0.28) col = profileColor(profile + '.valley', pal.valley);
+      else if (data.height > 0.6) col = profileColor(profile + '.dry', pal.dry);
+      else col = profileColor(profile + '.plain', pal.plain);
     }
 
     colors[i * 3] = col.r;
@@ -358,18 +161,18 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
   });
 
   const terrainMesh = new THREE.Mesh(geo, terrainMat);
-  terrainMesh.name = 'procedural_island_terrain';
-  terrainMesh.position.set(0, 0, 0); // Directly in world space
+  terrainMesh.name = 'procedural_archipelago_terrain';
+  terrainMesh.position.set(0, 0, 0);
   terrainMesh.receiveShadow = true;
 
-  // 2. EXPANSIVE WATER SURFACE (Sea & River)
-  // Covers the whole map and sea with Ikariam-style azure water
+  // Superficie de agua: oceano continuo entre as ilhas. Rios e lagos aparecem
+  // atraves dos vales alagados do proprio terreno (nunca tocam o oceano).
   const waterGeo = new THREE.PlaneGeometry(mapSize * 1.5, mapSize * 1.5, 48, 48);
   waterGeo.rotateX(-Math.PI / 2);
   waterGeo.translate(mapSize / 2, 0, mapSize / 2);
 
   const waterMat = new THREE.MeshStandardMaterial({
-    color: 0x0284c7, // Vibrant Mediterranean sea blue
+    color: 0x0284c7,
     transparent: true,
     opacity: 0.72,
     roughness: 0.15,
@@ -379,175 +182,243 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
   waterMesh.name = 'ocean_water';
   waterMesh.position.set(0, 0.0, 0);
 
-  // 3. NATURAL DECORATIONS (Rocks on beaches, mountain boulders, river reeds)
+  // Decoracoes: juncos nos rios, rochedos nas cristas e ruinas nas ilhas de ruinas
   const riverBankDecorations = new THREE.Group();
-  riverBankDecorations.name = 'island_nature_decorations';
+  riverBankDecorations.name = 'archipelago_decorations';
 
   const reedGeo = new THREE.CylinderGeometry(0.04, 0.06, 0.8, 4);
   const reedMat = new THREE.MeshStandardMaterial({ color: 0x65a30d, roughness: 0.8 });
-  const pebbleGeo = new THREE.DodecahedronGeometry(0.24, 0);
-  const pebbleMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9 });
   const boulderGeo = new THREE.DodecahedronGeometry(0.55, 1);
   const boulderMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.95 });
+  const columnGeo = new THREE.CylinderGeometry(0.28, 0.34, 1.1, 6);
+  const columnMat = new THREE.MeshStandardMaterial({ color: 0x9ca3af, roughness: 0.9 });
 
-  // Reeds along freshwater river
-  for (let z = 16; z < mapSize - 16; z += 3.2) {
-    const rx = riverCurve(z);
-    const lx = rx - riverWidth * 0.95;
-    const rH = calculateElevationData(lx, z).height;
-    if (rH > -0.05 && rH < 0.25) {
-      const rmesh = new THREE.Mesh(reedGeo, reedMat);
-      rmesh.position.set(lx + (rng.next() * 0.6 - 0.3), rH + 0.4, z + (rng.next() * 0.6 - 0.3));
-      riverBankDecorations.add(rmesh);
+  layout.islands.forEach((island) => {
+    // Juncos nas margens dos rios endorreicos
+    if (island.river) {
+      const river = island.river;
+      for (let i = 1; i < river.points.length - 1; i += 2) {
+        const p = river.points[i];
+        const prev = river.points[i - 1];
+        const next = river.points[i + 1];
+        const dirX = next.x - prev.x;
+        const dirZ = next.z - prev.z;
+        const len = Math.hypot(dirX, dirZ) || 1;
+        const perpX = (-dirZ / len) * river.width * 1.1;
+        const perpZ = (dirX / len) * river.width * 1.1;
+        for (const sideSign of [1, -1]) {
+          const rx = p.x + perpX * sideSign;
+          const rz = p.z + perpZ * sideSign;
+          const h = calculateElevationData(rx, rz).height;
+          if (h > -0.05 && h < 0.25) {
+            const reed = new THREE.Mesh(reedGeo, reedMat);
+            reed.position.set(rx + (rng.next() * 0.6 - 0.3), h + 0.4, rz + (rng.next() * 0.6 - 0.3));
+            riverBankDecorations.add(reed);
+          }
+        }
+      }
     }
-  }
 
-  // Mountain boulders near Skyrim ridges
-  mountainRidges.forEach((ridge) => {
-    for (let i = 0; i < 6; i++) {
-      const bx = ridge.x + (rng.next() * ridge.radiusX * 1.6 - ridge.radiusX * 0.8);
-      const bz = ridge.z + (rng.next() * ridge.radiusZ * 1.6 - ridge.radiusZ * 0.8);
-      const bH = calculateElevationData(bx, bz).height;
-      if (bH > 1.2) {
-        const boulder = new THREE.Mesh(boulderGeo, boulderMat);
-        boulder.position.set(bx, bH + 0.15, bz);
-        boulder.scale.set(0.7 + rng.next() * 0.6, 0.7 + rng.next() * 0.6, 0.7 + rng.next() * 0.6);
-        boulder.rotation.set(rng.next() * Math.PI, rng.next() * Math.PI, 0);
-        boulder.castShadow = true;
-        riverBankDecorations.add(boulder);
+    // Rochedos nas cristas montanhosas
+    island.ridges.forEach((ridge) => {
+      for (let i = 0; i < 5; i++) {
+        const bx = ridge.x + (rng.next() * ridge.radiusX * 1.6 - ridge.radiusX * 0.8);
+        const bz = ridge.z + (rng.next() * ridge.radiusZ * 1.6 - ridge.radiusZ * 0.8);
+        const bH = calculateElevationData(bx, bz).height;
+        if (bH > 1.2) {
+          const boulder = new THREE.Mesh(boulderGeo, boulderMat);
+          boulder.position.set(bx, bH + 0.15, bz);
+          boulder.scale.set(0.7 + rng.next() * 0.6, 0.7 + rng.next() * 0.6, 0.7 + rng.next() * 0.6);
+          boulder.rotation.set(rng.next() * Math.PI, rng.next() * Math.PI, 0);
+          boulder.castShadow = true;
+          riverBankDecorations.add(boulder);
+        }
+      }
+    });
+
+    // Colunas quebradas nas ilhas de ruinas (tornam o perfil legivel no terreno)
+    if (island.profile === 'ruintas') {
+      for (let i = 0; i < 6; i++) {
+        const angle = rng.next() * Math.PI * 2;
+        const maxR = coastRadiusAt(island, angle) - 1.5;
+        const r = 4.5 + rng.next() * Math.max(0.5, maxR - 4.5);
+        const cx = island.center.x + Math.cos(angle) * r;
+        const cz = island.center.z + Math.sin(angle) * r;
+        const data = calculateElevationData(cx, cz);
+        if (data.isWater || data.isCliff || data.height < 0.15) continue;
+        const column = new THREE.Mesh(columnGeo, columnMat);
+        column.position.set(cx, data.height + 0.5, cz);
+        column.rotation.z = (rng.next() - 0.5) * 0.25;
+        column.rotation.x = (rng.next() - 0.5) * 0.25;
+        column.castShadow = true;
+        riverBankDecorations.add(column);
       }
     }
   });
 
-  // 4. RESOURCE NODES PLACEMENT (Only on valid plains and valleys, never in deep ocean or cliff peaks!)
+  // RECURSOS: cada ilha segue o plano do seu perfil e so e validado se o
+  // nascedouro alcancar o no por terra (criterio de recursos acessiveis).
   const resourceNodes: ResourceNode[] = [];
+  const reachable = layout.islands.map((island) =>
+    computeReachableSet(layout, noise, island.spawn.x, island.spawn.z)
+  );
 
-  // A. Clustered Forests on fertile plains
-  const forestSpots = [
-    { x: 14, z: 14, name: 'Bosque da Colônia Ocidental' },
-    { x: 26, z: 28, name: 'Bosque do Vale Central' },
-    { x: 44, z: 48, name: 'Bosque da Baía Oriental' },
-    { x: 18, z: 36, name: 'Bosque das Terras Férteis Sul' },
-    { x: 38, z: 26, name: 'Bosque do Meandro Verde' },
-  ];
+  const isUsableLand = (island: ArchipelagoLayout['islands'][number], x: number, z: number, clearance: number): boolean => {
+    if (Math.hypot(x - island.spawn.x, z - island.spawn.z) < clearance) return false;
+    const data = calculateElevationData(x, z);
+    if (data.island !== island || data.isWater || data.isCliff || data.height < 0.15) return false;
+    const gx = Math.floor(x);
+    const gz = Math.floor(z);
+    if (gx < 0 || gz < 0 || gx >= mapSize || gz >= mapSize) return false;
+    return reachable[island.index][gz * mapSize + gx] === 1;
+  };
 
-  forestSpots.forEach((spot, idx) => {
-    for (let i = 0; i < 8; i++) {
-      const px = spot.x + (rng.next() * 7 - 3.5);
-      const pz = spot.z + (rng.next() * 7 - 3.5);
-      const ed = calculateElevationData(px, pz);
-      // Valid if land, not in water, not a cliff, not right on town center
-      const dP1 = Math.hypot(px - p1Spawn.x, pz - p1Spawn.z);
-      const dP2 = Math.hypot(px - p2Spawn.x, pz - p2Spawn.z);
-      if (!ed.isWater && !ed.isCliff && dP1 > 4.5 && dP2 > 4.5 && ed.height >= 0.15) {
-        resourceNodes.push({
-          id: `tree-${idx}-${i}`,
-          type: 'tree',
-          name: spot.name,
-          position: { x: px, z: pz },
-          remaining: 160,
-          maxCapacity: 160,
-          harvestMode: 'clear_cut',
-          isRegrowing: false,
-          regrowthProgress: 0,
-          clusterId: `forest-cluster-${idx}`,
-          clusterName: spot.name,
-        });
+  const findLandSpot = (island: ArchipelagoLayout['islands'][number], clearance: number, tries = 60): { x: number; z: number } | null => {
+    for (let i = 0; i < tries; i++) {
+      const angle = rng.next() * Math.PI * 2;
+      const coast = coastRadiusAt(island, angle);
+      const maxR = coast - 1.1;
+      if (maxR <= clearance) continue;
+      const r = clearance + rng.next() * (maxR - clearance);
+      const x = island.center.x + Math.cos(angle) * r;
+      const z = island.center.z + Math.sin(angle) * r;
+      if (isUsableLand(island, x, z, clearance)) return { x, z };
+    }
+    return null;
+  };
+
+  layout.islands.forEach((island) => {
+    const plan = resourcePlanFor(island.profile);
+    const label = island.name;
+
+    // A. Bosques agrupados
+    for (let c = 0; c < plan.treeClusters; c++) {
+      const centerSpot = findLandSpot(island, 4.6);
+      if (!centerSpot) continue;
+      const clusterId = `forest-cluster-${island.index}-${c}`;
+      const clusterName = `Bosque ${c + 1} da ${label}`;
+      for (let i = 0; i < plan.treesPerCluster; i++) {
+        let placed = false;
+        for (let attempt = 0; attempt < 8 && !placed; attempt++) {
+          const px = centerSpot.x + (rng.next() * 4.4 - 2.2);
+          const pz = centerSpot.z + (rng.next() * 4.4 - 2.2);
+          if (!isUsableLand(island, px, pz, 4.6)) continue;
+          placed = true;
+          resourceNodes.push({
+            id: `tree-${island.index}-${c}-${i}`,
+            type: 'tree',
+            name: clusterName,
+            position: { x: px, z: pz },
+            remaining: 160,
+            maxCapacity: 160,
+            harvestMode: 'clear_cut',
+            isRegrowing: false,
+            regrowthProgress: 0,
+            clusterId,
+            clusterName,
+          });
+        }
       }
     }
-  });
 
-  // B. Gold & Mineral Mines (Naturally situated at the foot of mountain ridges)
-  const mineSpots = [
-    { x: 25, z: 16, name: 'Mina do Pico Nórdico (Pedreira & Ouro)' },
-    { x: 35, z: 44, name: 'Veio de Ouro da Cordilheira Sul' },
-    { x: 44, z: 28, name: 'Mina de Ouro da Encosta Leste' },
-  ];
+    // B. Minas de ouro
+    for (let i = 0; i < plan.gold; i++) {
+      const spot = findLandSpot(island, 4.6);
+      if (!spot) continue;
+      resourceNodes.push({
+        id: `gold-mine-${island.index}-${i}`,
+        type: 'gold_mine',
+        name: `Mina de Ouro ${i + 1} da ${label}`,
+        position: spot,
+        remaining: 900,
+        maxCapacity: 900,
+        clusterId: `mine-cluster-${island.index}`,
+        clusterName: `Minas da ${label}`,
+      });
+    }
 
-  mineSpots.forEach((spot, idx) => {
-    const ed = calculateElevationData(spot.x, spot.z);
-    resourceNodes.push({
-      id: `gold-mine-${idx}`,
-      type: 'gold_mine',
-      name: spot.name,
-      position: { x: spot.x, z: spot.z },
-      remaining: 900,
-      maxCapacity: 900,
-      clusterId: `mine-cluster-${idx}`,
-      clusterName: spot.name,
-    });
-  });
+    // C. Pedreiras
+    for (let i = 0; i < plan.stone; i++) {
+      const spot = findLandSpot(island, 4.6);
+      if (!spot) continue;
+      resourceNodes.push({
+        id: `stone-${island.index}-${i}`,
+        type: 'stone',
+        name: `Pedreira ${i + 1} da ${label}`,
+        position: spot,
+        remaining: 700,
+        maxCapacity: 700,
+        clusterId: `quarry-cluster-${island.index}`,
+        clusterName: `Pedreiras da ${label}`,
+      });
+    }
 
-  // C. Berry Bushes in fertile village plains
-  const berrySpots = [
-    { x: 22, z: 23, name: 'Pomar de Frutas Silvestres da Vila 1' },
-    { x: 38, z: 37, name: 'Pomar de Frutas Silvestres da Vila 2' },
-  ];
+    // D. Arbustos de comida
+    for (let i = 0; i < plan.bush; i++) {
+      const spot = findLandSpot(island, 4.6);
+      if (!spot) continue;
+      resourceNodes.push({
+        id: `food-bush-${island.index}-${i}`,
+        type: 'food_bush',
+        name: `Pomar ${i + 1} da ${label}`,
+        position: spot,
+        remaining: 450,
+        maxCapacity: 450,
+        clusterId: `food-cluster-${island.index}`,
+        clusterName: `Pomares da ${label}`,
+      });
+    }
 
-  berrySpots.forEach((spot, idx) => {
-    resourceNodes.push({
-      id: `food-bush-${idx}`,
-      type: 'food_bush',
-      name: spot.name,
-      position: { x: spot.x, z: spot.z },
-      remaining: 450,
-      maxCapacity: 450,
-      clusterId: `food-cluster-${idx}`,
-      clusterName: spot.name,
-    });
-  });
-
-  // D. Fish Schools in the River and Coastal Ocean Shallows!
-  const fishSpots = [
-    { z: 22, coast: false },
-    { z: 32, coast: false },
-    { z: 42, coast: false },
-    { x: 8, z: 30, coast: true }, // Western ocean shallows
-    { x: 52, z: 30, coast: true }, // Eastern ocean shallows
-  ];
-
-  fishSpots.forEach((spot, idx) => {
-    let fx = spot.coast ? (spot.x ?? 0) : riverCurve(spot.z) + (rng.next() * 1.0 - 0.5);
-    let fz = spot.z;
-    resourceNodes.push({
-      id: `fish-${idx}`,
-      type: 'fish_school',
-      name: spot.coast ? `Cardume Costeiro da Ilha #${idx + 1}` : `Cardume do Rio Meandro #${idx + 1}`,
-      position: { x: fx, z: fz },
-      remaining: 600,
-      maxCapacity: 600,
-      clusterId: `fish-cluster-${idx}`,
-      clusterName: spot.coast ? `Cardume Costeiro #${idx + 1}` : `Cardume do Rio #${idx + 1}`,
-    });
+    // E. Cardumes costeiros: sempre no oceano, navegaveis por barco
+    for (let i = 0; i < plan.fish; i++) {
+      for (let attempt = 0; attempt < 30; attempt++) {
+        const angle = rng.next() * Math.PI * 2;
+        const coast = coastRadiusAt(island, angle);
+        const fx = island.center.x + Math.cos(angle) * (coast + 1.4);
+        const fz = island.center.z + Math.sin(angle) * (coast + 1.4);
+        if (fx < 1 || fz < 1 || fx > mapSize - 1 || fz > mapSize - 1) continue;
+        if (Math.hypot(fx - island.spawn.x, fz - island.spawn.z) < 4.6) continue;
+        const data = calculateElevationData(fx, fz);
+        if (!data.isOcean) continue;
+        resourceNodes.push({
+          id: `fish-${island.index}-${i}`,
+          type: 'fish_school',
+          name: `Cardume Costeiro ${i + 1} da ${label}`,
+          position: { x: fx, z: fz },
+          remaining: 600,
+          maxCapacity: 600,
+          clusterId: `fish-cluster-${island.index}`,
+          clusterName: `Cardumes da ${label}`,
+        });
+        break;
+      }
+    }
   });
 
   // Real-time Height and Collision Query methods
-  const getHeightAt = (wx: number, wz: number): number => {
-    return calculateElevationData(wx, wz).height;
-  };
+  const getHeightAt = (wx: number, wz: number): number =>
+    calculateElevationData(wx, wz).height;
 
-  const isWaterAt = (wx: number, wz: number): boolean => {
-    return calculateElevationData(wx, wz).isWater;
-  };
+  const isWaterAt = (wx: number, wz: number): boolean =>
+    calculateElevationData(wx, wz).isWater;
 
-  const isOceanAt = (wx: number, wz: number): boolean => {
-    return calculateElevationData(wx, wz).isOcean;
-  };
+  // Regra de barcos: apenas o oceano. Rio e lago bloqueiam embarcacoes.
+  const isOceanAt = (wx: number, wz: number): boolean =>
+    calculateElevationData(wx, wz).isOcean;
 
-  const isCliffAt = (wx: number, wz: number): boolean => {
-    return calculateElevationData(wx, wz).isCliff;
-  };
+  const isCliffAt = (wx: number, wz: number): boolean =>
+    calculateElevationData(wx, wz).isCliff;
 
-  const isImpassableAt = (wx: number, wz: number): boolean => {
-    const data = calculateElevationData(wx, wz);
-    // Impassable for land troops if cliff or deep ocean (shallows and fords are passable)
-    return data.isCliff || (data.isWater && !data.isShallow);
-  };
+  // Regra de tropas terrestres: nunca cruzam agua (oceano ou lago); o unico
+  // travessia legal e o vado de rio (isRiver && isShallow).
+  const isImpassableAt = (wx: number, wz: number): boolean =>
+    isLandBlocked(calculateElevationData(wx, wz));
 
   const getCellAt = (wx: number, wz: number): MapCell => {
     const data = calculateElevationData(wx, wz);
     let biome: MapCell['biome'] = 'plains';
     if (data.isOcean) biome = 'ocean';
+    else if (data.isLake) biome = 'lake';
     else if (data.isRiver) biome = 'river';
     else if (data.isBeach) biome = 'beach';
     else if (data.isCliff) biome = 'mountain_peak';
@@ -560,10 +431,11 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
       height: data.height,
       isWater: data.isWater,
       isRiver: data.isRiver,
+      isLake: data.isLake,
       isOcean: data.isOcean,
       isShallow: data.isShallow,
       isCliff: data.isCliff,
-      isImpassable: data.isCliff || (data.isWater && !data.isShallow),
+      isImpassable: isLandBlocked(data),
       biome,
     };
   };
@@ -572,14 +444,17 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
     seed: actualSeed,
     gridResolution: resolution,
     mapSize,
-    islandRadius: islandBaseRadius,
-    islandCenter: { x: cx, z: cz },
+    islandRadius: layout.islands[0].baseRadius,
+    islandCenter: { ...layout.islands[0].center },
+    islands: layout.islands,
     terrainMesh,
     waterMesh,
     riverBankDecorations,
     resourceNodes,
     player1Spawn: p1Spawn,
     player2Spawn: p2Spawn,
+    player3Spawn: p3Spawn,
+    player4Spawn: p4Spawn,
     getCellAt,
     getHeightAt,
     isWaterAt,
@@ -587,4 +462,28 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
     isCliffAt,
     isImpassableAt,
   };
+}
+
+/**
+ * Procura a celula de oceano mais proxima (usada para nascer barcos em agua
+ * navegavel perto do cais, nunca em terra ou em rio/lago).
+ */
+export function findNearestOceanCell(
+  map: Pick<ProceduralMapResult, 'isOceanAt' | 'mapSize'>,
+  x: number,
+  z: number,
+  maxRadius = 8
+): { x: number; z: number } {
+  if (map.isOceanAt(x, z)) return { x, z };
+  for (let r = 1; r <= maxRadius; r++) {
+    const steps = Math.max(8, Math.floor(r * 6));
+    for (let i = 0; i < steps; i++) {
+      const angle = (i / steps) * Math.PI * 2;
+      const cx = x + Math.cos(angle) * r;
+      const cz = z + Math.sin(angle) * r;
+      if (cx < 0 || cz < 0 || cx > map.mapSize || cz > map.mapSize) continue;
+      if (map.isOceanAt(cx, cz)) return { x: cx, z: cz };
+    }
+  }
+  return { x, z };
 }

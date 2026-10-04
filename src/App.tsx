@@ -4,68 +4,59 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { GameEngine, GameState, Unit, Building, ResourceNode, MAP_SIZE, PlayerResources, UnitType } from './game/engine';
+import { GameEngine, GameState, PlayerResources, Unit, Building, ResourceNode, MAP_SIZE, UnitType, isBoatUnit } from './game/engine';
+import { createVisionGrid, expireVision, revealVision, visionRadiusFor } from './game/visibility';
 import { MultiplayerManager, ChatMessage } from './game/multiplayer';
 import { Minimap } from './components/Minimap';
+import { TechPanel } from './components/TechPanel';
 import { soundManager } from './game/audio';
 import { update3DHealthBar, align3DHealthBarToCamera } from './game/healthBar';
 import { createBuildingGhost, updateBuildingGhost, checkBuildingPlacementValid } from './game/buildingGhost';
-import { BUILDING_CATALOG, BuildingDef, BuildingType, createConstructionScaffold } from './game/buildingDefs';
-import { generateProceduralTerrain, ProceduralMapResult } from './game/proceduralMap';
+import { BUILDING_CATALOG, BuildingType } from './game/buildingDefs';
+import { generateProceduralTerrain, findNearestOceanCell, ProceduralMapResult } from './game/proceduralMap';
 import { EmpireCatalogModal } from './components/EmpireCatalogModal';
-import { ResourceNavMenu } from './components/ResourceNavMenu';
+import { Tutorial } from './components/Tutorial';
+
+/** Marcador de que o tutorial de primeira partida ja foi exibido. */
+const TUTORIAL_SEEN_KEY = 'terrinha:tutorial-seen';
 import {
-  Users,
   Hammer,
-  Sword,
-  Package,
-  Play,
   Shield,
-  Copy,
   Check,
-  Wifi,
-  MessageSquare,
-  Send,
   Home,
-  Target,
   Sparkles,
-  Info,
-  Maximize2,
-  ChevronRight,
-  RefreshCw,
-  Volume2,
-  VolumeX,
-  LayoutGrid,
-  AlignJustify,
   AlertCircle,
-  Eye,
-  EyeOff,
   Castle,
   Compass,
   TreePine,
   Sprout,
-  Pickaxe,
-  Trash2,
-  X,
   Coins,
-  Apple,
-  Plus,
-  Lock,
-  Unlock,
-  ChevronDown,
-  ChevronUp,
-  Minimize2,
-  Layers,
-  SlidersHorizontal,
-  CircleDot,
-  Radio,
 } from 'lucide-react';
 import * as THREE from 'three';
 import { v4 as uuidv4 } from 'uuid';
 import { createWorkZoneMesh, updateWorkZoneMesh } from './game/workZone';
-import { applyPopDelta, countDeathsByOwner } from './game/population';
-import { tradeResource } from './game/economy';
-import { canAffordResources, deductResourceCost, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, type PlayerSlot } from './game/networkCommands';
+import {
+  applyCost,
+  canAfford,
+  COST_CHIP_CLASS,
+  COST_SHORT,
+  describeCost,
+  MARKET_LABELS,
+  MarketResourceType,
+  missingCost,
+  refundCost,
+  tradeResource,
+  UNIT_COSTS,
+  halfCost,
+} from './game/economy';
+import { PLAYER_SLOTS, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, soloMatchSlots, type PlayerSlot } from './game/networkCommands';
+import { localOutcome, type LocalOutcome } from './game/victory';
+import {
+  createTechState,
+  researchTarget,
+  startResearch,
+} from './game/tech';
+import { FACTION_COLORS } from './game/factions';
 import { tickGameState } from './game/simulation';
 import { useSceneSynchronization } from './hooks/useSceneSynchronization';
 import { LobbyScreen } from './components/LobbyScreen';
@@ -73,21 +64,38 @@ import { GameDialogs } from './components/GameDialogs';
 import { GameHeader } from './components/GameHeader';
 import { SelectionPanel } from './components/SelectionPanel';
 
+
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const multiRef = useRef<MultiplayerManager | null>(null);
 
+  // Rota de demonstracao da PoC de interface: abre uma partida solo direto,
+  // sem passar pelo lobby, e permite esconder o HUD do proprio jogo para que a
+  // proposta seja sobreposta a partida real. Fora dessa rota nada muda: o jogo
+  // em `/` continua abrindo no lobby como sempre.
+  const isSoloPreviewRoute = window.location.pathname === '/poc.html';
+  const isHudPreviewMode = isSoloPreviewRoute && new URLSearchParams(window.location.search).has('hud-preview');
+
   // Menu / Lobby state
-  const [isGameStarted, setIsGameStarted] = useState(false);
-  const [role, setRole] = useState<'host' | 'client' | 'single'>('host');
+  const [isGameStarted, setIsGameStarted] = useState(isSoloPreviewRoute);
+  const [role, setRole] = useState<'host' | 'client' | 'single'>(isSoloPreviewRoute ? 'single' : 'host');
   const [roomId, setRoomId] = useState('vila-principal');
   const [playerName, setPlayerName] = useState('Comandante');
   const [playerSlot, setPlayerSlot] = useState<PlayerSlot>('player1');
   const [lobbyError, setLobbyError] = useState<string | null>(null);
   const [lanIps, setLanIps] = useState<string[]>([]);
   const [copiedIp, setCopiedIp] = useState(false);
-  const [connectedPlayers, setConnectedPlayers] = useState(1);
+  const [, setConnectedPlayers] = useState(1);
+
+  // Participantes da partida: no solo vem do tamanho escolhido (2..4),
+  // no multiplayer e o host mais quem entrar na sala.
+  const [activeSlots, setActiveSlots] = useState<PlayerSlot[]>(['player1', 'player2']);
+  const activeSlotsRef = useRef<PlayerSlot[]>(['player1', 'player2']);
+  activeSlotsRef.current = activeSlots;
+  const [matchSize, setMatchSize] = useState<2 | 3 | 4>(2);
+  const playerSlotRef = useRef<PlayerSlot>('player1');
+  playerSlotRef.current = playerSlot;
 
   // Squad Formation Mode ('box' | 'line' | 'spread')
   const [squadFormation, setSquadFormation] = useState<'box' | 'line' | 'spread'>('box');
@@ -95,7 +103,7 @@ export default function App() {
   squadFormationRef.current = squadFormation;
 
   // HUD Display modes: 'full' (completo) | 'compact' (compacto tático) | 'hidden' (cinemático)
-  const [hudMode, setHudMode] = useState<'full' | 'compact' | 'hidden'>('full');
+  const [hudMode, setHudMode] = useState<'full' | 'compact' | 'hidden'>(isHudPreviewMode ? 'hidden' : 'full');
   const isHudVisible = hudMode !== 'hidden';
   const [isHoverPeeking, setIsHoverPeeking] = useState(false);
 
@@ -121,6 +129,7 @@ export default function App() {
 
   // Work Zone Visual Overlay & Management Modal
   const [isWorkZoneModalOpen, setIsWorkZoneModalOpen] = useState(false);
+  const [isTechPanelOpen, setIsTechPanelOpen] = useState(false);
   const [showWorkZones3D, setShowWorkZones3D] = useState(true);
   const [isStrictZoneLeash, setIsStrictZoneLeash] = useState(true);
   const isStrictZoneLeashRef = useRef(true);
@@ -137,6 +146,8 @@ export default function App() {
   const [notification, setNotification] = useState<{ message: string; type: 'info' | 'success' | 'warning'; id: number } | null>(null);
   const notificationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [showControlsModal, setShowControlsModal] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const tutorialSeenCheckedRef = useRef(false);
 
   const triggerNotification = (message: string, type: 'info' | 'success' | 'warning' = 'info') => {
     if (notificationTimeoutRef.current) clearTimeout(notificationTimeoutRef.current);
@@ -233,6 +244,10 @@ export default function App() {
 
   // 3D Object Render references
   const unitMeshes = useRef<Map<string, THREE.Group>>(new Map());
+  // Caminho A* por unidade: recalculado so quando o alvo muda (custo por tick = O(tamanho do caminho))
+  const unitPathsRef = useRef<Map<string, { goal: { x: number; z: number }; path: { x: number; z: number }[] }>>(new Map());
+  // Nevoa de guerra do jogador local: 0 = nunca visto, 1 = explorado, 2 = visivel
+  const visionGridRef = useRef<Uint8Array>(createVisionGrid());
   const buildingMeshes = useRef<Map<string, THREE.Group>>(new Map());
   const resourceMeshes = useRef<Map<string, THREE.Group>>(new Map());
   const ghostBuildingMesh = useRef<THREE.Group | null>(null);
@@ -251,7 +266,7 @@ export default function App() {
         z: number;
         radius: number;
         unitIds: string[];
-        resourceType?: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school';
+        resourceType?: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school' | 'stone';
         clusterName?: string;
       }
     >();
@@ -342,6 +357,7 @@ export default function App() {
     let food = 0;
     let gold = 0;
     let fish = 0;
+    let stone = 0;
     gameState.units.forEach((u) => {
       if (u.owner === playerSlot && u.state === 'gathering' && u.targetEntityId) {
         const node = gameState.resourceNodes.find((n) => n.id === u.targetEntityId);
@@ -349,11 +365,12 @@ export default function App() {
           if (node.type === 'tree') wood++;
           else if (node.type === 'gold_mine') gold++;
           else if (node.type === 'fish_school') fish++;
+          else if (node.type === 'stone') stone++;
           else food++;
         }
       }
     });
-    return { wood, food, gold, fish };
+    return { wood, food, gold, fish, stone };
   }, [gameState.units, gameState.resourceNodes, playerSlot]);
 
   // Fetch local network IP to assist LAN players
@@ -389,7 +406,7 @@ export default function App() {
 
         const seed = index * 1.73;
         const groundY = proceduralMapRef.current ? proceduralMapRef.current.getHeightAt(unit.position.x, unit.position.z) : 0;
-        const isBoat = unit.type === 'fishing_boat' || unit.type === 'trade_boat';
+        const isBoat = isBoatUnit(unit.type);
         const baseElevation = isBoat ? Math.min(0.04, groundY) : groundY;
 
         if (unit.state === 'attacking') {
@@ -552,6 +569,14 @@ export default function App() {
 
       multi.onPlayerJoined = (data) => {
         setConnectedPlayers(data.playerCount);
+        const joinedSlot = isPlayerSlot(data.playerSlot) ? data.playerSlot : null;
+        if (joinedSlot) {
+          if (!activeSlotsRef.current.includes(joinedSlot)) {
+            activeSlotsRef.current = [...activeSlotsRef.current, joinedSlot];
+            setActiveSlots(activeSlotsRef.current);
+          }
+          if (role === 'host') spawnStarterBaseFor(joinedSlot);
+        }
         setChatMessages((prev) => [
           ...prev,
           { sender: 'Sistema', message: `${data.playerName} entrou na partida!`, timestamp: Date.now() },
@@ -560,6 +585,11 @@ export default function App() {
 
       multi.onPlayerLeft = (data) => {
         setConnectedPlayers(data.playerCount);
+        const leftSlot = isPlayerSlot(data.playerSlot) ? data.playerSlot : null;
+        if (leftSlot && role === 'host') {
+          activeSlotsRef.current = activeSlotsRef.current.filter((slot) => slot !== leftSlot);
+          setActiveSlots(activeSlotsRef.current);
+        }
         setChatMessages((prev) => [
           ...prev,
           { sender: 'Sistema', message: `${data.playerName || 'Um jogador'} saiu da partida.`, timestamp: Date.now() },
@@ -568,6 +598,11 @@ export default function App() {
 
       multi.onStateUpdate = (remoteState) => {
         if (role === 'client') {
+          // Mesma semente do host: cliente e host veem o mesmo arquipelago.
+          const hostSeed = remoteState.mapSeed;
+          if (hostSeed !== undefined && proceduralMapRef.current?.seed !== hostSeed) {
+            applyTerrainSeed(hostSeed);
+          }
           const myUnits = remoteState.units.filter((u: Unit) => u.owner === playerSlot);
           if (prevMyUnitsCountRef.current !== null && myUnits.length > prevMyUnitsCountRef.current) {
             const newUnit = myUnits[myUnits.length - 1];
@@ -615,7 +650,103 @@ export default function App() {
     };
   }, [isGameStarted]);
 
-  // Initial map setup with Procedural Terrain, River, Valleys, Town Centers, Resources & Villagers
+  // Base inicial de um slot: Centro da Vila + 2 aldeoes + 1 soldado
+  const buildStarterBase = (slot: PlayerSlot, spawn: { x: number; z: number }) => {
+    const townCenter: Building = {
+      id: uuidv4(),
+      type: 'town_center',
+      owner: slot,
+      position: { x: spawn.x, z: spawn.z },
+      health: 2400,
+      maxHealth: 2400,
+      isComplete: true,
+      trainingQueue: [],
+    };
+
+    const villager = (offsetX: number): Unit => ({
+      id: uuidv4(),
+      type: 'villager',
+      owner: slot,
+      position: { x: spawn.x + offsetX, z: spawn.z + 2 },
+      targetPosition: null,
+      targetEntityId: null,
+      health: 100,
+      maxHealth: 100,
+      attackDamage: 5,
+      state: 'idle' as const,
+    });
+
+    const units: Unit[] = [
+      villager(1.8),
+      villager(-1.8),
+      {
+        id: uuidv4(),
+        type: 'soldier',
+        owner: slot,
+        position: { x: spawn.x + 2.5, z: spawn.z - 1.5 },
+        targetPosition: null,
+        targetEntityId: null,
+        health: 150,
+        maxHealth: 150,
+        attackDamage: 18,
+        state: 'idle',
+      },
+    ];
+
+    return { townCenter, units };
+  };
+
+  const spawnForSlot = (slot: PlayerSlot): { x: number; z: number } | null => {
+    const procMap = proceduralMapRef.current;
+    if (!procMap) return null;
+    if (slot === 'player1') return procMap.player1Spawn;
+    if (slot === 'player2') return procMap.player2Spawn;
+    if (slot === 'player3') return procMap.player3Spawn;
+    return procMap.player4Spawn;
+  };
+
+  const startingColonyResources = (pop: number): PlayerResources => ({
+    wood: 350,
+    food: 350,
+    gold: 200,
+    stone: 100,
+    planks: 0,
+    pop,
+    maxPop: 15,
+  });
+
+  // Multiplayer: quem entra depois do inicio da partida ganha a propria base no host
+  const spawnStarterBaseFor = (slot: PlayerSlot) => {
+    const spawn = spawnForSlot(slot);
+    if (!spawn) return;
+    if (gameStateRef.current.buildings.some((b) => b.owner === slot && b.type === 'town_center')) return;
+
+    const { townCenter, units } = buildStarterBase(slot, spawn);
+    setGameState((prev) => ({
+      ...prev,
+      buildings: [...prev.buildings, townCenter],
+      units: [...prev.units, ...units],
+      playerResources: { ...prev.playerResources, [slot]: startingColonyResources(units.length) },
+      techs: { ...prev.techs, [slot]: prev.techs?.[slot] ?? createTechState() },
+    }));
+    triggerNotification(`${FACTION_COLORS[slot]?.name ?? slot} recebeu uma base inicial!`, 'success');
+  };
+
+  // Initial map setup with Procedural Archipelago, Town Centers, Resources & Villagers
+  const applyTerrainSeed = (seed: number) => {
+    const procMap = generateProceduralTerrain(MAP_SIZE, seed);
+    proceduralMapRef.current = procMap;
+    if (engineRef.current) {
+      engineRef.current.setProceduralTerrainMesh(
+        procMap.terrainMesh,
+        procMap.waterMesh,
+        procMap.riverBankDecorations
+      );
+    }
+    unitPathsRef.current.clear();
+    return procMap;
+  };
+
   const setupInitialMap = () => {
     const procMap = generateProceduralTerrain(MAP_SIZE);
     proceduralMapRef.current = procMap;
@@ -630,127 +761,56 @@ export default function App() {
 
     const nodes: ResourceNode[] = procMap.resourceNodes;
 
-    // Player 1 Base (Southwest - Level Plains Village Plateau)
-    const p1Tc: Building = {
-      id: uuidv4(),
-      type: 'town_center',
-      owner: 'player1',
-      position: { x: procMap.player1Spawn.x, z: procMap.player1Spawn.z },
-      health: 2400,
-      maxHealth: 2400,
-      isComplete: true,
-      trainingQueue: [],
-    };
+    // Solo: o jogador local escolhe 2, 3 ou 4 participantes (ele + IA).
+    // Multiplayer: o host nasce sozinho e cada slot que entrar ganha a propria base.
+    const slots: PlayerSlot[] = role === 'single' ? soloMatchSlots(playerSlot, matchSize) : [playerSlot];
 
-    const p1Villagers: Unit[] = [
-      {
-        id: uuidv4(),
-        type: 'villager',
-        owner: 'player1',
-        position: { x: procMap.player1Spawn.x + 1.8, z: procMap.player1Spawn.z + 2 },
-        targetPosition: null,
-        targetEntityId: null,
-        health: 100,
-        maxHealth: 100,
-        attackDamage: 5,
-        state: 'idle',
-      },
-      {
-        id: uuidv4(),
-        type: 'villager',
-        owner: 'player1',
-        position: { x: procMap.player1Spawn.x - 1.8, z: procMap.player1Spawn.z + 2 },
-        targetPosition: null,
-        targetEntityId: null,
-        health: 100,
-        maxHealth: 100,
-        attackDamage: 5,
-        state: 'idle',
-      },
-      {
-        id: uuidv4(),
-        type: 'soldier',
-        owner: 'player1',
-        position: { x: procMap.player1Spawn.x + 2.5, z: procMap.player1Spawn.z - 1.5 },
-        targetPosition: null,
-        targetEntityId: null,
-        health: 150,
-        maxHealth: 150,
-        attackDamage: 18,
-        state: 'idle',
-      },
-    ];
+    const buildings: Building[] = [];
+    const units: Unit[] = [];
+    const playerResources: Record<string, PlayerResources> = {};
+    const techs: Record<string, ReturnType<typeof createTechState>> = {};
 
-    // Player 2 Base (Northeast - Rival Village Plateau / AI)
-    const p2Tc: Building = {
-      id: uuidv4(),
-      type: 'town_center',
-      owner: 'player2',
-      position: { x: procMap.player2Spawn.x, z: procMap.player2Spawn.z },
-      health: 2400,
-      maxHealth: 2400,
-      isComplete: true,
-      trainingQueue: [],
-    };
+    PLAYER_SLOTS.forEach((slot) => {
+      playerResources[slot] = startingColonyResources(0);
+      techs[slot] = createTechState();
+    });
 
-    const p2Units: Unit[] = [
-      {
-        id: uuidv4(),
-        type: 'villager',
-        owner: 'player2',
-        position: { x: procMap.player2Spawn.x - 1.8, z: procMap.player2Spawn.z + 1.8 },
-        targetPosition: null,
-        targetEntityId: null,
-        health: 100,
-        maxHealth: 100,
-        attackDamage: 5,
-        state: 'idle',
-      },
-      {
-        id: uuidv4(),
-        type: 'soldier',
-        owner: 'player2',
-        position: { x: procMap.player2Spawn.x + 2.2, z: procMap.player2Spawn.z - 1.5 },
-        targetPosition: null,
-        targetEntityId: null,
-        health: 150,
-        maxHealth: 150,
-        attackDamage: 18,
-        state: 'idle',
-      },
-    ];
+    slots.forEach((slot) => {
+      const spawn = spawnForSlot(slot);
+      if (!spawn) return;
+      const starter = buildStarterBase(slot, spawn);
+      buildings.push(starter.townCenter);
+      units.push(...starter.units);
+      playerResources[slot] = startingColonyResources(starter.units.length);
+    });
+
+    setActiveSlots(slots);
+    activeSlotsRef.current = slots;
 
     setGameState({
-      units: [...p1Villagers, ...p2Units],
-      buildings: [p1Tc, p2Tc],
+      units,
+      buildings,
       resourceNodes: nodes,
-      playerResources: {
-        player1: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 3, maxPop: 15 },
-        player2: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 2, maxPop: 15 },
-        player3: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 0, maxPop: 10 },
-        player4: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 0, maxPop: 10 },
-      },
+      playerResources,
+      techs,
+      mapSeed: procMap.seed,
     });
   };
 
-  // Regenerate Procedural Map with a fresh seed (meandering river, valleys, fish shoals)
+  // Regenerate the procedural archipelago with a fresh seed
   const handleRegenerateProceduralMap = () => {
     const newSeed = Math.floor(Math.random() * 999999);
-    const procMap = generateProceduralTerrain(MAP_SIZE, newSeed);
-    proceduralMapRef.current = procMap;
-    if (engineRef.current) {
-      engineRef.current.setProceduralTerrainMesh(
-        procMap.terrainMesh,
-        procMap.waterMesh,
-        procMap.riverBankDecorations
-      );
-    }
+    const procMap = applyTerrainSeed(newSeed);
     setGameState((prev) => ({
       ...prev,
       resourceNodes: procMap.resourceNodes,
+      mapSeed: newSeed,
     }));
     soundManager.playClickSound();
-    triggerNotification(`Novo mapa procedural gerado! Rio meandro, vales férteis e cardumes renovados (Semente: ${newSeed}).`, 'success');
+    triggerNotification(
+      `Novo arquipélago gerado! Ilhas, rios, lagos e cardumes renovados (Semente: ${newSeed}).`,
+      'success'
+    );
   };
 
 
@@ -765,7 +825,20 @@ export default function App() {
     selectedEntity,
     selectedUnitIds,
     role,
+    playerSlot,
+    visionGridRef,
   });
+
+  // Nevoa de guerra: expira a visao do tick anterior e revela a visao atual
+  // das unidades/edificios do jogador local (raios iguais aos do Minimap)
+  useEffect(() => {
+    const sources = [...gameState.units, ...gameState.buildings]
+      .filter((entity) => entity.owner === playerSlot)
+      .map((entity) => ({ x: entity.position.x, z: entity.position.z, radius: visionRadiusFor(entity) }));
+    const grid = revealVision(expireVision(visionGridRef.current), sources);
+    visionGridRef.current = grid;
+    engineRef.current?.setFogGrid(grid);
+  }, [gameState, playerSlot]);
 
   // Synchronize 3D Work Zone ground overlays with active zones and preview
   useEffect(() => {
@@ -788,7 +861,13 @@ export default function App() {
 
       let group = workZoneMeshes.current.get(key);
       const colorHex =
-        zone.resourceType === 'tree' ? 0x10b981 : zone.resourceType === 'gold_mine' ? 0xf59e0b : 0xf43f5e;
+        zone.resourceType === 'tree'
+          ? 0x10b981
+          : zone.resourceType === 'gold_mine'
+          ? 0xf59e0b
+          : zone.resourceType === 'stone'
+          ? 0x94a3b8
+          : 0xf43f5e;
 
       if (!group) {
         group = createWorkZoneMesh(colorHex);
@@ -806,7 +885,13 @@ export default function App() {
 
       let group = workZoneMeshes.current.get(previewKey);
       const colorHex =
-        previewZone.resourceType === 'tree' ? 0x34d399 : previewZone.resourceType === 'gold_mine' ? 0xfbbf24 : 0xfb7185;
+        previewZone.resourceType === 'tree'
+          ? 0x34d399
+          : previewZone.resourceType === 'gold_mine'
+          ? 0xfbbf24
+          : previewZone.resourceType === 'stone'
+          ? 0xcbd5e1
+          : 0xfb7185;
 
       if (!group) {
         group = createWorkZoneMesh(colorHex);
@@ -839,10 +924,14 @@ export default function App() {
 
     const interval = setInterval(() => {
       setGameState((prev) => {
+        const procMap = proceduralMapRef.current;
         const result = tickGameState(prev, {
           playerSlot,
           mode: role,
-          map: proceduralMapRef.current ?? undefined,
+          map: procMap ?? undefined,
+          nearestOceanCell: procMap ? (x, z) => findNearestOceanCell(procMap, x, z) : undefined,
+          pathCache: unitPathsRef.current,
+          activeSlots: activeSlotsRef.current,
           gatherRadiusLimit: gatherRadiusLimitRef.current,
           sustainableForestryEnabled: isColonySustainableForestryRef.current,
           buildingDefinitions,
@@ -853,6 +942,8 @@ export default function App() {
         result.effects.forEach((effect) => {
           if (effect.type === 'hit') {
             engineRef.current?.spawnHitEffect(effect.x, effect.y, effect.z, effect.musket);
+          } else if (effect.type === 'boat-sinking') {
+            engineRef.current?.spawnBoatSinking(effect.x, effect.z);
           } else if (effect.type === 'construction-particles') {
             engineRef.current?.spawnConstructionParticles(effect.x, 0.7, effect.z);
           } else if (effect.type === 'notification') {
@@ -977,7 +1068,7 @@ export default function App() {
       };
       setGameState((prev) => {
         const pRes = prev.playerResources[cmd.owner];
-        if (!pRes || !canAffordResources(pRes, def.cost)) return prev;
+        if (!pRes || !canAfford(pRes, def.cost)) return prev;
         const placement = checkBuildingPlacementValid(
           cmd.buildingType,
           cmd.position.x,
@@ -1010,7 +1101,7 @@ export default function App() {
           units: updatedUnits,
           playerResources: {
             ...prev.playerResources,
-            [cmd.owner]: deductResourceCost(pRes, def.cost),
+            [cmd.owner]: applyCost(pRes, def.cost),
           },
         };
       });
@@ -1025,14 +1116,8 @@ export default function App() {
           .filter((candidate) => candidate.owner === owner)
           .reduce((total, candidate) => total + candidate.trainingQueue.length, 0);
         if (resources.pop + queuedForOwner >= resources.maxPop) return prev;
-        const trainingCost = cmd.unitType === 'villager'
-          ? { food: 50 }
-          : cmd.unitType === 'soldier'
-            ? { food: 80, gold: 40 }
-            : cmd.unitType === 'fishing_boat'
-              ? { wood: 75 }
-              : { wood: 100, gold: 30 };
-        if (cmd.playerSlot && !canAffordResources(resources, trainingCost)) return prev;
+        const unitCost = UNIT_COSTS[cmd.unitType];
+        if (cmd.playerSlot && !canAfford(resources, unitCost)) return prev;
 
         return {
           ...prev,
@@ -1044,7 +1129,7 @@ export default function App() {
           ...(cmd.playerSlot ? {
             playerResources: {
               ...prev.playerResources,
-              [owner]: deductResourceCost(resources, trainingCost),
+              [owner]: applyCost(resources, unitCost),
             },
           } : {}),
         };
@@ -1054,8 +1139,7 @@ export default function App() {
         const b = prev.buildings.find((bd) => bd.id === cmd.buildingId);
         if (!b || b.trainingQueue.length <= cmd.index) return prev;
         const item = b.trainingQueue[cmd.index];
-        const costF = item.unitType === 'soldier' ? 80 : 50;
-        const costG = item.unitType === 'soldier' ? 40 : 0;
+        const unitCost = UNIT_COSTS[item.unitType];
         const pRes = prev.playerResources[b.owner];
         const newQueue = b.trainingQueue.filter((_, idx) => idx !== cmd.index);
         return {
@@ -1065,14 +1149,65 @@ export default function App() {
           ),
           playerResources: {
             ...prev.playerResources,
-            [b.owner]: {
-              ...pRes,
-              food: pRes.food + costF,
-              gold: (pRes.gold || 0) + costG,
-            },
+            [b.owner]: refundCost(pRes, unitCost),
           },
         };
       });
+    } else if (cmd.type === 'research') {
+      // Pesquisa de tecnologia ou avanco de era: custo debitado e fila validada no host
+      setGameState((prev) => {
+        const owner = cmd.playerSlot || playerSlot;
+        const techState = prev.techs?.[owner];
+        const resources = prev.playerResources[owner];
+        if (!techState || !resources) return prev;
+
+        const started = startResearch(techState, cmd.id, resources);
+        if (!started) return prev;
+
+        if (owner === playerSlotRef.current) {
+          soundManager.playClickSound();
+          triggerNotification(`Pesquisa iniciada: ${researchTarget(cmd.id)?.name ?? cmd.id}`, 'info');
+        }
+
+        return {
+          ...prev,
+          techs: { ...prev.techs, [owner]: started.techState },
+          playerResources: { ...prev.playerResources, [owner]: started.resources },
+        };
+      });
+    } else if (cmd.type === 'repair') {
+      // Aldeao do dono passa a consertar o edificio proprio (paga madeira por HP)
+      setGameState((prev) => {
+        const building = prev.buildings.find((bd) => bd.id === cmd.buildingId);
+        const unit = prev.units.find((u) => u.id === cmd.unitId);
+        if (!building || !unit || unit.owner !== building.owner || unit.type !== 'villager') return prev;
+        return {
+          ...prev,
+          units: prev.units.map((u) =>
+            u.id === cmd.unitId
+              ? { ...u, state: 'repairing' as const, targetEntityId: cmd.buildingId, targetPosition: null }
+              : u
+          ),
+        };
+      });
+      triggerNotification('Aldeão a caminho para reparar o edifício.', 'info');
+    } else if (cmd.type === 'demolish') {
+      setGameState((prev) => {
+        const b = prev.buildings.find((bd) => bd.id === cmd.buildingId);
+        if (!b || b.type === 'town_center') return prev;
+        const def = BUILDING_CATALOG[b.type];
+        const pRes = prev.playerResources[b.owner];
+        if (!def || !pRes) return prev;
+        return {
+          ...prev,
+          buildings: prev.buildings.filter((bd) => bd.id !== cmd.buildingId),
+          playerResources: {
+            ...prev.playerResources,
+            [b.owner]: refundCost(pRes, halfCost(def.cost)),
+          },
+        };
+      });
+      triggerNotification('Edifício demolido: metade dos recursos devolvida.', 'success');
     } else if (cmd.type === 'set_resource_mode') {
       setGameState((prev) => ({
         ...prev,
@@ -1163,9 +1298,6 @@ export default function App() {
           soundManager.playClickSound();
           return next;
         });
-      } else if (e.key === 'm' || e.key === 'M') {
-        setIsEmpireCatalogOpen((prev) => !prev);
-        soundManager.playClickSound();
       } else if (e.key === 'h' || e.key === 'H') {
         setHudMode((prev) => {
           const next = prev === 'hidden' ? 'full' : 'hidden';
@@ -1262,10 +1394,14 @@ export default function App() {
               handleTrainUnit('villager', 1);
             } else if (b.type === 'barracks' && key === 's') {
               handleTrainUnit('soldier', 1);
+            } else if (b.type === 'barracks' && key === 'g') {
+              handleTrainUnit('cavalry', 1);
             } else if (b.type === 'dock' && key === 'p') {
               handleTrainUnit('fishing_boat', 1);
             } else if (b.type === 'dock' && key === 'm') {
               handleTrainUnit('trade_boat', 1);
+            } else if (b.type === 'dock' && key === 'g') {
+              handleTrainUnit('warship', 1);
             }
           }
         }
@@ -1340,10 +1476,9 @@ export default function App() {
 
       const def = BUILDING_CATALOG[buildMode];
       const myRes = gameStateRef.current.playerResources[playerSlot];
-      const costW = def ? def.cost.wood : 60;
-      const costG = def && def.cost.gold ? def.cost.gold : 0;
+      const buildingCost = def ? def.cost : { wood: 60 };
 
-      if (myRes.wood >= costW && (myRes.gold || 0) >= costG) {
+      if (canAfford(myRes, buildingCost)) {
         // Collect selected villager ids so they automatically move to build
         let builderVillagers = gameStateRef.current.units.filter(
           (u) => selectedUnitIdsRef.current.includes(u.id) && u.owner === playerSlot && u.type === 'villager'
@@ -1383,7 +1518,7 @@ export default function App() {
       } else {
         soundManager.playClickSound();
         triggerNotification(
-          `Recursos insuficientes para ${def ? def.name : 'Edifício'}! Necessário: ${costW} Madeira${costG > 0 ? `, ${costG} Ouro` : ''}`,
+          `Recursos insuficientes para ${def ? def.name : 'Edifício'}! ${missingCost(myRes, buildingCost) || ''}`,
           'warning'
         );
       }
@@ -1811,11 +1946,20 @@ export default function App() {
       if (hits.length > 0) {
         const target = gameState.units.find((u) => u.id === id);
         if (target && target.owner !== playerSlot) {
+          let navalSkipped = false;
           myUnits.forEach((u) => {
+            // Barcos so enfrentam embarcacoes: nunca saem da agua atras de terra firme
+            if (isBoatUnit(u.type) && !isBoatUnit(target.type)) {
+              navalSkipped = true;
+              return;
+            }
             const cmd = { type: 'attack', unitId: u.id, targetId: id };
             if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
             else multiRef.current?.sendToHost(cmd);
           });
+          if (navalSkipped) {
+            triggerNotification('Barcos só enfrentam embarcações inimigas!', 'warning');
+          }
           engineRef.current.spawnClickMarker(target.position.x, target.position.z, 'attack');
           soundManager.playClickSound();
           return;
@@ -1830,12 +1974,20 @@ export default function App() {
         const targetB = gameState.buildings.find((b) => b.id === id);
         if (targetB) {
           if (targetB.owner !== playerSlot) {
-            // Attack enemy building
+            // Attack enemy building (barcos ficam na agua)
+            let navalSkipped = false;
             myUnits.forEach((u) => {
+              if (isBoatUnit(u.type)) {
+                navalSkipped = true;
+                return;
+              }
               const cmd = { type: 'attack', unitId: u.id, targetId: id };
               if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
               else multiRef.current?.sendToHost(cmd);
             });
+            if (navalSkipped) {
+              triggerNotification('Barcos só enfrentam embarcações inimigas!', 'warning');
+            }
             engineRef.current.spawnClickMarker(targetB.position.x, targetB.position.z, 'attack');
             soundManager.playClickSound();
             return;
@@ -1933,7 +2085,7 @@ export default function App() {
       const point = groundHits[0].point;
 
       // Check if clicked location is an impassable Skyrim rocky cliff
-      const isLandUnit = myUnits.some((u) => u.type !== 'fishing_boat' && u.type !== 'trade_boat');
+      const isLandUnit = myUnits.some((u) => !isBoatUnit(u.type));
       if (isLandUnit && proceduralMapRef.current?.isCliffAt(point.x, point.z)) {
         triggerNotification('Pico rochoso íngreme intransitável (Estilo Skyrim)! As tropas não podem subir.', 'warning');
         soundManager.playClickSound();
@@ -1968,21 +2120,7 @@ export default function App() {
     const b = gameState.buildings.find((bd) => bd.id === selectedEntity.id);
     if (!b || b.owner !== playerSlot) return;
 
-    let costFood = 0;
-    let costWood = 0;
-    let costGold = 0;
-
-    if (unitType === 'villager') {
-      costFood = 50;
-    } else if (unitType === 'soldier') {
-      costFood = 80;
-      costGold = 40;
-    } else if (unitType === 'fishing_boat') {
-      costWood = 75;
-    } else if (unitType === 'trade_boat') {
-      costWood = 100;
-      costGold = 30;
-    }
+    const unitCost = UNIT_COSTS[unitType];
 
     const myRes = gameState.playerResources[playerSlot];
 
@@ -2000,30 +2138,33 @@ export default function App() {
 
     const unitsToQueue = Math.min(count, availableSlots);
     let successfullyQueued = 0;
-    let currentFood = myRes.food;
-    let currentWood = myRes.wood;
-    let currentGold = myRes.gold;
+    let currentRes = myRes;
 
     for (let i = 0; i < unitsToQueue; i++) {
       if (myRes.pop + totalQueuedForPlayer + successfullyQueued >= myRes.maxPop) {
         triggerNotification('Limite de população atingido! Construa Casas Coloniais [Q] (+5 pop).', 'warning');
         break;
       }
-      if (currentFood < costFood || currentWood < costWood || currentGold < costGold) {
+      if (!canAfford(currentRes, unitCost)) {
         const unitName =
           unitType === 'villager'
             ? 'Aldeão'
             : unitType === 'soldier'
             ? 'Mosqueteiro'
+            : unitType === 'cavalry'
+            ? 'Cavalaria'
             : unitType === 'fishing_boat'
             ? 'Barco de Pesca'
+            : unitType === 'warship'
+            ? 'Barco de Guerra'
             : 'Barco Mercante';
-        triggerNotification(`Recursos insuficientes para construir ${unitName}!`, 'warning');
+        triggerNotification(
+          `Recursos insuficientes para ${unitName}! ${missingCost(currentRes, unitCost) || ''}`,
+          'warning'
+        );
         break;
       }
-      currentFood -= costFood;
-      currentWood -= costWood;
-      currentGold -= costGold;
+      currentRes = applyCost(currentRes, unitCost);
       successfullyQueued++;
 
       const cmd = { type: 'train', buildingId: b.id, unitType };
@@ -2037,12 +2178,7 @@ export default function App() {
         ...prev,
         playerResources: {
           ...prev.playerResources,
-          [playerSlot]: {
-            ...myRes,
-            food: currentFood,
-            wood: currentWood,
-            gold: currentGold,
-          },
+          [playerSlot]: currentRes,
         },
       }));
       const unitName =
@@ -2050,8 +2186,12 @@ export default function App() {
           ? 'Aldeão'
           : unitType === 'soldier'
           ? 'Mosqueteiro'
+          : unitType === 'cavalry'
+          ? 'Cavalaria'
           : unitType === 'fishing_boat'
           ? 'Barco de Pesca'
+          : unitType === 'warship'
+          ? 'Barco de Guerra'
           : 'Barco Mercante';
       triggerNotification(
         `+${successfullyQueued} ${unitName}(s) adicionado(s) à fila de construção!`,
@@ -2064,22 +2204,6 @@ export default function App() {
   const handleCancelTrain = (buildingId: string, index: number) => {
     const b = gameState.buildings.find((bd) => bd.id === buildingId);
     if (!b || b.owner !== playerSlot || b.trainingQueue.length <= index) return;
-
-    const item = b.trainingQueue[index];
-    let refundFood = 0;
-    let refundWood = 0;
-    let refundGold = 0;
-
-    if (item.unitType === 'villager') refundFood = 50;
-    else if (item.unitType === 'soldier') {
-      refundFood = 80;
-      refundGold = 40;
-    } else if (item.unitType === 'fishing_boat') {
-      refundWood = 75;
-    } else if (item.unitType === 'trade_boat') {
-      refundWood = 100;
-      refundGold = 30;
-    }
 
     const cmd = { type: 'cancel_train', buildingId, index };
     if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
@@ -2239,7 +2363,7 @@ export default function App() {
   };
 
   // Jump camera directly to the nearest resource of a given type
-  const handleJumpToResource = (type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school') => {
+  const handleJumpToResource = (type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school' | 'stone') => {
     if (!engineRef.current) return;
     const myTc = gameState.buildings.find((b) => b.owner === playerSlot && b.type === 'town_center');
     const refX = myTc ? myTc.position.x : MAP_SIZE / 2;
@@ -2254,6 +2378,8 @@ export default function App() {
           ? 'Ouro'
           : type === 'fish_school'
           ? 'Peixes'
+          : type === 'stone'
+          ? 'Pedra'
           : 'Alimento';
       triggerNotification(`Nenhum depósito de ${typeLabel} restante no mapa!`, 'warning');
       return;
@@ -2273,35 +2399,38 @@ export default function App() {
   };
 
   // Trade resource at the Grand Market (Ikariam / AoE market exchange)
-  const handleTradeResource = (type: 'wood' | 'food' | 'stone', action: 'buy' | 'sell', amount: number) => {
+  const handleTradeResource = (type: MarketResourceType, action: 'buy' | 'sell', amount: number) => {
     const myRes = gameState.playerResources[playerSlot];
     if (!myRes) return;
-    const trade = tradeResource(myRes, type, action, amount);
-    if (!trade.ok) {
-      if (trade.reason === 'insufficient-gold') {
-        triggerNotification(`Ouro insuficiente! Necessário ${trade.requiredGold} ouro.`, 'warning');
-      } else if (trade.reason === 'insufficient-resource') {
-        triggerNotification(`${type} insuficiente no armazém para vender!`, 'warning');
-      }
+
+    const outcome = tradeResource(myRes, type, action, amount);
+    if (!outcome.ok || !outcome.next) {
+      triggerNotification(outcome.reason || 'Operação de comércio inválida.', 'warning');
       return;
     }
 
     setGameState((prev) => {
-      const currentResources = prev.playerResources[playerSlot];
-      if (!currentResources) return prev;
-      const currentTrade = tradeResource(currentResources, type, action, amount);
-      if (!currentTrade.ok) return prev;
+      const applied = tradeResource(prev.playerResources[playerSlot], type, action, amount);
+      if (!applied.ok || !applied.next) return prev;
       return {
         ...prev,
-        playerResources: { ...prev.playerResources, [playerSlot]: currentTrade.resources },
+        playerResources: {
+          ...prev.playerResources,
+          [playerSlot]: applied.next,
+        },
       };
     });
     soundManager.playClickSound();
-    const verb = action === 'buy' ? 'Comprado' : 'Vendido';
-    triggerNotification(
-      `Mercadão: ${verb} ${amount} de ${type} por ${Math.abs(trade.goldChange)} ouro!`,
-      'success'
-    );
+
+    const nextRes = outcome.next;
+    const label = MARKET_LABELS[type];
+    if (action === 'buy') {
+      const goldSpent = myRes.gold - nextRes.gold;
+      triggerNotification(`Mercadão: Comprado ${amount} de ${label} por ${goldSpent} ouro!`, 'success');
+    } else {
+      const goldGained = nextRes.gold - myRes.gold;
+      triggerNotification(`Mercadão: Vendido ${amount} de ${label} por ${goldGained} ouro!`, 'success');
+    }
   };
 
   // Assign currently selected squad (or part of it) to a resource
@@ -2456,6 +2585,80 @@ export default function App() {
     setTimeout(() => setCopiedIp(false), 2500);
   };
 
+  // Tutorial de primeira partida: abre uma unica vez por navegador e pode ser
+  // revisto pelo botao "Controles" no HUD.
+  useEffect(() => {
+    if (!isGameStarted || tutorialSeenCheckedRef.current) return;
+    tutorialSeenCheckedRef.current = true;
+    if (isHudPreviewMode) return;
+    try {
+      if (window.localStorage.getItem(TUTORIAL_SEEN_KEY) !== '1') {
+        setShowTutorial(true);
+      }
+    } catch {
+      setShowTutorial(true);
+    }
+  }, [isGameStarted, isHudPreviewMode]);
+
+  // Ponte da Poc de HUD: existe apenas na rota de preview. So LE o que o HUD precisa
+  // (mapa, camera, recursos e entidades) e permite centralizar a camera, que e
+  // navegacao. Nao envia ordens, nao toca economia e nao expoe rede.
+  useEffect(() => {
+    if (!isHudPreviewMode) return;
+    type Canto = { x: number; z: number };
+    const ponte = {
+      mapSize: MAP_SIZE,
+      map: () => proceduralMapRef.current,
+      islands: () => proceduralMapRef.current?.islands ?? [],
+      resources: () =>
+        gameStateRef.current.resourceNodes.map((r) => ({ x: r.position.x, z: r.position.z, type: r.type })),
+      entities: () => ({
+        units: gameStateRef.current.units.map((u) => ({ x: u.position.x, z: u.position.z, owner: u.owner, kind: 'unit' as const, type: u.type })),
+        buildings: gameStateRef.current.buildings.map((b) => ({ x: b.position.x, z: b.position.z, owner: b.owner, kind: 'building' as const, type: b.type })),
+      }),
+      playerSlot,
+      camera: () => {
+        const e = engineRef.current;
+        return e ? { x: e.cameraTarget.x, z: e.cameraTarget.z } : null;
+      },
+      // Pegada da camera no chao: projeta os quatro cantos da tela no plano y=0.
+      viewport: (): Canto[] | null => {
+        const e = engineRef.current;
+        if (!e) return null;
+        const cam = e.camera;
+        const cantos: Canto[] = [];
+        for (const [nx, ny] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+          const v = new THREE.Vector3(nx, ny, 0.5).unproject(cam);
+          const dir = v.sub(cam.position).normalize();
+          if (Math.abs(dir.y) < 1e-4) return null;
+          const t = -cam.position.y / dir.y;
+          cantos.push({ x: cam.position.x + dir.x * t, z: cam.position.z + dir.z * t });
+        }
+        return cantos;
+      },
+      centerOn: (x: number, z: number) => {
+        const e = engineRef.current;
+        if (!e) return false;
+        e.setCameraTarget(x, z);
+        return true;
+      },
+    };
+    const alvo = window as unknown as { __terrinhaPreview?: typeof ponte };
+    alvo.__terrinhaPreview = ponte;
+    return () => {
+      delete alvo.__terrinhaPreview;
+    };
+  }, [isHudPreviewMode, playerSlot]);
+
+  const closeTutorial = () => {
+    setShowTutorial(false);
+    try {
+      window.localStorage.setItem(TUTORIAL_SEEN_KEY, '1');
+    } catch {
+      // armazenamento indisponivel: o tutorial podera abrir de novo
+    }
+  };
+
   if (!isGameStarted) {
     return (
       <LobbyScreen
@@ -2469,6 +2672,8 @@ export default function App() {
         playerSlot={playerSlot}
         setPlayerSlot={setPlayerSlot}
         lobbyError={lobbyError}
+        matchSize={matchSize}
+        setMatchSize={setMatchSize}
         onStartGame={(nextRole) => {
           setLobbyError(null);
           setRole(nextRole);
@@ -2478,10 +2683,54 @@ export default function App() {
     );
   }
 
+  // Reparo e demolicao de edificios proprios (validados no host)
+  const handleResearch = (id: string) => {
+    const cmd = { type: 'research', id };
+    if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+    else multiRef.current?.sendToHost(cmd);
+  };
+
+  const handleRepairBuilding = (unitId: string, buildingId: string) => {
+    const cmd = { type: 'repair', unitId, buildingId };
+    if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+    else multiRef.current?.sendToHost(cmd);
+    soundManager.playClickSound();
+  };
+
+  const handleDemolishBuilding = (buildingId: string) => {
+    const cmd = { type: 'demolish', buildingId };
+    if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+    else multiRef.current?.sendToHost(cmd);
+    soundManager.playClickSound();
+  };
+
   // ==========================================
   // RENDER: IN-GAME RTS INTERFACE
   // ==========================================
   const myResources = gameState.playerResources[playerSlot] || { wood: 0, food: 0, gold: 0, pop: 0, maxPop: 10 };
+
+  // Match outcome: o host publica gameState.match, o jogador local deriva seu resultado
+  const matchStatus = gameState.match;
+  const matchFinished = matchStatus?.status === 'finished';
+  const contenders = matchStatus?.players ?? activeSlots;
+  const isMatchContender = contenders.includes(playerSlot);
+  const outcome: LocalOutcome = isMatchContender
+    ? localOutcome(playerSlot, gameState.buildings, contenders)
+    : 'running';
+  const showResultScreen = isMatchContender && (matchFinished || outcome !== 'running');
+  const isDraw = matchStatus?.status === 'finished' && matchStatus.winner === null;
+  const resultLabel = isDraw ? 'EMPATE' : outcome === 'victory' ? 'VITÓRIA' : 'DERROTA';
+  const resultToneClass = isDraw
+    ? 'text-slate-100'
+    : outcome === 'victory'
+      ? 'text-amber-300'
+      : 'text-red-400';
+  const resultDetail = isDraw
+    ? 'Nenhum Centro da Vila sobreviveu ao confronto.'
+    : outcome === 'victory'
+      ? 'Todos os oponentes perderam o Centro da Vila.'
+      : 'Seu Centro da Vila foi destruído.';
+
   const selectedUnitsList = gameState.units.filter((u) => selectedUnitIds.includes(u.id));
   const soldierCount = selectedUnitsList.filter((u) => u.type === 'soldier').length;
   const villagerCount = selectedUnitsList.filter((u) => u.type === 'villager').length;
@@ -2495,6 +2744,22 @@ export default function App() {
   const activeBuildersOnSelectedBuilding = selectedBuilding
     ? gameState.units.filter((u) => u.state === 'building' && u.targetEntityId === selectedBuilding.id).length
     : 0;
+
+  // Aldeao proprio mais proximo do edificio selecionado (destino do reparo)
+  let nearestVillagerToSelectedBuilding: Unit | null = null;
+  if (selectedBuilding) {
+    const buildingX = selectedBuilding.position.x;
+    const buildingZ = selectedBuilding.position.z;
+    let closestDistance = Number.POSITIVE_INFINITY;
+    for (const candidate of gameState.units) {
+      if (candidate.owner !== playerSlot || candidate.type !== 'villager' || candidate.health <= 0) continue;
+      const distance = Math.hypot(candidate.position.x - buildingX, candidate.position.z - buildingZ);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        nearestVillagerToSelectedBuilding = candidate;
+      }
+    }
+  }
 
   // Active gatherers working on selected resource if any
   const activeGatherersOnSelectedResource = selectedResource
@@ -2558,9 +2823,7 @@ export default function App() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-56 sm:max-h-none overflow-y-auto pr-0.5">
           {buildings.map((type) => {
             const def = BUILDING_CATALOG[type];
-            const canAffordWood = myResources.wood >= def.cost.wood;
-            const canAffordGold = !def.cost.gold || (myResources.gold || 0) >= def.cost.gold;
-            const canAfford = canAffordWood && canAffordGold;
+            const affordable = canAfford(myResources, def.cost);
 
             const icon =
               type === 'house' ? (
@@ -2585,14 +2848,14 @@ export default function App() {
               <button
                 key={type}
                 type="button"
-                disabled={!canAfford}
+                disabled={!affordable}
                 onClick={() => {
                   setBuildMode(type);
                   soundManager.playClickSound();
                   triggerNotification(`Modo de Construção: ${def.name}. Clique no terreno para erguer.`, 'info');
                 }}
                 className={`p-2 rounded-xl border text-left flex flex-col justify-between transition-all group relative overflow-hidden ${
-                  canAfford
+                  affordable
                     ? 'bg-slate-900/90 hover:bg-slate-800/95 border-slate-700/80 hover:border-amber-500/60 text-white shadow-sm hover:shadow-amber-500/10 hover:scale-[1.02]'
                     : 'bg-slate-950/70 border-slate-800/60 text-slate-600 cursor-not-allowed opacity-60'
                 }`}
@@ -2617,23 +2880,23 @@ export default function App() {
 
                 <div className="mt-1.5 pt-1 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono">
                   <div className="flex items-center gap-1">
-                    <span className={canAffordWood ? 'text-amber-400 font-bold' : 'text-red-400 font-bold'}>
-                      M {def.cost.wood}
-                    </span>
-                    {def.cost.gold && (
-                      <span className={canAffordGold ? 'text-yellow-400 font-bold' : 'text-red-400 font-bold'}>
-                        O {def.cost.gold}
-                      </span>
-                    )}
+                    {(['wood', 'food', 'gold', 'stone', 'planks'] as const)
+                      .filter((key) => (def.cost[key] || 0) > 0)
+                      .map((key) => {
+                        const owned = (myResources[key] || 0) >= (def.cost[key] || 0);
+                        return (
+                          <span key={key} className={owned ? COST_CHIP_CLASS[key] : 'text-red-400 font-bold'}>
+                            {COST_SHORT[key]} {def.cost[key]}
+                          </span>
+                        );
+                      })}
                   </div>
                   <span className="text-slate-500 text-[9px]">{def.buildTimeSeconds}s</span>
                 </div>
 
-                {!canAfford && (
+                {!affordable && (
                   <div className="text-[9px] text-red-400 font-medium mt-0.5 truncate">
-                    {!canAffordWood
-                      ? `Falta ${def.cost.wood - Math.floor(myResources.wood)} M`
-                      : `Falta ${def.cost.gold! - Math.floor(myResources.gold)} O`}
+                    {missingCost(myResources, def.cost, 'short')}
                   </div>
                 )}
               </button>
@@ -2676,7 +2939,7 @@ export default function App() {
       {/* TOP HOVER TRIGGER ZONE FOR PEEKING WHEN HUD IS HIDDEN */}
       <div
         className="absolute top-0 left-0 right-0 h-4 z-30 pointer-events-auto"
-        onMouseEnter={() => setIsHoverPeeking(true)}
+        onMouseEnter={() => { if (!isHudPreviewMode) setIsHoverPeeking(true); }}
       />
 
       <GameHeader
@@ -2711,6 +2974,10 @@ export default function App() {
         chatMessages={chatMessages}
         onPointerEnterUI={() => engineRef.current?.setIsPointerOverUI(true)}
         onPointerLeaveUI={() => engineRef.current?.setIsPointerOverUI(false)}
+        isHudPreviewMode={isHudPreviewMode}
+        isTechPanelOpen={isTechPanelOpen}
+        setIsTechPanelOpen={setIsTechPanelOpen}
+        currentEra={gameState.techs?.[playerSlot]?.era}
       />
 
       {/* BUILDING PLACEMENT BANNER & REAL-TIME FOOTPRINT HUD */}
@@ -2728,7 +2995,7 @@ export default function App() {
                 </span>
               </div>
               <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-                <span>Custo: <span className="text-amber-400 font-semibold">{BUILDING_CATALOG[buildMode]?.cost.wood} Madeira{BUILDING_CATALOG[buildMode]?.cost.gold ? `, ${BUILDING_CATALOG[buildMode]?.cost.gold} Ouro` : ''}</span></span>
+                <span>Custo: <span className="text-amber-400 font-semibold">{describeCost(BUILDING_CATALOG[buildMode]?.cost ?? {})}</span></span>
                 {buildPreviewInfo && (
                   <>
                     <span>•</span>
@@ -2842,6 +3109,9 @@ export default function App() {
           handleAssignSelectedSquadToResource={handleAssignSelectedSquadToResource}
           handleRemoveResourceImmediately={handleRemoveResourceImmediately}
           renderVillagerBuildCatalog={renderVillagerBuildCatalog}
+          nearestVillagerToSelectedBuilding={nearestVillagerToSelectedBuilding}
+          handleRepairBuilding={handleRepairBuilding}
+          handleDemolishBuilding={handleDemolishBuilding}
           triggerNotification={triggerNotification}
           multiRef={multiRef}
           onPointerEnterUI={() => engineRef.current?.setIsPointerOverUI(true)}
@@ -2858,6 +3128,7 @@ export default function App() {
         currentChatInput={currentChatInput}
         setCurrentChatInput={setCurrentChatInput}
         onSendChat={handleSendChat}
+        onOpenTutorial={() => setShowTutorial(true)}
         showControlsModal={showControlsModal}
         setShowControlsModal={setShowControlsModal}
         isWorkZoneModalOpen={isWorkZoneModalOpen}
@@ -2876,6 +3147,22 @@ export default function App() {
         notification={notification}
       />
 
+      {/* TUTORIAL DE PRIMEIRA PARTICIDA */}
+      {showTutorial && <Tutorial onClose={closeTutorial} />}
+
+      {/* TECH PANEL MODAL */}
+      {isTechPanelOpen && (
+        <TechPanel
+          techState={gameState.techs?.[playerSlot] ?? createTechState()}
+          resources={myResources}
+          onResearch={handleResearch}
+          onClose={() => {
+            setIsTechPanelOpen(false);
+            soundManager.playClickSound();
+          }}
+        />
+      )}
+
       {/* EMPIRE CATALOG & PRODUCTION MATRIX MODAL (Ikariam & AoE style) */}
       <EmpireCatalogModal
         isOpen={isEmpireCatalogOpen}
@@ -2890,6 +3177,37 @@ export default function App() {
         }}
         activeGatherersCount={activeGatherers}
       />
+
+      {/* MATCH RESULT SCREEN (vitoria / derrota / empate) */}
+      {showResultScreen && !isHudPreviewMode && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
+          <div className="bg-slate-900/95 border border-slate-700/80 rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-5 text-center">
+            <div className={`text-4xl font-black tracking-wide ${resultToneClass}`}>{resultLabel}</div>
+            <p className="text-sm text-slate-400">{resultDetail}</p>
+            <div className="flex flex-col gap-2 pt-1">
+              {(role === 'host' || role === 'single') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setupInitialMap();
+                    soundManager.playClickSound();
+                  }}
+                  className="p-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition-colors"
+                >
+                  Jogar Novamente
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsGameStarted(false)}
+                className="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm transition-colors"
+              >
+                Voltar ao Menu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

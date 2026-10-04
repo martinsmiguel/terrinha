@@ -5,8 +5,16 @@
 
 import * as THREE from 'three';
 import { ParticleSystem } from './particles';
+import type { MatchStatus } from './victory';
+import type { TechState } from './tech';
+import { VISION_EXPLORED, VISION_UNEXPLORED, VISION_VISIBLE } from './visibility';
 
-export type UnitType = 'villager' | 'soldier' | 'cavalry' | 'fishing_boat' | 'trade_boat';
+export type UnitType = 'villager' | 'soldier' | 'cavalry' | 'fishing_boat' | 'trade_boat' | 'warship';
+
+/** Unidades navais: navegam apenas na agua e enfrentam outras embarcacoes. */
+export const BOAT_UNIT_TYPES: readonly UnitType[] = ['fishing_boat', 'trade_boat', 'warship'];
+
+export const isBoatUnit = (type: UnitType): boolean => BOAT_UNIT_TYPES.includes(type);
 export type BuildingType =
   | 'town_center'
   | 'house'
@@ -28,7 +36,7 @@ export interface Unit {
   health: number;
   maxHealth: number;
   attackDamage: number;
-  state: 'idle' | 'moving' | 'gathering' | 'attacking' | 'building' | 'fishing' | 'trading';
+  state: 'idle' | 'moving' | 'gathering' | 'attacking' | 'building' | 'fishing' | 'trading' | 'repairing';
   gatheringResource?: 'wood' | 'food' | 'gold' | 'fish' | 'stone' | 'planks';
   attackCooldown?: number;
   gatherOrigin?: { x: number; z: number }; // Anchor position where gathering started
@@ -53,7 +61,7 @@ export interface Building {
 
 export interface ResourceNode {
   id: string;
-  type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school';
+  type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school' | 'stone';
   name?: string;
   position: { x: number; z: number };
   remaining: number;
@@ -80,6 +88,12 @@ export interface GameState {
   buildings: Building[];
   resourceNodes: ResourceNode[];
   playerResources: Record<string, PlayerResources>;
+  /** Estado da partida segundo a condicao de vitoria (calculado pelo host). */
+  match?: MatchStatus;
+  /** Era, tecnologias concluidas e fila de pesquisa de cada jogador (host). */
+  techs?: Record<string, TechState>;
+  /** Semente do mapa procedural: a mesma semente recria o mesmo arquipelago. */
+  mapSeed?: number;
 }
 
 export const MAP_SIZE = 60;
@@ -113,6 +127,15 @@ export class GameEngine {
   gridHelper: THREE.GridHelper;
   particles: ParticleSystem;
   onRenderFrame?: (time: number, delta: number) => void;
+
+  // Nevoa de guerra: textura 60x60 (RGBA) aplicada ao material do terreno
+  fogTexture: THREE.DataTexture;
+  private fogPixels: Uint8Array;
+  private static readonly FOG_LEVELS: Record<number, number> = {
+    [VISION_UNEXPLORED]: 0,
+    [VISION_EXPLORED]: 110,
+    [VISION_VISIBLE]: 255,
+  };
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -155,12 +178,21 @@ export class GameEngine {
     this.scene.add(sunLight);
 
     // Base Terrain
+    this.fogPixels = new Uint8Array(MAP_SIZE * MAP_SIZE * 4);
+    this.fogTexture = new THREE.DataTexture(this.fogPixels, MAP_SIZE, MAP_SIZE, THREE.RGBAFormat, THREE.UnsignedByteType);
+    this.fogTexture.magFilter = THREE.LinearFilter;
+    this.fogTexture.minFilter = THREE.LinearFilter;
+    this.fogTexture.wrapS = THREE.ClampToEdgeWrapping;
+    this.fogTexture.wrapT = THREE.ClampToEdgeWrapping;
+    this.fogTexture.name = 'fog_of_war_grid';
+
     const groundGeo = new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE, 48, 48);
     const groundMat = new THREE.MeshStandardMaterial({
       color: 0x4f8f3b,
       roughness: 0.85,
       metalness: 0.05,
     });
+    this.applyFogToTerrain(groundMat);
     this.groundMesh = new THREE.Mesh(groundGeo, groundMat);
     this.groundMesh.rotation.x = -Math.PI / 2;
     this.groundMesh.position.set(MAP_SIZE / 2, 0, MAP_SIZE / 2);
@@ -182,6 +214,7 @@ export class GameEngine {
       this.scene.remove(this.groundMesh);
     }
     this.groundMesh = newTerrainMesh;
+    this.applyFogToTerrain(newTerrainMesh.material as THREE.Material);
     this.scene.add(this.groundMesh);
 
     if (this.waterMesh) {
@@ -194,6 +227,51 @@ export class GameEngine {
     if (decorationsGroup) {
       this.scene.add(decorationsGroup);
     }
+  }
+
+  /**
+   * Nevoa de guerra no terreno: multiplica a cor final pela textura da névoa.
+   * Mundo (x, z) -> UV; nível 0 = nunca visto (preto), 110 = explorado
+   * (semi-fog), 255 = sob visão atual.
+   */
+  private applyFogToTerrain(material: THREE.Material) {
+    const mat = material as THREE.MeshStandardMaterial;
+    const fogTexture = this.fogTexture;
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uFogMap = { value: fogTexture };
+      shader.uniforms.uFogScale = { value: 1 / MAP_SIZE };
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec2 vFogWorld;\nuniform float uFogScale;')
+        .replace(
+          '#include <begin_vertex>',
+          '#include <begin_vertex>\nvFogWorld = (modelMatrix * vec4(transformed, 1.0)).xz * uFogScale;'
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec2 vFogWorld;\nuniform sampler2D uFogMap;')
+        .replace(
+          '#include <color_fragment>',
+          '#include <color_fragment>\ndiffuseColor.rgb *= texture2D(uFogMap, vFogWorld).r;'
+        );
+    };
+    mat.needsUpdate = true;
+  }
+
+  /**
+   * Atualiza a névoa a partir do grid do jogador local (ordem `x * size + z`,
+   * a mesma do Minimap). Upload de 60×60×4 bytes por chamada.
+   */
+  setFogGrid(grid: Uint8Array) {
+    const levels = GameEngine.FOG_LEVELS;
+    const cells = MAP_SIZE * MAP_SIZE;
+    for (let i = 0; i < cells; i++) {
+      const level = levels[grid[i]] ?? 255;
+      const offset = i * 4;
+      this.fogPixels[offset] = level;
+      this.fogPixels[offset + 1] = level;
+      this.fogPixels[offset + 2] = level;
+      this.fogPixels[offset + 3] = 255;
+    }
+    this.fogTexture.needsUpdate = true;
   }
 
   setupEventListeners() {
@@ -374,6 +452,11 @@ export class GameEngine {
     this.particles.spawnConstructionParticles(x, y, z);
   }
 
+  /** Efeito de barco afundando: respingo, gotas e casco submerso. */
+  spawnBoatSinking(x: number, z: number) {
+    this.particles.spawnBoatSinking(x, z);
+  }
+
   lastTime: number = performance.now();
   startLoop() {
     const loop = (currentTime: number) => {
@@ -421,6 +504,7 @@ export class GameEngine {
     this.container.removeEventListener('touchcancel', this.handleTouchEnd);
 
     this.particles.dispose();
+    this.fogTexture.dispose();
 
     if (this.renderer.domElement && this.renderer.domElement.parentNode) {
       this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);

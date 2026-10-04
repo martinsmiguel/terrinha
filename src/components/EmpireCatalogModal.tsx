@@ -16,18 +16,24 @@ import {
   TrendingUp,
   Store,
   Compass,
-  CheckCircle2,
-  AlertCircle,
-  HelpCircle,
 } from 'lucide-react';
 import { BUILDING_CATALOG, BuildingType } from '../game/buildingDefs';
 import { PlayerResources } from '../game/engine';
+import {
+  MarketResourceType,
+  goldCostForBuy,
+  goldGainForSell,
+  canAfford,
+  missingCost,
+  COST_SHORT,
+  COST_CHIP_CLASS,
+} from '../game/economy';
 
 interface EmpireCatalogModalProps {
   isOpen: boolean;
   onClose: () => void;
   playerResources: PlayerResources;
-  onTradeResource: (type: 'wood' | 'food' | 'stone', action: 'buy' | 'sell', amount: number) => void;
+  onTradeResource: (type: MarketResourceType, action: 'buy' | 'sell', amount: number) => void;
   onSelectBuildingToBuild: (type: BuildingType) => void;
   activeGatherersCount: { wood: number; food: number; gold: number; fish: number };
 }
@@ -44,13 +50,6 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
   const [tradeAmount, setTradeAmount] = useState<number>(50);
 
   if (!isOpen) return null;
-
-  // Market Prices (Dynamic feel inspired by AoE2 / Ikariam)
-  const marketRates = {
-    wood: { buyPrice: 50, sellPrice: 35 },
-    food: { buyPrice: 55, sellPrice: 38 },
-    stone: { buyPrice: 70, sellPrice: 48 },
-  };
 
   const buildingList: BuildingType[] = [
     'house',
@@ -95,6 +94,8 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
               <span className="text-amber-300">M {Math.floor(playerResources.wood)}</span>
               <span className="text-red-300">C {Math.floor(playerResources.food)}</span>
               <span className="text-yellow-300">O {Math.floor(playerResources.gold)}</span>
+              <span className="text-slate-300">P {Math.floor(playerResources.stone)}</span>
+              <span className="text-orange-300">T {Math.floor(playerResources.planks)}</span>
             </div>
 
             <button
@@ -165,9 +166,7 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               {buildingList.map((type) => {
                 const def = BUILDING_CATALOG[type];
-                const canAffordWood = playerResources.wood >= def.cost.wood;
-                const canAffordGold = !def.cost.gold || playerResources.gold >= def.cost.gold;
-                const canAfford = canAffordWood && canAffordGold;
+                const affordable = canAfford(playerResources, def.cost);
 
                 return (
                   <div
@@ -222,26 +221,36 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
 
                     <div className="pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
                       <div className="flex items-center gap-2 text-xs font-mono">
-                        <span className={canAffordWood ? 'text-amber-400 font-bold' : 'text-red-400 font-bold'}>
-                          M {def.cost.wood}
-                        </span>
-                        {def.cost.gold && (
-                          <span className={canAffordGold ? 'text-yellow-400 font-bold' : 'text-red-400 font-bold'}>
-                            O {def.cost.gold}
+                        {(['wood', 'food', 'gold', 'stone', 'planks'] as const)
+                          .filter((key) => (def.cost[key] || 0) > 0)
+                          .map((key) => {
+                            const owned = (playerResources[key] || 0) >= (def.cost[key] || 0);
+                            return (
+                              <span
+                                key={key}
+                                className={owned ? COST_CHIP_CLASS[key] : 'text-red-400 font-bold'}
+                              >
+                                {COST_SHORT[key]} {def.cost[key]}
+                              </span>
+                            );
+                          })}
+                        <span className="text-slate-500 text-[10px]">{def.buildTimeSeconds}s</span>
+                        {!affordable && (
+                          <span className="text-red-400 text-[10px]">
+                            {missingCost(playerResources, def.cost, 'short')}
                           </span>
                         )}
-                        <span className="text-slate-500 text-[10px]">{def.buildTimeSeconds}s</span>
                       </div>
 
                       <button
                         type="button"
-                        disabled={!canAfford}
+                        disabled={!affordable}
                         onClick={() => {
                           onSelectBuildingToBuild(type);
                           onClose();
                         }}
                         className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                          canAfford
+                          affordable
                             ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-md hover:shadow-amber-500/20 active:scale-95'
                             : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
                         }`}
@@ -384,77 +393,49 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
 
               {/* Trade Commodity Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                {/* Wood Trade */}
-                <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900/80 flex flex-col justify-between">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="flex items-center gap-1.5 font-bold text-sm text-amber-300">
-                      Madeira Nobre
-                    </span>
-                    <span className="text-xs font-mono text-slate-400">
-                      Estoque: {Math.floor(playerResources.wood)}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <button
-                      onClick={() => onTradeResource('wood', 'buy', tradeAmount)}
-                      disabled={playerResources.gold < Math.round((marketRates.wood.buyPrice * tradeAmount) / 50)}
-                      className="p-2.5 rounded-xl bg-amber-950/60 hover:bg-amber-900/80 border border-amber-600/50 text-amber-200 font-bold flex flex-col items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <span>Comprar +{tradeAmount}</span>
-                      <span className="text-[10px] font-mono text-yellow-300">
-                        -{Math.round((marketRates.wood.buyPrice * tradeAmount) / 50)} Ouro
+                {(
+                  [
+                    { type: 'wood', title: 'Madeira Nobre', titleClass: 'text-amber-300', stockClass: 'text-amber-200' },
+                    { type: 'food', title: 'Cereais & Peixes', titleClass: 'text-red-300', stockClass: 'text-red-200' },
+                    { type: 'stone', title: 'Pedra & Granito', titleClass: 'text-slate-300', stockClass: 'text-slate-200' },
+                  ] as { type: MarketResourceType; title: string; titleClass: string; stockClass: string }[]
+                ).map(({ type, title, titleClass, stockClass }) => (
+                  <div
+                    key={type}
+                    className="p-4 rounded-2xl border border-slate-800 bg-slate-900/80 flex flex-col justify-between"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={`flex items-center gap-1.5 font-bold text-sm ${titleClass}`}>{title}</span>
+                      <span className={`text-xs font-mono ${stockClass}`}>
+                        Estoque: {Math.floor(playerResources[type])}
                       </span>
-                    </button>
+                    </div>
 
-                    <button
-                      onClick={() => onTradeResource('wood', 'sell', tradeAmount)}
-                      disabled={playerResources.wood < tradeAmount}
-                      className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold flex flex-col items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <span>Vender -{tradeAmount}</span>
-                      <span className="text-[10px] font-mono text-yellow-400">
-                        +{Math.round((marketRates.wood.sellPrice * tradeAmount) / 50)} Ouro
-                      </span>
-                    </button>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <button
+                        onClick={() => onTradeResource(type, 'buy', tradeAmount)}
+                        disabled={playerResources.gold < goldCostForBuy(type, tradeAmount)}
+                        className="p-2.5 rounded-xl bg-amber-950/60 hover:bg-amber-900/80 border border-amber-600/50 text-amber-200 font-bold flex flex-col items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <span>Comprar +{tradeAmount}</span>
+                        <span className="text-[10px] font-mono text-yellow-300">
+                          -{goldCostForBuy(type, tradeAmount)} Ouro
+                        </span>
+                      </button>
+
+                      <button
+                        onClick={() => onTradeResource(type, 'sell', tradeAmount)}
+                        disabled={playerResources[type] < tradeAmount}
+                        className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold flex flex-col items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <span>Vender -{tradeAmount}</span>
+                        <span className="text-[10px] font-mono text-yellow-400">
+                          +{goldGainForSell(type, tradeAmount)} Ouro
+                        </span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-
-                {/* Food Trade */}
-                <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900/80 flex flex-col justify-between">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="flex items-center gap-1.5 font-bold text-sm text-red-300">
-                      Cereais & Peixes
-                    </span>
-                    <span className="text-xs font-mono text-slate-400">
-                      Estoque: {Math.floor(playerResources.food)}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <button
-                      onClick={() => onTradeResource('food', 'buy', tradeAmount)}
-                      disabled={playerResources.gold < Math.round((marketRates.food.buyPrice * tradeAmount) / 50)}
-                      className="p-2.5 rounded-xl bg-amber-950/60 hover:bg-amber-900/80 border border-amber-600/50 text-amber-200 font-bold flex flex-col items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <span>Comprar +{tradeAmount}</span>
-                      <span className="text-[10px] font-mono text-yellow-300">
-                        -{Math.round((marketRates.food.buyPrice * tradeAmount) / 50)} Ouro
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() => onTradeResource('food', 'sell', tradeAmount)}
-                      disabled={playerResources.food < tradeAmount}
-                      className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold flex flex-col items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <span>Vender -{tradeAmount}</span>
-                      <span className="text-[10px] font-mono text-yellow-400">
-                        +{Math.round((marketRates.food.sellPrice * tradeAmount) / 50)} Ouro
-                      </span>
-                    </button>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
           )}

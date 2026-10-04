@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { isAuthorizedPlayerCommand, isValidJoinRequest, isValidNetworkCommand, roomJoinError } from '../../src/game/networkCommands';
+import { isAuthorizedPlayerCommand, isValidJoinRequest, isValidNetworkCommand, roomJoinError, soloMatchSlots } from '../../src/game/networkCommands';
+import { BUILDING_CATALOG } from '../../src/game/buildingDefs';
+import { createTechState } from '../../src/game/tech';
 import type { GameState } from '../../src/game/engine';
 
 const state: GameState = {
@@ -83,14 +85,28 @@ describe('network command validation', () => {
   });
 
   it('checks catalog resources and rejects town-center construction commands', () => {
-    const tower = { type: 'build', buildingType: 'tower', owner: 'player1', position: { x: 20, z: 20 } };
-    expect(isAuthorizedPlayerCommand(state, tower, 'player1')).toBe(true);
-
-    const poorState = {
+    const towerCost = BUILDING_CATALOG.tower.cost;
+    const richEnough: GameState = {
       ...state,
       playerResources: {
         ...state.playerResources,
-        player1: { ...state.playerResources.player1, gold: 0 },
+        player1: {
+          ...state.playerResources.player1,
+          wood: towerCost.wood,
+          stone: towerCost.stone ?? 0,
+          planks: towerCost.planks ?? 0,
+        },
+      },
+    };
+
+    const tower = { type: 'build', buildingType: 'tower', owner: 'player1', position: { x: 20, z: 20 } };
+    expect(isAuthorizedPlayerCommand(richEnough, tower, 'player1')).toBe(true);
+
+    const poorState: GameState = {
+      ...richEnough,
+      playerResources: {
+        ...richEnough.playerResources,
+        player1: { ...richEnough.playerResources.player1, stone: 0 },
       },
     };
     expect(isAuthorizedPlayerCommand(poorState, tower, 'player1')).toBe(false);
@@ -132,5 +148,194 @@ describe('network command validation', () => {
       },
     };
     expect(isAuthorizedPlayerCommand(foreignBuilding, { type: 'train', buildingId: 'barracks-1', unitType: 'soldier' }, 'player1')).toBe(false);
+  });
+});
+
+describe('repair and demolish commands', () => {
+  const damagedState: GameState = {
+    ...state,
+    buildings: [
+      ...state.buildings,
+      {
+        id: 'house-1', type: 'house', owner: 'player1', position: { x: 15, z: 15 },
+        health: 60, maxHealth: 120, isComplete: true, trainingQueue: [],
+      },
+      {
+        id: 'house-2', type: 'house', owner: 'player2', position: { x: 40, z: 40 },
+        health: 60, maxHealth: 120, isComplete: true, trainingQueue: [],
+      },
+    ],
+  };
+
+  it('rejects malformed repair and demolish payloads', () => {
+    expect(isValidNetworkCommand({ type: 'repair', unitId: 'villager-1' })).toBe(false);
+    expect(isValidNetworkCommand({ type: 'demolish' })).toBe(false);
+    expect(isValidNetworkCommand({ type: 'demolish', buildingId: 'house-1', unitId: 'villager-1' })).toBe(false);
+  });
+
+  it('lets an own villager repair a damaged own building only', () => {
+    const repairOwn = { type: 'repair', unitId: 'villager-1', buildingId: 'house-1' };
+    expect(isAuthorizedPlayerCommand(damagedState, repairOwn, 'player1')).toBe(true);
+    expect(isAuthorizedPlayerCommand(damagedState, repairOwn, 'player2')).toBe(false);
+    expect(isAuthorizedPlayerCommand(damagedState, { type: 'repair', unitId: 'villager-1', buildingId: 'house-2' }, 'player1')).toBe(false);
+    expect(isAuthorizedPlayerCommand(damagedState, { type: 'repair', unitId: 'soldier-2', buildingId: 'house-2' }, 'player2')).toBe(false);
+    expect(isAuthorizedPlayerCommand(damagedState, { type: 'repair', unitId: 'villager-1', buildingId: 'missing-house' }, 'player1')).toBe(false);
+  });
+
+  it('refuses repairing a building that is already at full health', () => {
+    expect(isAuthorizedPlayerCommand(damagedState, { type: 'repair', unitId: 'villager-1', buildingId: 'town-center-1' }, 'player1')).toBe(false);
+  });
+
+  it('validates ownership on demolish and protects the town center', () => {
+    expect(isAuthorizedPlayerCommand(damagedState, { type: 'demolish', buildingId: 'house-1' }, 'player1')).toBe(true);
+    expect(isAuthorizedPlayerCommand(damagedState, { type: 'demolish', buildingId: 'house-2' }, 'player1')).toBe(false);
+    expect(isAuthorizedPlayerCommand(damagedState, { type: 'demolish', buildingId: 'town-center-1' }, 'player1')).toBe(false);
+  });
+});
+
+describe('cavalry training', () => {
+  const barracksState: GameState = {
+    ...state,
+    buildings: [{
+      id: 'barracks-1', type: 'barracks', owner: 'player1', position: { x: 8, z: 8 },
+      health: 800, maxHealth: 800, isComplete: true, trainingQueue: [],
+    }],
+  };
+
+  it('accepts cavalry orders at the barracks and rejects them elsewhere', () => {
+    const cavalry = { type: 'train', buildingId: 'barracks-1', unitType: 'cavalry' as const };
+    expect(isValidNetworkCommand(cavalry)).toBe(true);
+    expect(isAuthorizedPlayerCommand(barracksState, cavalry, 'player1')).toBe(true);
+    expect(isAuthorizedPlayerCommand(barracksState, { ...cavalry, buildingId: 'town-center-1' }, 'player1')).toBe(false);
+    expect(isAuthorizedPlayerCommand(barracksState, cavalry, 'player2')).toBe(false);
+  });
+
+  it('charges cavalry the 60 food + 80 gold upkeep of gold', () => {
+    const noGold = {
+      ...barracksState,
+      playerResources: { ...barracksState.playerResources, player1: { ...barracksState.playerResources.player1, gold: 79 } },
+    };
+    expect(isAuthorizedPlayerCommand(noGold, { type: 'train', buildingId: 'barracks-1', unitType: 'cavalry' }, 'player1')).toBe(false);
+  });
+});
+
+describe('soloMatchSlots', () => {
+  it('puts the human first and fills the rest with AI slots up to the chosen size', () => {
+    expect(soloMatchSlots('player1', 2)).toEqual(['player1', 'player2']);
+    expect(soloMatchSlots('player1', 4)).toEqual(['player1', 'player2', 'player3', 'player4']);
+    expect(soloMatchSlots('player3', 3)).toEqual(['player3', 'player1', 'player2']);
+    expect(soloMatchSlots('player4', 2)).toEqual(['player4', 'player1']);
+  });
+});
+
+describe('research commands', () => {
+  const withTechs: GameState = {
+    ...state,
+    techs: { player1: createTechState(), player2: createTechState() },
+  };
+
+  it('validates research payloads', () => {
+    expect(isValidNetworkCommand({ type: 'research', id: 'irrigation' })).toBe(true);
+    expect(isValidNetworkCommand({ type: 'research' })).toBe(false);
+    expect(isValidNetworkCommand({ type: 'research', id: '' })).toBe(false);
+    expect(isValidNetworkCommand({ type: 'research', id: 'irrigation', unexpected: 1 })).toBe(false);
+  });
+
+  it('authorizes only affordable research of the current era', () => {
+    expect(isAuthorizedPlayerCommand(withTechs, { type: 'research', id: 'irrigation' }, 'player1')).toBe(true);
+    expect(isAuthorizedPlayerCommand(withTechs, { type: 'research', id: 'cartography' }, 'player1')).toBe(false);
+    expect(isAuthorizedPlayerCommand(withTechs, { type: 'research', id: 'nope' }, 'player1')).toBe(false);
+    expect(
+      isAuthorizedPlayerCommand({ ...withTechs, techs: undefined }, { type: 'research', id: 'irrigation' }, 'player1')
+    ).toBe(false);
+  });
+
+  it('rejects research the player cannot pay for', () => {
+    const broke: GameState = {
+      ...withTechs,
+      playerResources: {
+        ...withTechs.playerResources,
+        player1: { ...withTechs.playerResources.player1, wood: 0, gold: 0 },
+      },
+    };
+    expect(isAuthorizedPlayerCommand(broke, { type: 'research', id: 'irrigation' }, 'player1')).toBe(false);
+  });
+});
+
+describe('naval combat', () => {
+  const navalState: GameState = {
+    ...state,
+    playerResources: {
+      ...state.playerResources,
+      player1: { ...state.playerResources.player1, planks: 100 },
+    },
+    units: [
+      ...state.units,
+      {
+        id: 'warship-1', type: 'warship', owner: 'player1', position: { x: 30, z: 30 },
+        targetPosition: null, targetEntityId: null, health: 300, maxHealth: 300, attackDamage: 24, state: 'idle',
+      },
+      {
+        id: 'trade-2', type: 'trade_boat', owner: 'player2', position: { x: 32, z: 30 },
+        targetPosition: null, targetEntityId: null, health: 220, maxHealth: 220, attackDamage: 5, state: 'idle',
+      },
+    ],
+    buildings: [
+      ...state.buildings,
+      {
+        id: 'dock-1', type: 'dock', owner: 'player1', position: { x: 30, z: 34 },
+        health: 900, maxHealth: 900, isComplete: true, trainingQueue: [],
+      },
+      {
+        id: 'barracks-1', type: 'barracks', owner: 'player1', position: { x: 8, z: 8 },
+        health: 800, maxHealth: 800, isComplete: true, trainingQueue: [],
+      },
+    ],
+  };
+
+  it('trains warships only at the dock', () => {
+    const cmd = { type: 'train', buildingId: 'dock-1', unitType: 'warship' as const };
+    expect(isValidNetworkCommand(cmd)).toBe(true);
+    expect(isAuthorizedPlayerCommand(navalState, cmd, 'player1')).toBe(true);
+    expect(isAuthorizedPlayerCommand(navalState, { ...cmd, buildingId: 'barracks-1' }, 'player1')).toBe(false);
+    expect(isAuthorizedPlayerCommand(navalState, { ...cmd, buildingId: 'town-center-1' }, 'player1')).toBe(false);
+    expect(isAuthorizedPlayerCommand(navalState, cmd, 'player2')).toBe(false);
+  });
+
+  it('charges the 120 wood + 80 gold + 40 planks warship cost', () => {
+    const cmd = { type: 'train', buildingId: 'dock-1', unitType: 'warship' as const };
+    const noPlanks = {
+      ...navalState,
+      playerResources: {
+        ...navalState.playerResources,
+        player1: { ...navalState.playerResources.player1, planks: 39 },
+      },
+    };
+    expect(isAuthorizedPlayerCommand(noPlanks, cmd, 'player1')).toBe(false);
+
+    const noGold = {
+      ...navalState,
+      playerResources: {
+        ...navalState.playerResources,
+        player1: { ...navalState.playerResources.player1, gold: 79 },
+      },
+    };
+    expect(isAuthorizedPlayerCommand(noGold, cmd, 'player1')).toBe(false);
+  });
+
+  it('lets warships fight enemy boats and nothing else', () => {
+    expect(
+      isAuthorizedPlayerCommand(navalState, { type: 'attack', unitId: 'warship-1', targetId: 'trade-2' }, 'player1')
+    ).toBe(true);
+    expect(
+      isAuthorizedPlayerCommand(navalState, { type: 'attack', unitId: 'warship-1', targetId: 'soldier-2' }, 'player1')
+    ).toBe(false);
+    expect(
+      isAuthorizedPlayerCommand(navalState, { type: 'attack', unitId: 'warship-1', targetId: 'town-center-1' }, 'player1')
+    ).toBe(false);
+    // Tropas de terra podem atirar em barcos da margem
+    expect(
+      isAuthorizedPlayerCommand(navalState, { type: 'attack', unitId: 'soldier-2', targetId: 'warship-1' }, 'player2')
+    ).toBe(true);
   });
 });

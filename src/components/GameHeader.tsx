@@ -1,12 +1,13 @@
 import type { Dispatch, SetStateAction } from 'react';
 import {
-  Eye, EyeOff, Info, Layers, Lock, Maximize2, MessageSquare, Sprout, Target, Unlock, Volume2, VolumeX,
+  Eye, EyeOff, Info, Layers, Lock, Maximize2, MessageSquare, Sparkles, Sprout, Target, Unlock, Volume2, VolumeX,
 } from 'lucide-react';
 import type { BuildingType } from '../game/buildingDefs';
 import { BUILDING_CATALOG } from '../game/buildingDefs';
 import { soundManager } from '../game/audio';
 import type { PlayerResources } from '../game/engine';
 import type { ChatMessage } from '../game/multiplayer';
+import type { Era } from '../game/tech';
 import { ResourceNavMenu } from './ResourceNavMenu';
 
 type HudMode = 'full' | 'compact' | 'hidden';
@@ -24,11 +25,11 @@ interface GameHeaderProps {
   toggleCameraLock(): void;
   toggleHudMode(): void;
   myResources: PlayerResources;
-  activeGatherers: { wood: number; food: number; gold: number; fish: number };
+  activeGatherers: { wood: number; food: number; gold: number; fish: number; stone: number };
   idleFriendlyVillagersCount: number;
   handleSelectIdleVillager(): void;
   setIsEmpireCatalogOpen(value: boolean): void;
-  handleJumpToResource(type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school'): void;
+  handleJumpToResource(type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school' | 'stone'): void;
   setBuildMode(type: BuildingType): void;
   triggerNotification(message: string, type?: 'info' | 'success' | 'warning'): void;
   role: 'host' | 'client' | 'single';
@@ -45,6 +46,10 @@ interface GameHeaderProps {
   isChatOpen: boolean;
   setIsChatOpen(value: boolean): void;
   chatMessages: ChatMessage[];
+  isHudPreviewMode: boolean;
+  isTechPanelOpen: boolean;
+  setIsTechPanelOpen: Dispatch<SetStateAction<boolean>>;
+  currentEra?: Era;
   onPointerEnterUI(): void;
   onPointerLeaveUI(): void;
 }
@@ -56,12 +61,13 @@ export function GameHeader({
   handleRegenerateProceduralMap, isColonySustainableForestry, handleToggleColonySustainableForestry,
   activeWorkZones, isWorkZoneModalOpen, setIsWorkZoneModalOpen, gatherRadiusLimit,
   setShowControlsModal, isAudioMuted, setIsAudioMuted, isChatOpen, setIsChatOpen, chatMessages,
+  isHudPreviewMode, isTechPanelOpen, setIsTechPanelOpen, currentEra,
   onPointerEnterUI, onPointerLeaveUI,
 }: GameHeaderProps) {
   return (
     <>
       {/* MINIMAL RESTORE DOCK WHEN HUD IS HIDDEN (Cinematic Exploration Mode) */}
-      {hudMode === 'hidden' && !isHoverPeeking && (
+      {hudMode === 'hidden' && !isHoverPeeking && !isHudPreviewMode && (
         <div
           onMouseEnter={() => {
             setIsHoverPeeking(true);
@@ -108,7 +114,7 @@ export function GameHeader({
       )}
 
       {/* TOP RESOURCE & STATUS HUD (FULL / COMPACT / HOVER PEEK) */}
-      {(hudMode !== 'hidden' || isHoverPeeking) && (
+      {(hudMode !== 'hidden' || (isHoverPeeking && !isHudPreviewMode)) && (
         <header
           onMouseEnter={() => {
             setIsHoverPeeking(true);
@@ -135,6 +141,15 @@ export function GameHeader({
                 </span>
                 <span className="flex items-center gap-1 text-yellow-300 font-bold" title="Ouro">
                   O {Math.floor(myResources.gold)}
+                </span>
+                <span
+                  className="flex items-center gap-1 text-slate-300 font-bold"
+                  title="Pedra"
+                >
+                  P {Math.floor(myResources.stone)}
+                </span>
+                <span className="flex items-center gap-1 text-orange-200 font-bold" title="Tábuas">
+                  T {Math.floor(myResources.planks || 0)}
                 </span>
                 <span className="flex items-center gap-1 text-blue-300 font-bold" title="População">
                   Pop {myResources.pop}/{myResources.maxPop}
@@ -306,6 +321,31 @@ export function GameHeader({
                     {gatherRadiusLimit >= 999 ? 'Livre' : `${gatherRadiusLimit}m`}
                   </span>
                   <kbd className="hidden lg:inline px-1 py-0.5 bg-slate-900 rounded font-mono text-[9px] text-slate-400">Z</kbd>
+                </button>
+
+                {/* Research & Eras Panel Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsTechPanelOpen((prev) => !prev);
+                    soundManager.playClickSound();
+                  }}
+                  className={`p-1.5 px-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                    isTechPanelOpen
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm shadow-amber-500/20 ring-1 ring-amber-500/30'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                  }`}
+                  title="Tecnologias e Eras: pesquique melhorias de economia e militar"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden md:inline">Tecnologias</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold bg-slate-900 text-amber-200">
+                    {currentEra === 'commercial'
+                      ? 'E2'
+                      : currentEra === 'industrial'
+                      ? 'E3'
+                      : 'E1'}
+                  </span>
                 </button>
 
                 {/* Controls Guide Modal Button */}

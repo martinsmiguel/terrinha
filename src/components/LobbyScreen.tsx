@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { Check, Copy, Play, Shield, Sparkles, Users, Wifi } from 'lucide-react';
 import { FACTION_COLORS } from '../game/factions';
+import { soundManager } from '../game/audio';
 import type { PlayerSlot } from '../game/networkCommands';
 
 type GameRole = 'host' | 'client' | 'single';
@@ -16,12 +17,14 @@ interface LobbyScreenProps {
   playerSlot: PlayerSlot;
   setPlayerSlot: Dispatch<SetStateAction<PlayerSlot>>;
   lobbyError: string | null;
+  matchSize: 2 | 3 | 4;
+  setMatchSize: Dispatch<SetStateAction<2 | 3 | 4>>;
   onStartGame(role: GameRole): void;
 }
 
 export function LobbyScreen({
   lanIps, copiedIp, copyLanUrl, playerName, setPlayerName, roomId, setRoomId,
-  playerSlot, setPlayerSlot, lobbyError, onStartGame,
+  playerSlot, setPlayerSlot, lobbyError, matchSize, setMatchSize, onStartGame,
 }: LobbyScreenProps) {
   return (
 
@@ -138,6 +141,36 @@ export function LobbyScreen({
               >
                 <Users className="w-4 h-4" /> Entrar via Código
               </button>
+            </div>
+
+            <div className="pt-1">
+              <span className="block text-xs font-medium text-slate-400 mb-1.5">
+                Treino Solo: jogadores na partida (você + IA)
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                {([2, 3, 4] as const).map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => {
+                      setMatchSize(size);
+                      soundManager.playClickSound();
+                    }}
+                    className={`py-2 rounded-xl border text-xs font-semibold transition-all ${
+                      matchSize === size
+                        ? 'bg-amber-500/15 border-amber-500/60 text-amber-300 ring-1 ring-amber-500/30'
+                        : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                    }`}
+                  >
+                    {size} jogadores
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-500 mt-1">
+                {matchSize === 2
+                  ? 'Você contra uma colônia rival.'
+                  : `${matchSize - 1} colônias rivais controladas pela IA.`}
+              </p>
             </div>
 
             <button

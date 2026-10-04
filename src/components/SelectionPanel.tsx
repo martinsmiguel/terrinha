@@ -1,7 +1,8 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import {
-  Apple, AlignJustify, Castle, Check, ChevronDown, ChevronUp, Coins, Compass, Home, Hammer, LayoutGrid,
-  Maximize2, MessageSquare, Pickaxe, Plus, Shield, Sparkles, Sprout, Sword, Target, TreePine, Trash2, Users, X,
+  Anchor, Apple, AlignJustify, Castle, Check, ChevronDown, ChevronUp, Coins, Compass, Home, Hammer, LayoutGrid,
+  Maximize2, PawPrint, Pickaxe, Plus, Shield, Sparkles, Sprout, Sword, Target, TreePine, Trash2,
+  Users, Wrench, X,
 } from 'lucide-react';
 import type { Building, GameState, PlayerResources, ResourceNode, Unit, UnitType } from '../game/engine';
 import type { BuildingType } from '../game/buildingDefs';
@@ -9,6 +10,8 @@ import { BUILDING_CATALOG } from '../game/buildingDefs';
 import type { PlayerSlot } from '../game/networkCommands';
 import type { MultiplayerManager } from '../game/multiplayer';
 import { soundManager } from '../game/audio';
+import { canAfford, describeCost, UNIT_COSTS } from '../game/economy';
+import { REPAIR_HP_PER_TICK, REPAIR_WOOD_PER_HP } from '../game/simulation';
 
 interface ActiveWorkZone {
   id: string; x: number; z: number; radius: number; unitIds: string[];
@@ -73,6 +76,9 @@ interface SelectionPanelProps {
   handleAssignSelectedSquadToResource(resourceId: string): void;
   handleRemoveResourceImmediately(resourceId: string): void;
   renderVillagerBuildCatalog(): ReactNode;
+  nearestVillagerToSelectedBuilding: Unit | null;
+  handleRepairBuilding(unitId: string, buildingId: string): void;
+  handleDemolishBuilding(buildingId: string): void;
   triggerNotification(message: string, type?: 'info' | 'success' | 'warning'): void;
   multiRef: { current: MultiplayerManager | null };
   onPointerEnterUI(): void;
@@ -81,18 +87,19 @@ interface SelectionPanelProps {
 
 export function SelectionPanel(props: SelectionPanelProps) {
   const {
-    gameState, playerSlot, role, selectedEntity, selectedUnitsList, selectedUnitIds, selectedUnit,
+    playerSlot, role, selectedEntity, selectedUnitsList, selectedUnit,
     selectedBuilding, selectedResource, soldierCount, villagerCount, totalSquadHealth, totalSquadMaxHealth,
-    activeBuildersOnSelectedBuilding, activeGatherersOnSelectedResource, idleFriendlyVillagersCount,
+    activeBuildersOnSelectedBuilding, activeGatherersOnSelectedResource,
     totalQueuedForPlayer, myResources, groveTrees, matureGroveCount, regrowingGroveCount,
-    isGroveAllSustainable, activeWorkZones, previewZone, isBottomCardCollapsed, setIsBottomCardCollapsed,
+    isGroveAllSustainable, previewZone, isBottomCardCollapsed, setIsBottomCardCollapsed,
     setSelectedEntity, setSelectedUnitIds, squadFormation, setSquadFormation, gatherRadiusLimit,
     setGatherRadiusLimit, gatherShiftDuration, setGatherShiftDuration, isSettingZoneCenter,
-    setIsSettingZoneCenter, setIsEmpireCatalogOpen, setIsPointerOverUI, handleIncomingCommand,
+    setIsSettingZoneCenter, setIsEmpireCatalogOpen, handleIncomingCommand,
     handleSetUnitWorkZoneRadius, handleSendAllIdleVillagersToBuild, handleTrainUnit, handleCancelTrain,
-    handleTradeResource, handleSetGroveHarvestMode, handleToggleResourceHarvestMode, handleClearForestCluster,
+    handleSetGroveHarvestMode, handleToggleResourceHarvestMode, handleClearForestCluster,
     handleAssignVillagersToResource, handleAssignSelectedSquadToResource, handleRemoveResourceImmediately,
-    renderVillagerBuildCatalog, triggerNotification, multiRef, onPointerEnterUI, onPointerLeaveUI,
+    renderVillagerBuildCatalog, nearestVillagerToSelectedBuilding, handleRepairBuilding,
+    handleDemolishBuilding, triggerNotification, multiRef, onPointerEnterUI, onPointerLeaveUI,
   } = props;
   return (
     <>
@@ -115,7 +122,7 @@ export function SelectionPanel(props: SelectionPanelProps) {
                   <>
                     {selectedUnitsList[0].type === 'villager' ? <Users className="w-4 h-4 text-amber-400 shrink-0" /> : <Sword className="w-4 h-4 text-blue-400 shrink-0" />}
                     <span className="font-bold text-white truncate">
-                      {selectedUnitsList[0].type === 'villager' ? 'Aldeão' : 'Mosqueteiro'} ({Math.round(selectedUnitsList[0].health)}/{selectedUnitsList[0].maxHealth} HP)
+                      {selectedUnitsList[0].type === 'villager' ? 'Aldeão' : selectedUnitsList[0].type === 'cavalry' ? 'Cavalaria' : 'Mosqueteiro'} ({Math.round(selectedUnitsList[0].health)}/{selectedUnitsList[0].maxHealth} HP)
                     </span>
                   </>
                 ) : selectedBuilding ? (
@@ -128,9 +135,24 @@ export function SelectionPanel(props: SelectionPanelProps) {
                   </>
                 ) : selectedResource ? (
                   <>
-                    {selectedResource.type === 'tree' ? <TreePine className="w-4 h-4 text-emerald-400 shrink-0" /> : selectedResource.type === 'gold_mine' ? <Coins className="w-4 h-4 text-amber-400 shrink-0" /> : <Apple className="w-4 h-4 text-rose-400 shrink-0" />}
+                    {selectedResource.type === 'tree' ? (
+                      <TreePine className="w-4 h-4 text-emerald-400 shrink-0" />
+                    ) : selectedResource.type === 'gold_mine' ? (
+                      <Coins className="w-4 h-4 text-amber-400 shrink-0" />
+                    ) : selectedResource.type === 'stone' ? (
+                      <Pickaxe className="w-4 h-4 text-slate-300 shrink-0" />
+                    ) : (
+                      <Apple className="w-4 h-4 text-rose-400 shrink-0" />
+                    )}
                     <span className="font-bold text-white truncate">
-                      {selectedResource.type === 'tree' ? 'Madeira' : selectedResource.type === 'gold_mine' ? 'Ouro' : 'Frutas'} ({Math.round(selectedResource.remaining)})
+                      {selectedResource.type === 'tree'
+                        ? 'Madeira'
+                        : selectedResource.type === 'gold_mine'
+                        ? 'Ouro'
+                        : selectedResource.type === 'stone'
+                        ? 'Pedra'
+                        : 'Frutas'}{' '}
+                      ({Math.round(selectedResource.remaining)})
                     </span>
                   </>
                 ) : null}
@@ -380,7 +402,7 @@ export function SelectionPanel(props: SelectionPanelProps) {
                     </div>
                     <div>
                       <h3 className="font-bold text-base text-white capitalize">
-                        {selectedUnit.type === 'soldier' ? 'Soldado Mosqueteiro' : 'Aldeão Construtor'}
+                        {selectedUnit.type === 'soldier' ? 'Soldado Mosqueteiro' : selectedUnit.type === 'cavalry' ? 'Cavalaria Montada' : 'Aldeão Construtor'}
                       </h3>
                       <div className="text-xs text-slate-400 flex items-center gap-2">
                         <span>Status: <span className="text-amber-400 font-medium capitalize">{selectedUnit.state}</span></span>
@@ -764,6 +786,14 @@ export function SelectionPanel(props: SelectionPanelProps) {
                                   <div className="p-1.5 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30">
                                     <Sword className="w-4 h-4" />
                                   </div>
+                                ) : selectedBuilding.trainingQueue[0].unitType === 'cavalry' ? (
+                                  <div className="p-1.5 rounded-xl bg-amber-600/20 text-amber-400 border border-amber-500/30">
+                                    <PawPrint className="w-4 h-4" />
+                                  </div>
+                                ) : selectedBuilding.trainingQueue[0].unitType === 'warship' ? (
+                                  <div className="p-1.5 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                                    <Anchor className="w-4 h-4" />
+                                  </div>
                                 ) : selectedBuilding.trainingQueue[0].unitType === 'fishing_boat' ||
                                   selectedBuilding.trainingQueue[0].unitType === 'trade_boat' ? (
                                   <div className="p-1.5 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
@@ -778,10 +808,14 @@ export function SelectionPanel(props: SelectionPanelProps) {
                                   <div className="font-bold text-white text-xs">
                                     {selectedBuilding.trainingQueue[0].unitType === 'soldier'
                                       ? 'Soldado Mosqueteiro'
+                                      : selectedBuilding.trainingQueue[0].unitType === 'cavalry'
+                                      ? 'Cavalaria Montada'
                                       : selectedBuilding.trainingQueue[0].unitType === 'fishing_boat'
                                       ? 'Barco de Pesca Fluvial'
                                       : selectedBuilding.trainingQueue[0].unitType === 'trade_boat'
                                       ? 'Barco Mercante de Rio'
+                                      : selectedBuilding.trainingQueue[0].unitType === 'warship'
+                                      ? 'Barco de Guerra'
                                       : 'Aldeão Construtor'}
                                   </div>
                                   <div className="text-[10px] text-slate-400">
@@ -914,6 +948,7 @@ export function SelectionPanel(props: SelectionPanelProps) {
 
                       {/* Barracks Recruitment */}
                       {selectedBuilding.type === 'barracks' && (
+                        <>
                         <div className="flex gap-2">
                           <button
                             type="button"
@@ -960,6 +995,49 @@ export function SelectionPanel(props: SelectionPanelProps) {
                             <span>+5</span>
                           </button>
                         </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            disabled={
+                              !canAfford(myResources, UNIT_COSTS.cavalry) ||
+                              selectedBuilding.trainingQueue.length >= 5 ||
+                              myResources.pop + totalQueuedForPlayer >= myResources.maxPop
+                            }
+                            onClick={() => handleTrainUnit('cavalry', 1)}
+                            className={`flex-1 p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                              canAfford(myResources, UNIT_COSTS.cavalry) &&
+                              selectedBuilding.trainingQueue.length < 5 &&
+                              myResources.pop + totalQueuedForPlayer < myResources.maxPop
+                                ? 'bg-amber-700 hover:bg-amber-600 text-white font-bold border-amber-500 shadow-md shadow-amber-700/10 hover:scale-[1.01]'
+                                : 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed'
+                            }`}
+                          >
+                            <PawPrint className="w-4 h-4" />
+                            <span>Treinar Cavalaria (60 Alim + 80 Ouro) [G]</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={
+                              !canAfford(myResources, UNIT_COSTS.cavalry) ||
+                              selectedBuilding.trainingQueue.length >= 5 ||
+                              myResources.pop + totalQueuedForPlayer >= myResources.maxPop
+                            }
+                            onClick={() => handleTrainUnit('cavalry', 5)}
+                            className={`px-3 py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1 transition-all ${
+                              canAfford(myResources, UNIT_COSTS.cavalry) &&
+                              selectedBuilding.trainingQueue.length < 5 &&
+                              myResources.pop + totalQueuedForPlayer < myResources.maxPop
+                                ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700'
+                                : 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed'
+                            }`}
+                            title="Enfileirar múltiplas unidades de cavalaria"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>+5</span>
+                          </button>
+                        </div>
+                        </>
                       )}
 
                       {/* Dock Naval Shipyard Construction */}
@@ -968,13 +1046,13 @@ export function SelectionPanel(props: SelectionPanelProps) {
                           <button
                             type="button"
                             disabled={
-                              myResources.wood < 75 ||
+                              !canAfford(myResources, UNIT_COSTS.fishing_boat) ||
                               selectedBuilding.trainingQueue.length >= 5 ||
                               myResources.pop + totalQueuedForPlayer >= myResources.maxPop
                             }
                             onClick={() => handleTrainUnit('fishing_boat', 1)}
                             className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all ${
-                              myResources.wood >= 75 &&
+                              canAfford(myResources, UNIT_COSTS.fishing_boat) &&
                               selectedBuilding.trainingQueue.length < 5 &&
                               myResources.pop + totalQueuedForPlayer < myResources.maxPop
                                 ? 'bg-blue-600 hover:bg-blue-500 text-white font-bold border-blue-400 shadow-md shadow-blue-500/10 hover:scale-[1.01]'
@@ -985,21 +1063,19 @@ export function SelectionPanel(props: SelectionPanelProps) {
                               <Compass className="w-4 h-4 text-cyan-300" />
                               <span>Barco de Pesca [P]</span>
                             </div>
-                            <span className="font-mono text-[11px] text-cyan-200">75 Madeira</span>
+                            <span className="font-mono text-[11px] text-cyan-200">{describeCost(UNIT_COSTS.fishing_boat)}</span>
                           </button>
 
                           <button
                             type="button"
                             disabled={
-                              myResources.wood < 100 ||
-                              (myResources.gold || 0) < 30 ||
+                              !canAfford(myResources, UNIT_COSTS.trade_boat) ||
                               selectedBuilding.trainingQueue.length >= 5 ||
                               myResources.pop + totalQueuedForPlayer >= myResources.maxPop
                             }
                             onClick={() => handleTrainUnit('trade_boat', 1)}
                             className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all ${
-                              myResources.wood >= 100 &&
-                              (myResources.gold || 0) >= 30 &&
+                              canAfford(myResources, UNIT_COSTS.trade_boat) &&
                               selectedBuilding.trainingQueue.length < 5 &&
                               myResources.pop + totalQueuedForPlayer < myResources.maxPop
                                 ? 'bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold border-amber-400 shadow-md shadow-amber-500/10 hover:scale-[1.01]'
@@ -1010,10 +1086,64 @@ export function SelectionPanel(props: SelectionPanelProps) {
                               <Sparkles className="w-4 h-4 text-yellow-200" />
                               <span>Barco Mercante [M]</span>
                             </div>
-                            <span className="font-mono text-[11px] text-yellow-200">100M + 30O</span>
+                            <span className="font-mono text-[11px] text-yellow-200">{describeCost(UNIT_COSTS.trade_boat)}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={
+                              !canAfford(myResources, UNIT_COSTS.warship) ||
+                              selectedBuilding.trainingQueue.length >= 5 ||
+                              myResources.pop + totalQueuedForPlayer >= myResources.maxPop
+                            }
+                            onClick={() => handleTrainUnit('warship', 1)}
+                            className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all ${
+                              canAfford(myResources, UNIT_COSTS.warship) &&
+                              selectedBuilding.trainingQueue.length < 5 &&
+                              myResources.pop + totalQueuedForPlayer < myResources.maxPop
+                                ? 'bg-rose-700 hover:bg-rose-600 text-white font-bold border-rose-400 shadow-md shadow-rose-500/10 hover:scale-[1.01]'
+                                : 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Anchor className="w-4 h-4 text-rose-200" />
+                              <span>Barco de Guerra [G]</span>
+                            </div>
+                            <span className="font-mono text-[11px] text-rose-200">{describeCost(UNIT_COSTS.warship)}</span>
                           </button>
                         </div>
                       )}
+
+                      {/* Building Maintenance: reparo e demolicao */}
+                      <div className="space-y-2">
+                        {selectedBuilding.health < selectedBuilding.maxHealth && (
+                          <button
+                            type="button"
+                            disabled={!nearestVillagerToSelectedBuilding}
+                            onClick={() => {
+                              if (nearestVillagerToSelectedBuilding) {
+                                handleRepairBuilding(nearestVillagerToSelectedBuilding.id, selectedBuilding.id);
+                              }
+                            }}
+                            className="w-full p-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-900 disabled:text-slate-600 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-2 transition-all"
+                          >
+                            <Wrench className="w-4 h-4" />
+                            <span>
+                              Reparar ({REPAIR_HP_PER_TICK * 20} HP/s · {REPAIR_WOOD_PER_HP * 100} M por 100 HP)
+                            </span>
+                          </button>
+                        )}
+                        {selectedBuilding.type !== 'town_center' && (
+                          <button
+                            type="button"
+                            onClick={() => handleDemolishBuilding(selectedBuilding.id)}
+                            className="w-full p-2.5 rounded-xl bg-slate-800 hover:bg-red-900/70 border border-slate-700 hover:border-red-500/60 text-slate-300 hover:text-red-200 font-semibold text-xs flex items-center justify-center gap-2 transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span>Demolir (devolve 50%)</span>
+                          </button>
+                        )}
+                      </div>
 
                       {/* Grand Market Hub Actions */}
                       {selectedBuilding.type === 'market' && (
@@ -1088,6 +1218,8 @@ export function SelectionPanel(props: SelectionPanelProps) {
                           ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                           : selectedResource.type === 'gold_mine'
                           ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                          : selectedResource.type === 'stone'
+                          ? 'bg-slate-500/15 border-slate-400/30 text-slate-300'
                           : 'bg-rose-500/15 border-rose-500/30 text-rose-400'
                       }`}
                     >
@@ -1099,6 +1231,8 @@ export function SelectionPanel(props: SelectionPanelProps) {
                         )
                       ) : selectedResource.type === 'gold_mine' ? (
                         <Coins className="w-6 h-6" />
+                      ) : selectedResource.type === 'stone' ? (
+                        <Pickaxe className="w-6 h-6" />
                       ) : (
                         <Apple className="w-6 h-6" />
                       )}
@@ -1112,6 +1246,8 @@ export function SelectionPanel(props: SelectionPanelProps) {
                               : 'Floresta de Madeira (Desmatamento)'
                             : selectedResource.type === 'gold_mine'
                             ? 'Jazida de Minério de Ouro'
+                            : selectedResource.type === 'stone'
+                            ? 'Pedreira de Pedra Bruta'
                             : 'Arbusto de Frutas Silvestres'}
                         </h3>
                         {selectedResource.isRegrowing && (
@@ -1128,6 +1264,8 @@ export function SelectionPanel(props: SelectionPanelProps) {
                             ? 'Madeira para habitações, quartéis e torres'
                             : selectedResource.type === 'gold_mine'
                             ? 'Ouro nobre para infantaria e fortificações'
+                            : selectedResource.type === 'stone'
+                            ? 'Pedra bruta para pedreiras, torres e muralhas'
                             : 'Alimento rápido para recrutar novos colonos'}
                         </span>
                         <span>•</span>
@@ -1146,12 +1284,14 @@ export function SelectionPanel(props: SelectionPanelProps) {
                           ? 'text-emerald-400'
                           : selectedResource.type === 'gold_mine'
                           ? 'text-amber-400'
+                          : selectedResource.type === 'stone'
+                          ? 'text-slate-300'
                           : 'text-rose-400'
                       }`}
                     >
                       {selectedResource.isRegrowing
                         ? `${Math.round(selectedResource.regrowthProgress || 0)}%`
-                        : `${Math.round(selectedResource.remaining)}/${selectedResource.maxCapacity || (selectedResource.type === 'tree' ? 150 : selectedResource.type === 'gold_mine' ? 600 : 350)}`}
+                        : `${Math.round(selectedResource.remaining)}/${selectedResource.maxCapacity || (selectedResource.type === 'tree' ? 150 : selectedResource.type === 'gold_mine' ? 600 : selectedResource.type === 'stone' ? 700 : 350)}`}
                     </div>
                   </div>
                 </div>
@@ -1506,6 +1646,52 @@ export function SelectionPanel(props: SelectionPanelProps) {
                         <strong className="text-amber-300 font-semibold block">Exploração Mineral Contínua:</strong>
                         <span>
                           Ao esgotar esta jazida de ouro, os aldeões automaticamente procuram e migram para o próximo filão mineral mais próximo.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Specific Stone Quarry Controls */}
+                {selectedResource.type === 'stone' && (
+                  <div className="space-y-3 pt-3 border-t border-slate-800">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleAssignVillagersToResource(selectedResource.id, 1)}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <Users className="w-3.5 h-3.5 text-slate-300" />
+                        <span>+1 Pedreiro</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleAssignVillagersToResource(selectedResource.id, 3)}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <Users className="w-3.5 h-3.5 text-slate-300" />
+                        <span>+3 Pedreiros</span>
+                      </button>
+
+                      {selectedUnitsList.length > 0 && villagerCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleAssignSelectedSquadToResource(selectedResource.id)}
+                          className="p-2 rounded-xl bg-slate-400 hover:bg-slate-300 text-slate-950 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          <span>Pelotão ({villagerCount})</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-slate-700/20 border border-slate-600/40 text-xs text-slate-300/90 flex items-start gap-2">
+                      <Pickaxe className="w-4 h-4 text-slate-300 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="text-slate-200 font-semibold block">Extração Contínua de Pedra:</strong>
+                        <span>
+                          A Mineradora &amp; Pedreira dá +40% de rendimento. Ao esgotar esta pedreira, os aldeões migram para a próxima automaticamente.
                         </span>
                       </div>
                     </div>

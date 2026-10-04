@@ -1,57 +1,236 @@
 name: Sincronizar quadro com PRs
 
 on:
-  pull_request:
-    types: [opened, ready_for_review, closed]
+  pull_request_target:
+    types: [opened, ready_for_review, synchronize, reopened, closed]
+
+permissions:
+  issues: write
+  pull-requests: read
 
 jobs:
   update-board:
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
-      pull-requests: write
     steps:
-      - name: Marcar issues do PR como em revisão
-        if: github.event.action == 'opened' || github.event.action == 'ready_for_review'
+      - name: Verificar token do quadro
+        env:
+          ADD_TO_PROJECT_PAT: ${{ secrets.ADD_TO_PROJECT_PAT }}
+        run: |
+          if [ -z "$ADD_TO_PROJECT_PAT" ]; then
+            echo "::error::Configure o segredo ADD_TO_PROJECT_PAT para atualizar o Project V2."
+            exit 1
+          fi
+
+      # Usa pull_request_target sem checkout nem execução do código da PR.
+      # O corpo da PR é tratado apenas como texto para localizar referências.
+      - name: Mover issues relacionadas para In Review
+        if: (github.event.action == 'opened' || github.event.action == 'ready_for_review' || github.event.action == 'synchronize' || github.event.action == 'reopened') && !github.event.pull_request.draft
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          script: |
+            const body = context.payload.pull_request.body || "";
+            const numbers = new Set();
+            const relatedLine = /^\s*(?:[-*]\s*)?(?:refs?|relates-to|closes?|close|fix(?:es|ed)?|resolves?)\s*:?\s*(.*)$/i;
+            for (const line of body.split(/\r?\n/)) {
+              const match = line.match(relatedLine);
+              if (match) for (const ref of match[1].matchAll(/#(\d+)/g)) numbers.add(Number(ref[1]));
+            }
+            if (numbers.size === 0) {
+              core.info("Nenhuma referência de issue em linha Refs/Closes/Fixes/Resolves.");
+              return;
+            }
+
+            const projectData = await github.graphql(`
+              query {
+                user(login: "martinsmiguel") {
+                  projectV2(number: 3) {
+                    id
+                    fields(first: 50) {
+                      nodes {
+                        ... on ProjectV2SingleSelectField {
+                          id
+                          name
+                          options { id name }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `);
+            const board = projectData.user?.projectV2;
+            if (!board) throw new Error("Project V2 #3 não foi encontrado ou o token não tem acesso.");
+            const statusField = board.fields.nodes.find((field) => field.name === "Status");
+            const statusOption = statusField?.options.find((option) => option.name === "In Review");
+            if (!statusField || !statusOption) throw new Error("Campo/opção Status → In Review não foi encontrado.");
+
+            for (const number of numbers) {
+              const result = await github.graphql(`
+                query($owner: String!, $repo: String!, $number: Int!) {
+                  repository(owner: $owner, name: $repo) {
+                    issue(number: $number) {
+                      id
+                      projectItems(first: 100) { nodes { id project { id } } }
+                    }
+                  }
+                }
+              `, { owner: context.repo.owner, repo: context.repo.repo, number });
+              const issue = result.repository.issue;
+              if (!issue) {
+                core.warning(`#${number} não existe neste repositório; ignorada.`);
+                continue;
+              }
+              let card = issue.projectItems.nodes.find((item) => item.project.id === board.id);
+              if (!card) {
+                const added = await github.graphql(`
+                  mutation($project: ID!, $content: ID!) {
+                    addProjectV2ItemById(input: { projectId: $project, contentId: $content }) { item { id } }
+                  }
+                `, { project: board.id, content: issue.id });
+                card = added.addProjectV2ItemById.item;
+              }
+              await github.graphql(`
+                mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $project
+                    itemId: $item
+                    fieldId: $field
+                    value: { singleSelectOptionId: $option }
+                  }) { projectV2Item { id } }
+                }
+              `, { project: board.id, item: card.id, field: statusField.id, option: statusOption.id });
+              core.info(`Issue #${number} movida para In Review.`);
+            }
+
+      - name: Registrar a entrada em revisão
+        if: (github.event.action == 'opened' || github.event.action == 'ready_for_review') && !github.event.pull_request.draft
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const body = context.payload.pull_request.body || '';
-            const numbers = [...new Set((body.match(/#(\d+)/g) || []).map(m => parseInt(m.slice(1), 10)))];
-            for (const n of numbers) {
+            const body = context.payload.pull_request.body || "";
+            const numbers = new Set();
+            const relatedLine = /^\s*(?:[-*]\s*)?(?:refs?|relates-to|closes?|close|fix(?:es|ed)?|resolves?)\s*:?\s*(.*)$/i;
+            for (const line of body.split(/\r?\n/)) {
+              const match = line.match(relatedLine);
+              if (match) for (const ref of match[1].matchAll(/#(\d+)/g)) numbers.add(Number(ref[1]));
+            }
+            for (const number of numbers) {
               try {
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  issue_number: n,
-                  body: `PR #${context.payload.pull_request.number} aberto — card em revisão.`
+                  issue_number: number,
+                  body: `PR #${context.payload.pull_request.number} aberta para revisão; card movido para In Review.`
                 });
-                console.log(`Issue #${n} comentada`);
-              } catch (e) { console.log(`#${n} ignorada: ${e.message}`); }
+              } catch (error) {
+                core.warning(`#${number}: ${error.message}`);
+              }
             }
 
-      - name: Fechar issues quando PR mergeado
+      - name: Mover somente issues que esta PR fecha para Done
+        if: github.event.action == 'closed' && github.event.pull_request.merged
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          script: |
+            const body = context.payload.pull_request.body || "";
+            const numbers = new Set();
+            const closingLine = /^\s*(?:[-*]\s*)?(?:closes?|close|fix(?:es|ed)?|resolves?)\s*:?\s*(.*)$/i;
+            for (const line of body.split(/\r?\n/)) {
+              const match = line.match(closingLine);
+              if (match) for (const ref of match[1].matchAll(/#(\d+)/g)) numbers.add(Number(ref[1]));
+            }
+            if (numbers.size === 0) {
+              core.info("Nenhuma issue declarada com Closes/Fixes/Resolves; nenhuma foi movida para Done.");
+              return;
+            }
+
+            const projectData = await github.graphql(`
+              query {
+                user(login: "martinsmiguel") {
+                  projectV2(number: 3) {
+                    id
+                    fields(first: 50) {
+                      nodes {
+                        ... on ProjectV2SingleSelectField {
+                          id
+                          name
+                          options { id name }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `);
+            const board = projectData.user?.projectV2;
+            if (!board) throw new Error("Project V2 #3 não foi encontrado ou o token não tem acesso.");
+            const statusField = board.fields.nodes.find((field) => field.name === "Status");
+            const statusOption = statusField?.options.find((option) => option.name === "Done");
+            if (!statusField || !statusOption) throw new Error("Campo/opção Status → Done não foi encontrado.");
+
+            for (const number of numbers) {
+              const result = await github.graphql(`
+                query($owner: String!, $repo: String!, $number: Int!) {
+                  repository(owner: $owner, name: $repo) {
+                    issue(number: $number) {
+                      id
+                      projectItems(first: 100) { nodes { id project { id } } }
+                    }
+                  }
+                }
+              `, { owner: context.repo.owner, repo: context.repo.repo, number });
+              const issue = result.repository.issue;
+              if (!issue) {
+                core.warning(`#${number} não existe neste repositório; ignorada.`);
+                continue;
+              }
+              let card = issue.projectItems.nodes.find((item) => item.project.id === board.id);
+              if (!card) {
+                const added = await github.graphql(`
+                  mutation($project: ID!, $content: ID!) {
+                    addProjectV2ItemById(input: { projectId: $project, contentId: $content }) { item { id } }
+                  }
+                `, { project: board.id, content: issue.id });
+                card = added.addProjectV2ItemById.item;
+              }
+              await github.graphql(`
+                mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $project
+                    itemId: $item
+                    fieldId: $field
+                    value: { singleSelectOptionId: $option }
+                  }) { projectV2Item { id } }
+                }
+              `, { project: board.id, item: card.id, field: statusField.id, option: statusOption.id });
+              core.info(`Issue #${number} movida para Done.`);
+            }
+
+      - name: Registrar a conclusão
         if: github.event.action == 'closed' && github.event.pull_request.merged
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const body = context.payload.pull_request.body || '';
-            const numbers = [...new Set((body.match(/#(\d+)/g) || []).map(m => parseInt(m.slice(1), 10)))];
-            for (const n of numbers) {
+            const body = context.payload.pull_request.body || "";
+            const numbers = new Set();
+            const closingLine = /^\s*(?:[-*]\s*)?(?:closes?|close|fix(?:es|ed)?|resolves?)\s*:?\s*(.*)$/i;
+            for (const line of body.split(/\r?\n/)) {
+              const match = line.match(closingLine);
+              if (match) for (const ref of match[1].matchAll(/#(\d+)/g)) numbers.add(Number(ref[1]));
+            }
+            for (const number of numbers) {
               try {
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  issue_number: n,
-                  body: `PR #${context.payload.pull_request.number} mergeado — card concluído.`
+                  issue_number: number,
+                  body: `PR #${context.payload.pull_request.number} mergeada; card movido para Done.`
                 });
-                await github.rest.issues.update({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: n,
-                  state: 'closed'
-                });
-              } catch (e) { console.log(`#${n} ignorada: ${e.message}`); }
+              } catch (error) {
+                core.warning(`#${number}: ${error.message}`);
+              }
             }

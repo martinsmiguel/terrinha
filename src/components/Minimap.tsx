@@ -4,8 +4,10 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { GameEngine, GameState, Unit, Building, ResourceNode, MAP_SIZE } from '../game/engine';
-import { Eye, EyeOff, Home, Compass, MapPin, Maximize2, Minimize2, Lock, Unlock, ChevronDown, ChevronUp } from 'lucide-react';
+import { GameEngine, GameState, Unit, Building, MAP_SIZE } from '../game/engine';
+import { visionRadiusFor } from '../game/visibility';
+import { IslandProfile, coastRadiusAt, computeArchipelago } from '../game/archipelago';
+import { Eye, EyeOff, Home, Compass, Lock, Unlock, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface MinimapProps {
   engine: GameEngine | null;
@@ -60,18 +62,8 @@ export const Minimap: React.FC<MinimapProps> = ({
   // Canvas pixel size (compact on mobile screens)
   const SIZE = 210;
 
-  // Vision radius definitions (in world units)
-  const getVisionRadius = (entity: Unit | Building): number => {
-    if ('attackDamage' in entity) {
-      // Unit
-      return entity.type === 'soldier' ? 11 : 8;
-    } else {
-      // Building
-      if (entity.type === 'town_center') return 16;
-      if (entity.type === 'barracks') return 12;
-      return 9; // House
-    }
-  };
+  // Vision radius definitions (in world units) — fonte unica em game/visibility
+  const getVisionRadius = visionRadiusFor;
 
   // Convert canvas pixel (cx, cy) to world coords (wx, wz)
   const canvasToWorld = (cx: number, cy: number) => {
@@ -145,111 +137,76 @@ export const Minimap: React.FC<MinimapProps> = ({
     ctx.fillStyle = oceanGrad;
     ctx.fillRect(0, 0, SIZE, SIZE);
 
-    // Island shape with organic coastline
-    const cx = SIZE / 2;
-    const cy = SIZE / 2;
-    const baseR = SIZE * 0.40;
-
-    // Draw Beach Coastline perimeter
-    ctx.beginPath();
-    for (let angle = 0; angle <= Math.PI * 2; angle += 0.08) {
-      const a1 = Math.sin(angle * 3 + 0.4) * (SIZE * 0.042);
-      const a2 = Math.cos(angle * 5 + 1.2) * (SIZE * 0.025);
-      const a3 = Math.sin(angle * 7) * (SIZE * 0.013);
-      const r = baseR + a1 + a2 + a3;
-      const px = cx + Math.cos(angle) * r;
-      const py = cy + Math.sin(angle) * r;
-      if (angle === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    ctx.fillStyle = '#d4b483'; // Sandy beach coastline
-    ctx.fill();
-
-    // Draw Lush Green Island Interior
-    ctx.beginPath();
-    for (let angle = 0; angle <= Math.PI * 2; angle += 0.08) {
-      const a1 = Math.sin(angle * 3 + 0.4) * (SIZE * 0.042);
-      const a2 = Math.cos(angle * 5 + 1.2) * (SIZE * 0.025);
-      const a3 = Math.sin(angle * 7) * (SIZE * 0.013);
-      const r = Math.max(0, baseR - 4 + a1 + a2 + a3);
-      const px = cx + Math.cos(angle) * r;
-      const py = cy + Math.sin(angle) * r;
-      if (angle === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    const islandGrad = ctx.createLinearGradient(0, 0, SIZE, SIZE);
-    islandGrad.addColorStop(0, '#2e5a1c');
-    islandGrad.addColorStop(0.5, '#3b6f25');
-    islandGrad.addColorStop(1, '#4a7c2c');
-    ctx.fillStyle = islandGrad;
-    ctx.fill();
-
-    // Skyrim-style Impassable Mountain Crags on Minimap
-    const mountainCrags = [
-      { x: 31, z: 12, rx: 8.5, rz: 4.5 }, // Northern Massif
-      { x: 29, z: 49, rx: 8.0, rz: 4.0 }, // Southern Spine
-      { x: 49, z: 22, rx: 5.5, rz: 5.5 }, // Eastern Crag
-    ];
-
-    mountainCrags.forEach((crag) => {
-      const pt = worldToCanvas(crag.x, crag.z);
-      const radX = (crag.rx / MAP_SIZE) * SIZE;
-      const radZ = (crag.rz / MAP_SIZE) * SIZE;
-
-      // Dark mountain base
-      ctx.fillStyle = '#334155';
-      ctx.beginPath();
-      ctx.ellipse(pt.x, pt.y, radX, radZ, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Rocky crest
-      ctx.fillStyle = '#64748b';
-      ctx.beginPath();
-      ctx.ellipse(pt.x, pt.y - 1, radX * 0.7, radZ * 0.6, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Snowy peak ridge
-      ctx.fillStyle = '#e2e8f0';
-      ctx.beginPath();
-      ctx.ellipse(pt.x, pt.y - 2, radX * 0.35, radZ * 0.3, 0, 0, Math.PI * 2);
-      ctx.fill();
-    });
-
-    // Meandering Procedural River on Minimap
-    const riverCurve = (wz: number): number => {
-      const t = wz / MAP_SIZE;
-      return (
-        MAP_SIZE * 0.50 +
-        Math.sin(t * Math.PI * 2.1 + 0.3) * 6.5 +
-        Math.cos(t * Math.PI * 4.0) * 2.2
-      );
+    // Arquipelago (layout puro compartilhado com o gerador: semente do host)
+    const layout = computeArchipelago(MAP_SIZE, gameState.mapSeed ?? 0);
+    const scale = SIZE / MAP_SIZE;
+    const PROFILE_FILL: Record<IslandProfile, string> = {
+      floresta: '#3b6f25',
+      arida: '#b0a06a',
+      glacial: '#a8c4d4',
+      montanhosa: '#5f6d4a',
+      ruintas: '#7a6a8a',
     };
 
-    // Draw River Sandbanks
-    ctx.strokeStyle = '#d4b483';
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    for (let wz = 8; wz <= MAP_SIZE - 8; wz += 2) {
-      const rx = riverCurve(wz);
-      const pt = worldToCanvas(rx, wz);
-      if (wz === 8) ctx.moveTo(pt.x, pt.y);
-      else ctx.lineTo(pt.x, pt.y);
-    }
-    ctx.stroke();
+    layout.islands.forEach((island) => {
+      const cc = worldToCanvas(island.center.x, island.center.z);
+      const traceIsland = (rInset: number) => {
+        ctx.beginPath();
+        for (let angle = 0; angle <= Math.PI * 2; angle += 0.08) {
+          const r = Math.max(0, coastRadiusAt(island, angle) - rInset) * scale;
+          const px = cc.x + Math.cos(angle) * r;
+          const py = cc.y + Math.sin(angle) * r;
+          if (angle === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+      };
 
-    // Draw River Water
-    ctx.strokeStyle = '#0284c7';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    for (let wz = 8; wz <= MAP_SIZE - 8; wz += 2) {
-      const rx = riverCurve(wz);
-      const pt = worldToCanvas(rx, wz);
-      if (wz === 8) ctx.moveTo(pt.x, pt.y);
-      else ctx.lineTo(pt.x, pt.y);
-    }
-    ctx.stroke();
+      // Praia / linha de costa
+      traceIsland(0);
+      ctx.fillStyle = '#d4b483';
+      ctx.fill();
+
+      // Interior no cor do perfil geografico (ilhas legivelmente distintas)
+      traceIsland(1.6);
+      ctx.fillStyle = PROFILE_FILL[island.profile];
+      ctx.fill();
+
+      // Cristas montanhosas
+      island.ridges.forEach((ridge) => {
+        const pt = worldToCanvas(ridge.x, ridge.z);
+        ctx.fillStyle = '#334155';
+        ctx.beginPath();
+        ctx.ellipse(pt.x, pt.y, ridge.radiusX * scale, ridge.radiusZ * scale, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#64748b';
+        ctx.beginPath();
+        ctx.ellipse(pt.x, pt.y - 1, ridge.radiusX * 0.7 * scale, ridge.radiusZ * 0.6 * scale, 0, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Lagos e lagoa de cratera
+      island.lakes.forEach((lake) => {
+        const pt = worldToCanvas(lake.x, lake.z);
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, lake.radius * scale, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Rio endorreico (nunca toca o oceano)
+      if (island.river) {
+        ctx.strokeStyle = '#0284c7';
+        ctx.lineWidth = Math.max(1.5, island.river.width * scale * 2);
+        ctx.beginPath();
+        island.river.points.forEach((p, i2) => {
+          const pt = worldToCanvas(p.x, p.z);
+          if (i2 === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
+        });
+        ctx.stroke();
+      }
+    });
 
     // Subtle grid pattern
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
@@ -286,6 +243,14 @@ export const Minimap: React.FC<MinimapProps> = ({
         ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#854d0e';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      } else if (res.type === 'stone') {
+        ctx.fillStyle = '#94a3b8'; // Granite Grey
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#475569';
         ctx.lineWidth = 0.5;
         ctx.stroke();
       } else if (res.type === 'fish_school') {

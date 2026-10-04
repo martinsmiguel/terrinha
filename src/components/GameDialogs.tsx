@@ -1,6 +1,7 @@
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import {
-  AlertCircle, Check, Compass, Eye, Hammer, Info, Layers, Lock, MessageSquare, Send, Shield, Target, TreePine,
+  AlertCircle, Check, Compass, Eye, GraduationCap, Hammer, Info, Layers, Lock, MessageSquare, Send, Shield,
+  Target, TreePine,
 } from 'lucide-react';
 import type { ChatMessage } from '../game/multiplayer';
 import { soundManager } from '../game/audio';
@@ -11,7 +12,7 @@ interface ActiveWorkZone {
   z: number;
   radius: number;
   unitIds: string[];
-  resourceType?: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school';
+  resourceType?: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school' | 'stone';
   clusterName?: string;
   unitCount: number;
   treesRemaining: number;
@@ -33,6 +34,7 @@ interface GameDialogsProps {
   currentChatInput: string;
   setCurrentChatInput: Dispatch<SetStateAction<string>>;
   onSendChat(event: FormEvent): void;
+  onOpenTutorial(): void;
   showControlsModal: boolean;
   setShowControlsModal: Dispatch<SetStateAction<boolean>>;
   isWorkZoneModalOpen: boolean;
@@ -53,6 +55,7 @@ interface GameDialogsProps {
 
 export function GameDialogs({
   isHudVisible, isChatOpen, setIsChatOpen, chatMessages, currentChatInput, setCurrentChatInput, onSendChat,
+  onOpenTutorial,
   showControlsModal, setShowControlsModal, isWorkZoneModalOpen, setIsWorkZoneModalOpen,
   gatherRadiusLimit, setGatherRadiusLimit, showWorkZones3D, setShowWorkZones3D,
   isStrictZoneLeash, setIsStrictZoneLeash, onApplyRadiusToAllWorkingVillagers, activeWorkZones,
@@ -172,6 +175,7 @@ export function GameDialogs({
                   <li>• <kbd className="font-mono text-slate-200">Z</kbd>: <strong className="text-emerald-300">Zonas de Trabalho Delimitadas</strong>: Configura o raio limite de extração (8m, 14m, 22m, etc.). Ao enviar aldeões para um recurso, eles fixam o local como centro e nunca saem desmatando o mapa inteiro descontroladamente!</li>
                   <li>• <kbd className="font-mono text-slate-200">V</kbd>: Recrutar Aldeão (Com Centro da Vila selecionado)</li>
                   <li>• <kbd className="font-mono text-slate-200">S</kbd>: Recrutar Mosqueteiro (Com Quartel selecionado)</li>
+                  <li>• <kbd className="font-mono text-slate-200">G</kbd>: Recrutar Cavalaria (Com Quartel selecionado)</li>
                   <li>• <strong className="text-slate-200">Fila de Produção de 5 Slots</strong>: Enfileire até 5 unidades; clique no ✕ de qualquer slot para cancelar e reembolsar 100% dos recursos!</li>
                   <li>• <strong className="text-slate-200">Manejo Sustentável vs Desmatamento</strong>: Selecione árvores para escolher entre remoção definitiva ou plantio automático de mudas com renovação contínua.</li>
                   <li>• <strong className="text-slate-200">Encadeamento Contínuo</strong>: Aldeões e mineradores buscam a próxima árvore ou mina próxima dentro da zona ao esgotar o alvo!</li>
@@ -192,13 +196,26 @@ export function GameDialogs({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowControlsModal(false)}
-              className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors shadow-lg shadow-amber-500/10"
-            >
-              Entendido, Continuar Batalha
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowControlsModal(false);
+                  onOpenTutorial();
+                  soundManager.playClickSound();
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-colors flex items-center justify-center gap-2"
+              >
+                <GraduationCap className="w-4 h-4 text-cyan-400" /> Abrir Tutorial
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowControlsModal(false)}
+                className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors shadow-lg shadow-amber-500/10"
+              >
+                Entendido, Continuar Batalha
+              </button>
+            </div>
           </div>
         </div>
       )}

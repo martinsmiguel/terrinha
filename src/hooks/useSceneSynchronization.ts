@@ -1,11 +1,14 @@
 import { useEffect } from 'react';
 import * as THREE from 'three';
 import type { GameEngine, GameState } from '../game/engine';
+import { isBoatUnit } from '../game/engine';
 import type { MultiplayerManager } from '../game/multiplayer';
 import type { ProceduralMapResult } from '../game/proceduralMap';
 import { create3DHealthBar, update3DHealthBar } from '../game/healthBar';
 import { createConstructionScaffold, type BuildingType } from '../game/buildingDefs';
 import { FACTION_COLORS } from '../game/factions';
+import { isVisibleAt } from '../game/visibility';
+import type { PlayerSlot } from '../game/networkCommands';
 
 type MutableValue<T> = { current: T };
 
@@ -20,11 +23,13 @@ interface SceneSynchronizationContext {
   selectedEntity: { id: string; kind: 'unit' | 'building' | 'resource' } | null;
   selectedUnitIds: string[];
   role: 'host' | 'client' | 'single';
+  playerSlot: PlayerSlot;
+  visionGridRef: MutableValue<Uint8Array>;
 }
 
 export function useSceneSynchronization({
   engineRef, multiRef, proceduralMapRef, resourceMeshes, unitMeshes, buildingMeshes,
-  gameState, selectedEntity, selectedUnitIds, role,
+  gameState, selectedEntity, selectedUnitIds, role, playerSlot, visionGridRef,
 }: SceneSynchronizationContext): void {
   const selectedResource = selectedEntity?.kind === 'resource'
     ? gameState.resourceNodes.find((node) => node.id === selectedEntity.id)
@@ -57,8 +62,9 @@ export function useSceneSynchronization({
         group.position.set(node.position.x, nodeY, node.position.z);
 
         // Accurate hit collider avoiding overlap between adjacent grove trees
-        const hitRadius = node.type === 'tree' ? 1.25 : node.type === 'gold_mine' ? 1.5 : 1.1;
-        const hitHeight = node.type === 'tree' ? 4.8 : node.type === 'gold_mine' ? 2.8 : 2.0;
+        const isMineral = node.type === 'gold_mine' || node.type === 'stone';
+        const hitRadius = node.type === 'tree' ? 1.25 : isMineral ? 1.5 : 1.1;
+        const hitHeight = node.type === 'tree' ? 4.8 : isMineral ? 2.8 : 2.0;
         const hitGeo = new THREE.CylinderGeometry(hitRadius, hitRadius, hitHeight, 10);
         const hitMat = new THREE.MeshBasicMaterial({
           transparent: true,
@@ -73,7 +79,14 @@ export function useSceneSynchronization({
         // 3D Selection Ring on ground
         const ringGeo = new THREE.RingGeometry(1.3, 1.5, 24);
         const ringMat = new THREE.MeshBasicMaterial({
-          color: node.type === 'tree' ? 0x22c55e : node.type === 'gold_mine' ? 0xfacc15 : 0xf43f5e,
+          color:
+            node.type === 'tree'
+              ? 0x22c55e
+              : node.type === 'gold_mine'
+              ? 0xfacc15
+              : node.type === 'stone'
+              ? 0x94a3b8
+              : 0xf43f5e,
           side: THREE.DoubleSide,
           transparent: true,
           opacity: 0,
@@ -151,6 +164,28 @@ export function useSceneSynchronization({
           const miniRock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.32, 0), rockMat);
           miniRock.position.set(-0.55, 0.2, -0.4);
           group.add(miniRock);
+        } else if (node.type === 'stone') {
+          // Grey granite quarry outcrop
+          const rockGeo = new THREE.DodecahedronGeometry(0.9, 1);
+          const rockMat = new THREE.MeshStandardMaterial({ color: 0x8f9aa8, metalness: 0.15, roughness: 0.85 });
+          const rock = new THREE.Mesh(rockGeo, rockMat);
+          rock.position.y = 0.55;
+          rock.castShadow = true;
+          group.add(rock);
+
+          const smallRock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), rockMat);
+          smallRock.position.set(0.6, 0.28, 0.5);
+          smallRock.rotation.set(0.4, 0.8, 0.2);
+          group.add(smallRock);
+
+          const miniRock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.34, 0), rockMat);
+          miniRock.position.set(-0.6, 0.22, -0.35);
+          group.add(miniRock);
+
+          const pebbleMat = new THREE.MeshStandardMaterial({ color: 0xb6bec8, roughness: 0.95 });
+          const pebble = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18, 0), pebbleMat);
+          pebble.position.set(0.15, 0.1, -0.7);
+          group.add(pebble);
         } else if (node.type === 'fish_school') {
           // Fish School in river / water
           const fishGroup = new THREE.Group();
@@ -317,6 +352,54 @@ export function useSceneSynchronization({
           musket.position.set(0.28, 0.7, 0.1);
           musket.rotation.z = -0.3;
           group.add(musket);
+        } else if (unit.type === 'cavalry') {
+          // Cavalaria montada: cavalo + cavaleiro
+          const horseBody = new THREE.Mesh(
+            new THREE.BoxGeometry(0.45, 0.5, 1.3),
+            new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 0.85 })
+          );
+          horseBody.position.y = 0.75;
+          horseBody.castShadow = true;
+          group.add(horseBody);
+
+          const horseHead = new THREE.Mesh(
+            new THREE.BoxGeometry(0.3, 0.42, 0.5),
+            new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 0.85 })
+          );
+          horseHead.position.set(0, 1.0, -0.78);
+          group.add(horseHead);
+
+          const legGeometry = new THREE.CylinderGeometry(0.07, 0.07, 0.55, 6);
+          const legMaterial = new THREE.MeshStandardMaterial({ color: 0x4a2e18 });
+          const legSpots: [number, number][] = [[0.16, 0.45], [-0.16, 0.45], [0.16, -0.45], [-0.16, -0.45]];
+          const unitGroup = group;
+          legSpots.forEach(([legX, legZ]) => {
+            const leg = new THREE.Mesh(legGeometry, legMaterial);
+            leg.position.set(legX, 0.27, legZ);
+            unitGroup.add(leg);
+          });
+
+          const rider = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.2, 0.25, 0.7, 8),
+            new THREE.MeshStandardMaterial({ color: ownerColor })
+          );
+          rider.position.y = 1.35;
+          rider.castShadow = true;
+          group.add(rider);
+
+          const riderHead = new THREE.Mesh(
+            new THREE.SphereGeometry(0.17, 8, 8),
+            new THREE.MeshStandardMaterial({ color: 0xffdbac })
+          );
+          riderHead.position.y = 1.85;
+          group.add(riderHead);
+
+          const helmet = new THREE.Mesh(
+            new THREE.ConeGeometry(0.16, 0.3, 6),
+            new THREE.MeshStandardMaterial({ color: 0x1f2937 })
+          );
+          helmet.position.y = 2.08;
+          group.add(helmet);
         } else if (unit.type === 'fishing_boat') {
           // Barco de Pesca (Wooden skiff with triangular sail)
           const hull = new THREE.Mesh(
@@ -371,6 +454,46 @@ export function useSceneSynchronization({
           );
           crate.position.set(0, 0.45, -0.4);
           group.add(crate);
+        } else if (unit.type === 'warship') {
+          // Barco de Guerra (casco blindado com canhoes e vela negra)
+          const hull = new THREE.Mesh(
+            new THREE.BoxGeometry(1.1, 0.55, 2.5),
+            new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.55, metalness: 0.25 })
+          );
+          hull.position.y = 0.2;
+          hull.castShadow = true;
+          group.add(hull);
+
+          const mast = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.06, 0.06, 2.1, 6),
+            new THREE.MeshStandardMaterial({ color: 0x57534e })
+          );
+          mast.position.set(0, 1.15, 0.15);
+          group.add(mast);
+
+          const sail = new THREE.Mesh(
+            new THREE.BoxGeometry(1.15, 0.95, 0.06),
+            new THREE.MeshStandardMaterial({ color: ownerColor, roughness: 0.6 })
+          );
+          sail.position.set(0, 1.4, 0.3);
+          group.add(sail);
+
+          const crown = new THREE.Mesh(
+            new THREE.ConeGeometry(0.22, 0.3, 6),
+            new THREE.MeshStandardMaterial({ color: 0x0f172a })
+          );
+          crown.position.set(0, 2.3, 0.15);
+          group.add(crown);
+
+          for (const side of [-1, 1]) {
+            const cannon = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.11, 0.13, 0.75, 8),
+              new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7, roughness: 0.35 })
+            );
+            cannon.rotation.z = Math.PI / 2;
+            cannon.position.set(side * 0.62, 0.42, -0.35);
+            group.add(cannon);
+          }
         } else {
           // Villager
           const body = new THREE.Mesh(
@@ -398,12 +521,12 @@ export function useSceneSynchronization({
         }
 
         // Floating 3D Health Bar (only visible when selected or damaged)
-        const isBoat = unit.type === 'fishing_boat' || unit.type === 'trade_boat';
+        const isBoat = isBoatUnit(unit.type);
         const healthBar = create3DHealthBar({
-          width: isBoat ? 1.2 : unit.type === 'soldier' ? 1.0 : 0.9,
-          height: unit.type === 'soldier' ? 0.13 : 0.12,
+          width: isBoat ? 1.2 : unit.type === 'cavalry' ? 1.2 : unit.type === 'soldier' ? 1.0 : 0.9,
+          height: unit.type === 'soldier' || unit.type === 'cavalry' ? 0.13 : 0.12,
           ownerColor,
-          yOffset: isBoat ? 1.9 : unit.type === 'soldier' ? 1.75 : 1.55,
+          yOffset: isBoat ? 1.9 : unit.type === 'cavalry' ? 2.4 : unit.type === 'soldier' ? 1.75 : 1.55,
         });
         group.add(healthBar);
 
@@ -412,7 +535,7 @@ export function useSceneSynchronization({
       }
 
       // Update position according to terrain elevation
-      const isBoat = unit.type === 'fishing_boat' || unit.type === 'trade_boat';
+      const isBoat = isBoatUnit(unit.type);
       const unitY = isBoat
         ? 0.02
         : proceduralMapRef.current
@@ -431,6 +554,11 @@ export function useSceneSynchronization({
       if (healthBar) {
         update3DHealthBar(healthBar, unit.health, unit.maxHealth, isSelected);
       }
+
+      // Nevoa: inimigos fora da visao atual nao aparecem na cena
+      group.visible =
+        unit.owner === playerSlot ||
+        isVisibleAt(visionGridRef.current, Math.floor(unit.position.x), Math.floor(unit.position.z));
     });
 
     // 3. Sync Buildings
@@ -864,12 +992,17 @@ export function useSceneSynchronization({
       // Maintain exact terrain elevation so buildings never sink or hover
       const bGroundY = proceduralMapRef.current ? proceduralMapRef.current.getHeightAt(b.position.x, b.position.z) : 0;
       group.position.y = bGroundY;
+
+      // Nevoa: edificios inimigos fora da visao atual nao aparecem na cena
+      group.visible =
+        b.owner === playerSlot ||
+        isVisibleAt(visionGridRef.current, Math.floor(b.position.x), Math.floor(b.position.z));
     });
 
     // Host broadcasts simulation state to connected clients in LAN
     if (role === 'host' && multiRef.current) {
       multiRef.current.broadcast(gameState);
     }
-  }, [gameState, selectedEntity, selectedResource, selectedUnitIds, role]);
+  }, [gameState, selectedEntity, selectedResource, selectedUnitIds, role, playerSlot, visionGridRef]);
 
 }
