@@ -4,7 +4,7 @@ import {
   Maximize2, PawPrint, Pickaxe, Plus, Shield, Sparkles, Sprout, Sword, Target, TreePine, Trash2,
   Users, Wrench, X,
 } from 'lucide-react';
-import type { Building, GameState, PlayerResources, ResourceNode, Unit, UnitType } from '../game/engine';
+import { isBoatUnit, type Building, type GameState, type PlayerResources, type ResourceNode, type Unit, type UnitType } from '../game/engine';
 import type { BuildingType } from '../game/buildingDefs';
 import { BUILDING_CATALOG } from '../game/buildingDefs';
 import type { PlayerSlot } from '../game/networkCommands';
@@ -12,6 +12,7 @@ import type { MultiplayerManager } from '../game/multiplayer';
 import { soundManager } from '../game/audio';
 import { canAfford, describeCost, UNIT_COSTS } from '../game/economy';
 import { REPAIR_HP_PER_TICK, REPAIR_WOOD_PER_HP } from '../game/simulation';
+import { boatCapacity } from '../game/navalTransport';
 
 interface ActiveWorkZone {
   id: string; x: number; z: number; radius: number; unitIds: string[];
@@ -79,6 +80,7 @@ interface SelectionPanelProps {
   nearestVillagerToSelectedBuilding: Unit | null;
   handleRepairBuilding(unitId: string, buildingId: string): void;
   handleDemolishBuilding(buildingId: string): void;
+  handleDisembark(boatId: string): void;
   triggerNotification(message: string, type?: 'info' | 'success' | 'warning'): void;
   multiRef: { current: MultiplayerManager | null };
   onPointerEnterUI(): void;
@@ -99,7 +101,7 @@ export function SelectionPanel(props: SelectionPanelProps) {
     handleSetGroveHarvestMode, handleToggleResourceHarvestMode, handleClearForestCluster,
     handleAssignVillagersToResource, handleAssignSelectedSquadToResource, handleRemoveResourceImmediately,
     renderVillagerBuildCatalog, nearestVillagerToSelectedBuilding, handleRepairBuilding,
-    handleDemolishBuilding, triggerNotification, multiRef, onPointerEnterUI, onPointerLeaveUI,
+    handleDemolishBuilding, handleDisembark, triggerNotification, multiRef, onPointerEnterUI, onPointerLeaveUI,
   } = props;
   return (
     <>
@@ -398,11 +400,27 @@ export function SelectionPanel(props: SelectionPanelProps) {
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-400">
-                      {selectedUnit.type === 'soldier' ? <Sword className="w-6 h-6" /> : <Users className="w-6 h-6" />}
+                      {selectedUnit.type === 'soldier' ? (
+                        <Sword className="w-6 h-6" />
+                      ) : isBoatUnit(selectedUnit.type) ? (
+                        <Anchor className="w-6 h-6" />
+                      ) : (
+                        <Users className="w-6 h-6" />
+                      )}
                     </div>
                     <div>
                       <h3 className="font-bold text-base text-white capitalize">
-                        {selectedUnit.type === 'soldier' ? 'Soldado Mosqueteiro' : selectedUnit.type === 'cavalry' ? 'Cavalaria Montada' : 'Aldeão Construtor'}
+                        {selectedUnit.type === 'soldier'
+                          ? 'Soldado Mosqueteiro'
+                          : selectedUnit.type === 'cavalry'
+                          ? 'Cavalaria Montada'
+                          : selectedUnit.type === 'fishing_boat'
+                          ? 'Barco de Pesca'
+                          : selectedUnit.type === 'trade_boat'
+                          ? 'Barco Mercante'
+                          : selectedUnit.type === 'warship'
+                          ? 'Barco de Guerra'
+                          : 'Aldeão Construtor'}
                       </h3>
                       <div className="text-xs text-slate-400 flex items-center gap-2">
                         <span>Status: <span className="text-amber-400 font-medium capitalize">{selectedUnit.state}</span></span>
@@ -424,6 +442,33 @@ export function SelectionPanel(props: SelectionPanelProps) {
                     style={{ width: `${(selectedUnit.health / selectedUnit.maxHealth) * 100}%` }}
                   />
                 </div>
+
+                {isBoatUnit(selectedUnit.type) && (
+                  <div className="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between gap-2 text-xs">
+                    <span className="text-slate-400">
+                      Passageiros:{' '}
+                      <span className="text-amber-300 font-bold">
+                        {selectedUnit.passengers?.length ?? 0}/{boatCapacity(selectedUnit.type)}
+                      </span>
+                    </span>
+                    {(selectedUnit.passengers?.length ?? 0) > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleDisembark(selectedUnit.id);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+                        title="Colocar os passageiros em terra firme proxima"
+                      >
+                        <Anchor className="w-3.5 h-3.5" /> Desembarcar
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-slate-500">
+                        {boatCapacity(selectedUnit.type) === 0 ? 'Não transporta' : 'Selecione unidades e clique com o botão direito no barco'}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Tactical Formation Selector */}
                 <div className="mt-3 pt-2.5 border-t border-slate-800 space-y-1.5">

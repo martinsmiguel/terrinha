@@ -1,5 +1,5 @@
 import type { Building, BuildingType, GameState, PlayerResources, ResourceNode, Unit, UnitType } from './engine';
-import { isBoatUnit } from './engine';
+import { BOAT_CAPACITY, isBoatUnit } from './engine';
 import { BUILDING_CATALOG } from './buildingDefs';
 import { researchBlock } from './tech';
 
@@ -76,6 +76,8 @@ export type NetworkCommand = CommandMetadata & (
   | { type: 'set_grove_mode'; clusterId?: string; treeIds?: string[]; mode: 'clear_cut' | 'sustainable' }
   | { type: 'set_colony_forestry'; enabled: boolean }
   | { type: 'remove_resource'; resourceId: string }
+  | { type: 'embark'; unitIds: string[]; boatId: string }
+  | { type: 'disembark'; boatId: string }
 );
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -197,6 +199,10 @@ export function isValidNetworkCommand(value: unknown): value is NetworkCommand {
       return allowedKeys('enabled') && typeof value.enabled === 'boolean';
     case 'remove_resource':
       return allowedKeys('resourceId') && isId(value.resourceId);
+    case 'embark':
+      return allowedKeys('unitIds', 'boatId') && isStringList(value.unitIds) && isId(value.boatId);
+    case 'disembark':
+      return allowedKeys('boatId') && isId(value.boatId);
     default:
       return false;
   }
@@ -311,6 +317,19 @@ export function isAuthorizedPlayerCommand(
       return true;
     case 'remove_resource':
       return state.resourceNodes.some((resource: ResourceNode) => resource.id === value.resourceId);
+    case 'embark': {
+      const boat = ownsUnit(state, value.boatId, owner);
+      if (!boat || !isBoatUnit(boat.type)) return false;
+      if (BOAT_CAPACITY[boat.type] <= 0) return false;
+      return value.unitIds.every((unitId) => {
+        const unit = ownsUnit(state, unitId, owner);
+        return Boolean(unit) && !isBoatUnit((unit as Unit).type);
+      });
+    }
+    case 'disembark': {
+      const boat = ownsUnit(state, value.boatId, owner);
+      return Boolean(boat && isBoatUnit(boat.type) && (boat.passengers?.length ?? 0) > 0);
+    }
     default:
       return false;
   }

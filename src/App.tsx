@@ -57,6 +57,7 @@ import {
   startResearch,
 } from './game/tech';
 import { FACTION_COLORS } from './game/factions';
+import { applyEmbarkOrder, boatCapacity, disembarkPassengers } from './game/navalTransport';
 import { tickGameState } from './game/simulation';
 import { useSceneSynchronization } from './hooks/useSceneSynchronization';
 import { LobbyScreen } from './components/LobbyScreen';
@@ -988,10 +989,55 @@ export default function App() {
     }
 
     if (cmd.type === 'move') {
+      let target = cmd.target;
+      const moving = gameStateRef.current.units.find((u) => u.id === cmd.unitId);
+      if (
+        moving && isBoatUnit(moving.type) && proceduralMapRef.current &&
+        !proceduralMapRef.current.isOceanAt(target.x, target.z)
+      ) {
+        const oceanCell = findNearestOceanCell(proceduralMapRef.current, target.x, target.z);
+        if (oceanCell) target = oceanCell;
+      }
+      const finalTarget = target;
       setGameState((prev) => ({
         ...prev,
-        units: prev.units.map((u) => (u.id === cmd.unitId ? { ...u, targetPosition: cmd.target, targetEntityId: null, state: 'moving' } : u)),
+        units: prev.units.map((u) => (u.id === cmd.unitId ? { ...u, targetPosition: finalTarget, targetEntityId: null, state: 'moving' } : u)),
       }));
+    } else if (cmd.type === 'embark') {
+      const result = applyEmbarkOrder(gameStateRef.current, cmd.unitIds, cmd.boatId);
+      setGameState(result.state);
+      const boat = result.state.units.find((u) => u.id === cmd.boatId);
+      const onBoard = boat?.passengers?.length ?? 0;
+      const capacity = boat ? boatCapacity(boat.type) : 0;
+      if (result.boarded.length > 0) {
+        triggerNotification(
+          `${result.boarded.length} unidade(s) embarcada(s) (${onBoard}/${capacity}).` +
+            (result.pending.length > 0 ? ` ${result.pending.length} a caminho do barco.` : ''),
+          'success'
+        );
+      } else if (result.pending.length > 0) {
+        triggerNotification(`${result.pending.length} unidade(s) a caminho do barco (${onBoard}/${capacity}).`, 'info');
+      } else if (capacity === 0) {
+        triggerNotification('Este barco não transporta passageiros!', 'warning');
+      } else {
+        triggerNotification('Capacidade do barco cheia!', 'warning');
+      }
+      soundManager.playClickSound();
+    } else if (cmd.type === 'disembark') {
+      const map = proceduralMapRef.current;
+      if (!map) return;
+      const result = disembarkPassengers(gameStateRef.current, cmd.boatId, map);
+      setGameState(result.state);
+      if (result.placed.length > 0) {
+        triggerNotification(
+          `${result.placed.length} unidade(s) desembarcada(s) na ilha.` +
+            (result.remaining > 0 ? ` ${result.remaining} continuam a bordo.` : ''),
+          'success'
+        );
+      } else {
+        triggerNotification('Não há terreno válido perto do barco para desembarcar!', 'warning');
+      }
+      soundManager.playClickSound();
     } else if (cmd.type === 'gather') {
       const targetNode = gameStateRef.current.resourceNodes.find((n) => n.id === cmd.targetId);
       const origin = cmd.origin || (targetNode ? { x: targetNode.position.x, z: targetNode.position.z } : undefined);
@@ -1945,6 +1991,18 @@ export default function App() {
       const hits = raycaster.intersectObjects(group.children, true);
       if (hits.length > 0) {
         const target = gameState.units.find((u) => u.id === id);
+        if (target && target.owner === playerSlot && isBoatUnit(target.type)) {
+          const landUnits = myUnits.filter((u) => !isBoatUnit(u.type));
+          if (landUnits.length > 0) {
+            const embarkCmd = { type: 'embark', unitIds: landUnits.map((u) => u.id), boatId: id };
+            if (role === 'host' || role === 'single') handleIncomingCommand(embarkCmd);
+            else multiRef.current?.sendToHost(embarkCmd);
+            engineRef.current.spawnClickMarker(target.position.x, target.position.z, 'move');
+            soundManager.playClickSound();
+            triggerNotification(`${landUnits.length} unidade(s) recebendo ordem de embarque.`, 'info');
+            return;
+          }
+        }
         if (target && target.owner !== playerSlot) {
           let navalSkipped = false;
           myUnits.forEach((u) => {
@@ -3112,6 +3170,11 @@ export default function App() {
           nearestVillagerToSelectedBuilding={nearestVillagerToSelectedBuilding}
           handleRepairBuilding={handleRepairBuilding}
           handleDemolishBuilding={handleDemolishBuilding}
+          handleDisembark={(boatId) => {
+            const cmd = { type: 'disembark', boatId };
+            if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+            else multiRef.current?.sendToHost(cmd);
+          }}
           triggerNotification={triggerNotification}
           multiRef={multiRef}
           onPointerEnterUI={() => engineRef.current?.setIsPointerOverUI(true)}
