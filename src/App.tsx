@@ -57,6 +57,7 @@ import {
   startResearch,
 } from './game/tech';
 import { FACTION_COLORS } from './game/factions';
+import { pickFrontMostCandidate, resolveClickSelection } from './game/entitySelection';
 import { applyEmbarkOrder, boatCapacity, disembarkPassengers } from './game/navalTransport';
 import { tickGameState } from './game/simulation';
 import { useSceneSynchronization } from './hooks/useSceneSynchronization';
@@ -1046,6 +1047,14 @@ export default function App() {
         triggerNotification('Não há terreno válido perto do barco para desembarcar!', 'warning');
       }
       soundManager.playClickSound();
+    } else if (cmd.type === 'trade') {
+      setGameState((prev) => {
+        const resources = prev.playerResources[commandOwner];
+        if (!resources) return prev;
+        const applied = tradeResource(resources, cmd.resource, cmd.action, cmd.amount);
+        if (!applied.ok || !applied.next) return prev;
+        return { ...prev, playerResources: { ...prev.playerResources, [commandOwner]: applied.next } };
+      });
     } else if (cmd.type === 'gather') {
       const targetNode = gameStateRef.current.resourceNodes.find((n) => n.id === cmd.targetId);
       const origin = cmd.origin || (targetNode ? { x: targetNode.position.x, z: targetNode.position.z } : undefined);
@@ -1678,39 +1687,28 @@ export default function App() {
       }
     }
 
-    // If direct 3D hits found, select the entity with the shortest distance to camera (front-most object)!
-    if (candidates.length > 0) {
-      candidates.sort((a, b) => a.distance - b.distance);
-      const best = candidates[0];
-
+    const best = pickFrontMostCandidate(candidates);
+    if (best) {
       if (best.kind === 'unit') {
         const clickedUnit = gameStateRef.current.units.find((u) => u.id === best.id);
-        if (shiftKey) {
-          setSelectedUnitIds((prev) => {
-            const next = prev.includes(best.id) ? prev.filter((uid) => uid !== best.id) : [...prev, best.id];
-            setSelectedEntity(next.length > 0 ? { id: next[0], kind: 'unit' } : null);
-            if (next.length > 0) {
-              soundManager.playUnitResponseSound(next.length > 1 ? 'group' : clickedUnit?.type || 'soldier', next.length);
-            }
-            return next;
-          });
-        } else {
-          setSelectedUnitIds([best.id]);
-          setSelectedEntity({ id: best.id, kind: 'unit' });
-          soundManager.playUnitResponseSound(clickedUnit?.type || 'soldier', 1);
-        }
-        return;
-      } else if (best.kind === 'building') {
-        setSelectedUnitIds([]);
-        setSelectedEntity({ id: best.id, kind: 'building' });
-        soundManager.playClickSound();
-        return;
+        setSelectedUnitIds((prev) => {
+          const next = resolveClickSelection({ unitIds: prev, entity: null }, best, shiftKey);
+          setSelectedEntity(next.entity);
+          if (next.unitIds.length > 0) {
+            soundManager.playUnitResponseSound(
+              next.unitIds.length > 1 ? 'group' : clickedUnit?.type || 'soldier',
+              next.unitIds.length
+            );
+          }
+          return next.unitIds;
+        });
       } else {
-        setSelectedUnitIds([]);
-        setSelectedEntity({ id: best.id, kind: 'resource' });
+        const next = resolveClickSelection({ unitIds: [], entity: null }, best, false);
+        setSelectedUnitIds(next.unitIds);
+        setSelectedEntity(next.entity);
         soundManager.playClickSound();
-        return;
       }
+      return;
     }
 
     // 4. Ground proximity fallback for resources and structures (if clicked slightly beside a tree in a grove)
@@ -2482,17 +2480,23 @@ export default function App() {
       return;
     }
 
-    setGameState((prev) => {
-      const applied = tradeResource(prev.playerResources[playerSlot], type, action, amount);
-      if (!applied.ok || !applied.next) return prev;
-      return {
-        ...prev,
-        playerResources: {
-          ...prev.playerResources,
-          [playerSlot]: applied.next,
-        },
-      };
-    });
+    const cmd = { type: 'trade', resource: type, action, amount };
+    if (role === 'host' || role === 'single') {
+      handleIncomingCommand(cmd);
+    } else {
+      multiRef.current?.sendToHost(cmd);
+      setGameState((prev) => {
+        const applied = tradeResource(prev.playerResources[playerSlot], type, action, amount);
+        if (!applied.ok || !applied.next) return prev;
+        return {
+          ...prev,
+          playerResources: {
+            ...prev.playerResources,
+            [playerSlot]: applied.next,
+          },
+        };
+      });
+    }
     soundManager.playClickSound();
 
     const nextRes = outcome.next;

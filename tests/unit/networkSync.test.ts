@@ -65,3 +65,39 @@ describe('game state network compression', () => {
     expect(compressed.byteLength).toBeLessThan(serialized.byteLength * 0.5);
   });
 });
+
+describe('game state serialization round-trip', () => {
+  it('preserves the world seed and embarked passengers through JSON', () => {
+    const gameState = {
+      mapSeed: 4242,
+      units: [
+        {
+          id: 'boat-1', type: 'trade_boat', owner: 'player1', position: { x: 30, z: 30 },
+          targetPosition: null, targetEntityId: null, health: 220, maxHealth: 220, attackDamage: 12, state: 'idle',
+          passengers: [
+            {
+              id: 'villager-9', type: 'villager', owner: 'player1', position: { x: 30, z: 30 },
+              targetPosition: null, targetEntityId: null, health: 50, maxHealth: 50, attackDamage: 2, state: 'idle',
+            },
+          ],
+        },
+        {
+          id: 'villager-7', type: 'villager', owner: 'player1', position: { x: 21, z: 20 },
+          targetPosition: { x: 30, z: 30 }, targetEntityId: null, health: 50, maxHealth: 50, attackDamage: 2,
+          state: 'moving', embarkTargetId: 'boat-1',
+        },
+      ],
+      buildings: [],
+      resourceNodes: [],
+      playerResources: {},
+    };
+
+    const restored = JSON.parse(JSON.stringify(gameState));
+
+    expect(restored.mapSeed).toBe(4242);
+    expect(restored.units[0].passengers).toHaveLength(1);
+    expect(restored.units[0].passengers[0].id).toBe('villager-9');
+    expect(restored.units[0].passengers[0].embarkTargetId).toBeUndefined();
+    expect(restored.units[1].embarkTargetId).toBe('boat-1');
+  });
+});

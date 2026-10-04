@@ -26,7 +26,8 @@ Decisões arquiteturais são registradas como **ADRs** em
 [0003](explanation/adr/0003-modulos-puros-testaveis.md) ·
 [0004](explanation/adr/0004-nevoa-por-cliente-no-shader.md) ·
 [0005](explanation/adr/0005-participantes-dinamicos-da-partida.md) ·
-[0006](explanation/adr/0006-fila-unica-de-pesquisa-validada-no-host.md)
+[0006](explanation/adr/0006-fila-unica-de-pesquisa-validada-no-host.md) ·
+[0007](explanation/adr/0007-geografia-por-semente-e-exploracao-local.md)
 
 A especificação completa do produto está em
 [`explanation/especificacao-v2.html`](explanation/especificacao-v2.html) (CC BY 4.0).

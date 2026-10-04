@@ -13,11 +13,17 @@ os clientes apenas renderizam e enviam comandos de volta.
 ```
 src/
 ├── main.tsx             → bootstrap React
-├── App.tsx              → "god component": lobby, HUD, input, tick de simulação (~7k linhas)
-├── components/          → UI React (Minimap, ResourceNavMenu, EmpireCatalogModal, TechPanel)
+├── App.tsx              → lobby, HUD, input e wiring (~3,3 mil linhas após o card #14)
+├── components/          → UI React (GameHeader, GameDialogs, SelectionPanel, Minimap, WorldMapModal…)
+├── hooks/               → useSceneSynchronization (cena Three vs GameState)
 └── game/                → regras de jogo em módulos puros (ver ADR-0003)
     ├── engine.ts        → cena Three.js, câmera, tipos do domínio (GameState…)
-    ├── proceduralMap.ts → mapa: Perlin próprio, ilha, rio, biomas, 4 spawns
+    ├── simulation.ts    → tick puro: movimento, coleta, combate, IA, treino
+    ├── archipelago.ts   → layout determinístico de 4 ilhas por semente
+    ├── proceduralMap.ts → terreno do arquipélago: biomas, rios, 4 spawns
+    ├── navalTransport.ts → embarque/desembarque de unidades em barcos
+    ├── worldMap.ts      → regras do mapa-múndi (descoberta, clique, névoa)
+    ├── mapProjection.ts → projeção única mundo ↔ pixel (minimapa/mapa-múndi)
     ├── buildingDefs.ts  → catálogo dos 8 edifícios + andaimes
     ├── buildingGhost.ts → posicionamento válido (cliff/água/inclinação/colisão)
     ├── economy.ts       → custos de unidades/edifícios, compra/venda, reembolso
@@ -34,22 +40,26 @@ src/
     └── multiplayer.ts   → cliente Socket.io (join, broadcast, comandos, chat)
 
 server.ts                → Express + Socket.io + Vite middleware, porta 3000
-tests/unit/              → 113 testes Vitest cobrindo os módulos puros
+tests/unit/              → 182 testes Vitest cobrindo os módulos puros
 ```
 
 ## Fluxo de uma partida
 
 1. **Lobby** — host cria sala, clientes entram com ID (`join-room`); o seletor
    define a partida como 2, 3 ou 4 jogadores (ver [ADR-0005](adr/0005-participantes-dinamicos-da-partida.md)).
-2. **Boot** — host/single gera mapa procedural com 4 spawns, base inicial por
-   slot (Centro da Vila + aldeões + soldado) e recursos ao redor.
+2. **Boot** — host/single gera o arquipélago a partir de uma semente grava em
+   `GameState.mapSeed`, com 4 spawns (um por ilha), base inicial por slot
+   (Centro da Vila + aldeões + soldado) e recursos ao redor. O cliente regera
+   o mesmo terreno a partir da semente recebida — ver [ADR-0007](adr/0007-geografia-por-semente-e-exploracao-local.md).
 3. **Tick (20 Hz, só no host)** — `App.tsx` roda `setInterval(50ms)`:
    movimento (A* + separação), coleta (com bônus de edifícios/tecnologias),
    combate, manutenção (reparo/demolição), filas de treino e de pesquisa,
    torres, névoa e IA de todos os slots não humanos.
-4. **Broadcast** — a cada mutação o host envia o `GameState` completo →
-   servidor repassa (`game-state-update`) → clientes fazem `setGameState` e
-   recalculam sua névoa localmente.
+4. **Broadcast** — a cada mutação o host envia o `GameState` completo
+   (com compressão acima de um limite, card #21) → servidor repassa
+   (`game-state-update`) → clientes fazem `setGameState` e recalculam sua
+   névoa localmente (a descoberta de ilhas é derivada dessa grade, nunca um
+   campo sincronizado).
 5. **Comandos** — cliente envia `send-command` → host valida posse/custo em
    `networkCommands.ts` e aplica em `handleIncomingCommand` (mover, gather,
    build, train, attack, repair, demolish, research, … ).
@@ -73,13 +83,13 @@ desacoplado — ver [ADR-0003](adr/0003-modulos-puros-testaveis.md).
 
 ## Conhecidas limitações
 
-- `App.tsx` ainda concentra ~7 mil linhas de wiring (simulação + UI + input) —
-  a extração para módulos é o card #14.
-- O host envia o `GameState` **completo** 20×/s, sem diff nem compressão
-  (card #21).
-- Sem predição de movimento no cliente: ordens demoram ~1 RTT para aparecer.
-- A IA é simples (mesma estratégia para todos os slots não humanos), sem
-  dificuldade configurável.
-- Barcos não combatem — combate naval é um card à parte (#24).
+- O `GameState` é enviado **completo** 20×/s (com compressão acima do
+  limite, card #21), sem diff incremental.
+- Sem predição de movimento no cliente: ordens demoram ~1 RTT para aparecer
+  (exceto o débito otimista de treino/comércio, reconciliado pelo snapshot).
+- A IA é simples (mesma estratégia para todos os slots não humanos), restrita
+  à própria ilha, sem dificuldade configurável.
+- O tamanho do mapa é fixo em **60×60** (`MAP_SIZE`): o gerador aceita outros
+  tamanhos, mas comandos, névoa e HUD ainda assume 60 (ADR-0004).
 - Sem espectador, reconexão de slot nem observação de partida em andamento.
 - Eras/tecnologias são um catálogo único (sem civilizações/estratégias).

@@ -129,3 +129,74 @@ describe('tickGameState', () => {
     expect(result.effects).toContainEqual({ type: 'notification', message: 'Construção Concluída: Casa!', level: 'success' });
   });
 });
+
+describe('single-player AI on the archipelago', () => {
+  const aiContext = () =>
+    context({ mode: 'single', playerSlot: 'player1', activeSlots: ['player1', 'player2'] });
+
+  it('gathers from the nearest tree of its own base, never from another island', () => {
+    const state = createState({
+      units: [createUnit({ id: 'ai-villager', owner: 'player2', position: { x: 41, z: 41 } })],
+      buildings: [
+        createBuilding({ id: 'ai-tc', owner: 'player2', position: { x: 40, z: 40 } }),
+        createBuilding({ id: 'human-tc', owner: 'player1', position: { x: 10, z: 10 } }),
+      ],
+      resourceNodes: [
+        { id: 'near-tree', type: 'tree', position: { x: 43, z: 41 }, remaining: 100 },
+        { id: 'far-tree', type: 'tree', position: { x: 11, z: 11 }, remaining: 100 },
+      ],
+    });
+
+    const result = tickGameState(state, aiContext());
+    const villager = result.state.units.find((unit) => unit.id === 'ai-villager');
+    expect(villager?.targetEntityId).toBe('near-tree');
+  });
+
+  it('does not order the AI army to march across the ocean to the human base', () => {
+    const soldiers = [1, 2, 3].map((index) =>
+      createUnit({
+        id: `ai-soldier-${index}`,
+        type: 'soldier',
+        owner: 'player2',
+        position: { x: 41 + index, z: 41 },
+      })
+    );
+    const state = createState({
+      units: soldiers,
+      buildings: [
+        createBuilding({ id: 'ai-tc', owner: 'player2', position: { x: 40, z: 40 } }),
+        createBuilding({ id: 'human-tc', owner: 'player1', position: { x: 10, z: 10 } }),
+      ],
+    });
+
+    const result = tickGameState(state, aiContext());
+    for (const soldier of result.state.units) {
+      expect(soldier.targetPosition).toBeNull();
+    }
+  });
+});
+
+describe('simulation performance', () => {
+  it('keeps twenty ticks responsive with a representative number of moving units', () => {
+    const units = Array.from({ length: 120 }, (_, index) =>
+      createUnit({
+        id: `unit-${index}`,
+        owner: index % 3 === 0 ? 'player2' : 'player1',
+        position: { x: (index % 40) + 0.5, z: Math.floor(index / 40) + 0.5 },
+        targetPosition: { x: (index % 40) + 0.5, z: 55.5 },
+        state: 'moving',
+      })
+    );
+    let state = createState({ units });
+    const tickContext = context();
+
+    const startedAt = performance.now();
+    for (let tick = 0; tick < 20; tick++) {
+      state = tickGameState(state, tickContext).state;
+    }
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(state.units).toHaveLength(120);
+    expect(elapsedMs).toBeLessThan(2000);
+  });
+});
