@@ -115,9 +115,16 @@ export default function App() {
   const engineRef = useRef<GameEngine | null>(null);
   const multiRef = useRef<MultiplayerManager | null>(null);
 
+  // Rota de demonstracao da PoC de interface: abre uma partida solo direto,
+  // sem passar pelo lobby, e permite esconder o HUD do proprio jogo para que a
+  // proposta seja sobreposta a partida real. Fora dessa rota nada muda: o jogo
+  // em `/` continua abrindo no lobby como sempre.
+  const isSoloPreviewRoute = window.location.pathname === '/poc.html';
+  const isHudPreviewMode = isSoloPreviewRoute && new URLSearchParams(window.location.search).has('hud-preview');
+
   // Menu / Lobby state
-  const [isGameStarted, setIsGameStarted] = useState(false);
-  const [role, setRole] = useState<'host' | 'client' | 'single'>('host');
+  const [isGameStarted, setIsGameStarted] = useState(isSoloPreviewRoute);
+  const [role, setRole] = useState<'host' | 'client' | 'single'>(isSoloPreviewRoute ? 'single' : 'host');
   const [roomId, setRoomId] = useState('vila-principal');
   const [playerName, setPlayerName] = useState('Comandante');
   const [playerSlot, setPlayerSlot] = useState<PlayerSlot>('player1');
@@ -141,7 +148,7 @@ export default function App() {
   squadFormationRef.current = squadFormation;
 
   // HUD Display modes: 'full' (completo) | 'compact' (compacto tático) | 'hidden' (cinemático)
-  const [hudMode, setHudMode] = useState<'full' | 'compact' | 'hidden'>('full');
+  const [hudMode, setHudMode] = useState<'full' | 'compact' | 'hidden'>(isHudPreviewMode ? 'hidden' : 'full');
   const isHudVisible = hudMode !== 'hidden';
   const [isHoverPeeking, setIsHoverPeeking] = useState(false);
 
@@ -4322,6 +4329,7 @@ export default function App() {
   useEffect(() => {
     if (!isGameStarted || tutorialSeenCheckedRef.current) return;
     tutorialSeenCheckedRef.current = true;
+    if (isHudPreviewMode) return;
     try {
       if (window.localStorage.getItem(TUTORIAL_SEEN_KEY) !== '1') {
         setShowTutorial(true);
@@ -4329,7 +4337,7 @@ export default function App() {
     } catch {
       setShowTutorial(true);
     }
-  }, [isGameStarted]);
+  }, [isGameStarted, isHudPreviewMode]);
 
   const closeTutorial = () => {
     setShowTutorial(false);
@@ -4771,11 +4779,11 @@ export default function App() {
       {/* TOP HOVER TRIGGER ZONE FOR PEEKING WHEN HUD IS HIDDEN */}
       <div
         className="absolute top-0 left-0 right-0 h-4 z-30 pointer-events-auto"
-        onMouseEnter={() => setIsHoverPeeking(true)}
+        onMouseEnter={() => { if (!isHudPreviewMode) setIsHoverPeeking(true); }}
       />
 
       {/* MINIMAL RESTORE DOCK WHEN HUD IS HIDDEN (Cinematic Exploration Mode) */}
-      {hudMode === 'hidden' && !isHoverPeeking && (
+      {hudMode === 'hidden' && !isHoverPeeking && !isHudPreviewMode && (
         <div
           onMouseEnter={() => {
             setIsHoverPeeking(true);
@@ -4822,7 +4830,7 @@ export default function App() {
       )}
 
       {/* TOP RESOURCE & STATUS HUD (FULL / COMPACT / HOVER PEEK) */}
-      {(hudMode !== 'hidden' || isHoverPeeking) && (
+      {(hudMode !== 'hidden' || (isHoverPeeking && !isHudPreviewMode)) && (
         <header
           onMouseEnter={() => {
             setIsHoverPeeking(true);
@@ -7208,7 +7216,7 @@ export default function App() {
       />
 
       {/* MATCH RESULT SCREEN (vitoria / derrota / empate) */}
-      {showResultScreen && (
+      {showResultScreen && !isHudPreviewMode && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
           <div className="bg-slate-900/95 border border-slate-700/80 rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-5 text-center">
             <div className={`text-4xl font-black tracking-wide ${resultToneClass}`}>{resultLabel}</div>
