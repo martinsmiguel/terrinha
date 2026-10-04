@@ -4339,6 +4339,56 @@ export default function App() {
     }
   }, [isGameStarted, isHudPreviewMode]);
 
+  // Ponte da Poc de HUD: existe apenas na rota de preview. So LE o que o HUD precisa
+  // (mapa, camera, recursos e entidades) e permite centralizar a camera, que e
+  // navegacao. Nao envia ordens, nao toca economia e nao expoe rede.
+  useEffect(() => {
+    if (!isHudPreviewMode) return;
+    type Canto = { x: number; z: number };
+    const ponte = {
+      mapSize: MAP_SIZE,
+      map: () => proceduralMapRef.current,
+      islands: () => proceduralMapRef.current?.islands ?? [],
+      resources: () =>
+        gameStateRef.current.resourceNodes.map((r) => ({ x: r.position.x, z: r.position.z, type: r.type })),
+      entities: () => ({
+        units: gameStateRef.current.units.map((u) => ({ x: u.position.x, z: u.position.z, owner: u.owner, kind: 'unit' as const, type: u.type })),
+        buildings: gameStateRef.current.buildings.map((b) => ({ x: b.position.x, z: b.position.z, owner: b.owner, kind: 'building' as const, type: b.type })),
+      }),
+      playerSlot,
+      camera: () => {
+        const e = engineRef.current;
+        return e ? { x: e.cameraTarget.x, z: e.cameraTarget.z } : null;
+      },
+      // Pegada da camera no chao: projeta os quatro cantos da tela no plano y=0.
+      viewport: (): Canto[] | null => {
+        const e = engineRef.current;
+        if (!e) return null;
+        const cam = e.camera;
+        const cantos: Canto[] = [];
+        for (const [nx, ny] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+          const v = new THREE.Vector3(nx, ny, 0.5).unproject(cam);
+          const dir = v.sub(cam.position).normalize();
+          if (Math.abs(dir.y) < 1e-4) return null;
+          const t = -cam.position.y / dir.y;
+          cantos.push({ x: cam.position.x + dir.x * t, z: cam.position.z + dir.z * t });
+        }
+        return cantos;
+      },
+      centerOn: (x: number, z: number) => {
+        const e = engineRef.current;
+        if (!e) return false;
+        e.setCameraTarget(x, z);
+        return true;
+      },
+    };
+    const alvo = window as unknown as { __terrinhaPreview?: typeof ponte };
+    alvo.__terrinhaPreview = ponte;
+    return () => {
+      delete alvo.__terrinhaPreview;
+    };
+  }, [isHudPreviewMode, playerSlot]);
+
   const closeTutorial = () => {
     setShowTutorial(false);
     try {
