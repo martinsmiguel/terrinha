@@ -506,7 +506,7 @@
       <aside class="side-panel closed" id="side-panel" aria-label="Painel contextual">
         <div class="panel-head"><div><div class="eyebrow" id="panel-kicker">Resumo da vila</div><h2 id="panel-title">Sua aldeia</h2><div class="panel-subtitle" id="panel-subtitle">O essencial para decidir o próximo passo.</div></div><button class="panel-dismiss" data-action="toggle-panel" aria-label="Ocultar painel">×</button></div>
         <div class="panel-body" id="panel-body"></div>
-        <div class="panel-footer" id="panel-footer">Painel contextual · atalho: <kbd>Q</kbd></div>
+        <div class="panel-footer" id="panel-footer">Painel contextual · atalho: <kbd>Alt+P</kbd></div>
       </aside>
 
       <section class="bottom-dock" id="bottom-dock" aria-label="Seleção e ações">
@@ -616,12 +616,12 @@
       };
 
       const pages = {
-        overview: { kicker:'Resumo da vila',title:'Sua aldeia',subtitle:'O essencial para decidir o próximo passo.',footer:'Painel contextual · atalho: Q',body:()=>overviewPanel() },
-        economy: { kicker:'Gestão',title:'Economia',subtitle:'Veja a produção e encontre o gargalo.',footer:'Produção atual · janela de 1 minuto',body:()=>economyPanel() },
-        build: { kicker:'Obras',title:'Construções',subtitle:'Escolha o que erguer na região.',footer:'Construções demonstrativas · sem custo real',body:()=>buildPanel() },
-        research: { kicker:'Conhecimento',title:'Pesquisa',subtitle:'Acompanhe a próxima melhoria da vila.',footer:'Árvore conceitual · progresso demonstrativo',body:()=>researchPanel() },
+        overview: { kicker:'Resumo da vila',title:'Sua aldeia',subtitle:'O essencial para decidir o próximo passo.',footer:'Painel contextual · atalho: Alt+P',body:()=>overviewPanel() },
+        economy: { kicker:'Gestão',title:'Economia',subtitle:'Veja a produção e encontre o gargalo.',footer:'Ritmo de exemplo · não vem da partida',body:()=>economyPanel() },
+        build: { kicker:'Obras',title:'Construções',subtitle:'Escolha o que erguer na região.',footer:'Catálogo do jogo · sem integração com a partida',body:()=>buildPanel() },
+        research: { kicker:'Conhecimento',title:'Pesquisa',subtitle:'Acompanhe a próxima melhoria da vila.',footer:'Tecnologias do jogo · progresso de exemplo',body:()=>researchPanel() },
         diplomacy: { kicker:'Relações',title:'Vizinhos',subtitle:'Conheça as comunidades avistadas.',footer:'Diplomacia demonstrativa · sem efeitos de partida',body:()=>relationsPanel() },
-        world: { kicker:'Exploração',title:'Mapa-múndi',subtitle:'Localidades avistadas e a relação de cada uma com a vila.',footer:'Localidades ilustrativas · sem viagem real',body:()=>worldPanel() },
+        world: { kicker:'Exploração',title:'Mapa-múndi',subtitle:'Localidades avistadas e a relação de cada uma com a vila.',footer:'Nomes ilustrativos · posição real das ilhas',body:()=>worldPanel() },
       };
 
       function overviewPanel() {
