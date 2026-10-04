@@ -707,7 +707,7 @@
         list.innerHTML=historyStack.map((h,i)=>`<div class="history-row ${i===historyCursor?'current':''}"><span>${h.label}</span><b>${h.at}</b></div>`).join('');
       }
       function openRadial(clientX,clientY) {
-        closeModals();
+        closeModals();rememberFocus();
         // Prime Pixel: o radial abre onde o cursor esta, e nao no centro da tela.
         const size=Math.min(460,window.innerWidth*0.88), half=size/2, margin=8;
         const rawX=clientX??(pointer.x??window.innerWidth/2);
@@ -725,10 +725,10 @@
         radialMenu.hidden=false;radialScrim.hidden=false;
         setTimeout(()=>radialMenu.querySelector('.radial-item')?.focus(),30);
       }
-      function closeRadial() { radialMenu.hidden=true;radialScrim.hidden=true; }
+      function closeRadial() { radialMenu.hidden=true;radialScrim.hidden=true;restoreFocus(); }
       function openBatch(id) {
         const def=batchDefs[id];if(!def)return;
-        closeModals();
+        closeModals();rememberFocus();
         batchState={ id, def, applied:false };
         document.getElementById('batch-heading').textContent=def.title;
         document.getElementById('batch-scope').textContent=`${def.scope} Prévia ilustrativa: confira os alvos antes de confirmar.`;
@@ -738,12 +738,12 @@
       }
       function confirmBatch() {
         if(!batchState)return;
-        batchState.applied=true;batchModal.hidden=true;
+        batchState.applied=true;batchModal.hidden=true;restoreFocus();
         document.getElementById('batch-status').textContent=batchState.def.result+' ';
         batchBar.hidden=false;
         notify('Comando aplicado em lote · desfazer disponível');
       }
-      function cancelBatch() { batchModal.hidden=true;batchState=null;notify('Comando em lote cancelado · nenhum alvo foi alterado'); }
+      function cancelBatch() { batchModal.hidden=true;batchState=null;restoreFocus();notify('Comando em lote cancelado · nenhum alvo foi alterado'); }
       function undoBatch() {
         if(!batchState||!batchState.applied){notify('Nada para desfazer');return;}
         batchState.applied=false;batchBar.hidden=true;
@@ -825,8 +825,19 @@
       function notify(message) {
         const toast=document.getElementById('toast');toast.textContent=message;toast.classList.add('show');clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>toast.classList.remove('show'),2100);
       }
-      function openModal(modal) { modal.hidden=false; const input=modal.querySelector('input'); if(input){input.value='';renderSearch('');setTimeout(()=>input.focus(),30);} }
-      function closeModals() { searchModal.hidden=true;menuModal.hidden=true;layoutModal.hidden=true;batchModal.hidden=true; }
+      // Retorno de foco: ao fechar um overlay o foco volta para quem o abriu, em vez
+      // de cair no body. Sem isto o teclado perde a posicao depois de qualquer modal.
+      let focusReturn=null;
+      function rememberFocus() { focusReturn=document.activeElement instanceof HTMLElement?document.activeElement:null; }
+      function restoreFocus() {
+        if(!focusReturn)return;
+        const alvo=focusReturn;focusReturn=null;
+        const usavel=alvo!==document.body&&document.contains(alvo)&&!alvo.closest('[hidden]');
+        const destino=usavel?alvo:document.querySelector('[data-action="search"]');
+        if(destino)destino.focus();
+      }
+      function openModal(modal) { rememberFocus(); modal.hidden=false; const input=modal.querySelector('input'); if(input){input.value='';renderSearch('');setTimeout(()=>input.focus(),30);} }
+      function closeModals() { searchModal.hidden=true;menuModal.hidden=true;layoutModal.hidden=true;batchModal.hidden=true; restoreFocus(); }
       const actions=[
         ['Abrir visão geral','Painel da aldeia','nav:overview',''],['Abrir economia','Produção e população','nav:economy',''],['Abrir construções','Catálogo de edifícios','nav:build',''],['Abrir pesquisa','Tecnologias e eras','nav:research',''],['Abrir relações','Vizinhos e regiões avistadas','nav:diplomacy',''],['Modo: vila','Composição de cidade','mode:city','Alt+1'],['Modo: exploração','Campo e navegação','mode:explore','Alt+2'],['Modo: combate','Patrulha e ordens militares','mode:battle','Alt+3'],['Mostrar ou ocultar painel','Recolher painel contextual','toggle:panel','Alt+P'],['Mostrar ou ocultar seleção','Recolher ações selecionadas','toggle:dock',''],['Alternar minimapa','Mostrar ou ocultar o minimapa','toggle:minimap','Alt+M'],['Modo minimalista','Ocultar todos os painéis e restaurar com Alt+H','minimize:all','Alt+H'],['Personalizar interface','Perfis e painéis visíveis','customize',''],['Abrir configurações do HUD','Disposição, atalhos e exportação','menu:interface',''],['Abrir menu do império','Áreas de gestão','menus',''],['Abrir mapa-múndi','Localidades e exploração','nav:world',''],['Menu radial de comandos','Comandos de interface em círculo','radial','Alt+R'],['Comando em lote: designar coleta','Prévia dos alvos com desfazer','batch:gather',''],['Comando em lote: patrulhar costa','Prévia dos alvos com desfazer','batch:patrol','']
       ];
