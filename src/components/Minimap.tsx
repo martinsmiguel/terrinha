@@ -3,23 +3,36 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useRef, useState } from 'react';
-import { GameEngine, GameState, Unit, Building, MAP_SIZE } from '../game/engine';
-import { visionRadiusFor } from '../game/visibility';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { GameEngine, GameState, MAP_SIZE } from '../game/engine';
+import { VISION_EXPLORED, VISION_VISIBLE, visionAt } from '../game/visibility';
 import { IslandProfile, coastRadiusAt, computeArchipelago } from '../game/archipelago';
-import { Eye, EyeOff, Home, Compass, Lock, Unlock, ChevronDown, ChevronUp } from 'lucide-react';
+import { MINIMAP_PIXEL_SIZE, worldToMapPixel } from '../game/mapProjection';
+import { minimapClickTarget } from '../game/worldMap';
+import { Eye, EyeOff, Home, Compass, Lock, Unlock, ChevronDown, ChevronUp, Map } from 'lucide-react';
+import { WorldMapModal } from './WorldMapModal';
 
 interface MinimapProps {
   engine: GameEngine | null;
   gameState: GameState;
   playerSlot: string;
   selectedEntityId: string | null;
+  /**
+   * Grid de exploracao do jogador local (`x * MAP_SIZE + z`), a mesma fonte de
+   * verdade usada pela nevoa da cena 3D. Sem ele o minimapa nao inventa visao.
+   */
+  visibility?: Uint8Array;
   workZones?: { id: string; x: number; z: number; radius: number; isHighlighted?: boolean }[];
   onOrderMove?: (target: { x: number; z: number }) => void;
   isCameraLocked?: boolean;
   onToggleCameraLock?: () => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  /** O mapa-mundi e controlado pelo App para que o Esc nao perca a selecao. */
+  isWorldMapOpen?: boolean;
+  onWorldMapOpenChange?: (open: boolean) => void;
+  /** Revelar o mapa inteiro so existe em modo desenvolvedor. */
+  developerToolsEnabled?: boolean;
 }
 
 const FACTION_MINIMAP_COLORS: Record<string, string> = {
@@ -34,67 +47,52 @@ export const Minimap: React.FC<MinimapProps> = ({
   gameState,
   playerSlot,
   selectedEntityId,
+  visibility,
   workZones,
   onOrderMove,
   isCameraLocked = false,
   onToggleCameraLock,
   isCollapsed,
   onToggleCollapse,
+  isWorldMapOpen: isWorldMapOpenProp,
+  onWorldMapOpenChange,
+  developerToolsEnabled = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Fog of War explored grid (60x60)
-  const exploredGrid = useRef<boolean[][]>(
-    Array(MAP_SIZE)
-      .fill(false)
-      .map(() => Array(MAP_SIZE).fill(false))
-  );
+  // Grid vazio estavel usado apenas enquanto o App ainda nao publicou a nevoa.
+  const emptyVisionRef = useRef<Uint8Array>(new Uint8Array(MAP_SIZE * MAP_SIZE));
+  const visionGrid = visibility ?? emptyVisionRef.current;
 
   const [localCollapsed, setLocalCollapsed] = useState(false);
   const isMinimapCollapsed = isCollapsed !== undefined ? isCollapsed : localCollapsed;
   const toggleCollapse = onToggleCollapse || (() => setLocalCollapsed((prev) => !prev));
 
   const [isDragging, setIsDragging] = useState(false);
-  const [fogEnabled, setFogEnabled] = useState(true);
+  const [localWorldMapOpen, setLocalWorldMapOpen] = useState(false);
+  const [developerRevealAll, setDeveloperRevealAll] = useState(false);
+  const isWorldMapOpen = isWorldMapOpenProp !== undefined ? isWorldMapOpenProp : localWorldMapOpen;
+  const setWorldMapOpen = onWorldMapOpenChange || setLocalWorldMapOpen;
+  // A nevoa e sempre aplicada; revelar tudo e exclusivo do modo desenvolvedor.
+  const revealAll = developerToolsEnabled && developerRevealAll;
   const [coordinates, setCoordinates] = useState<{ x: number; z: number } | null>(null);
 
   // Canvas pixel size (compact on mobile screens)
-  const SIZE = 210;
+  const SIZE = MINIMAP_PIXEL_SIZE;
 
-  // Vision radius definitions (in world units) — fonte unica em game/visibility
-  const getVisionRadius = visionRadiusFor;
+  const archipelago = useMemo(
+    () => computeArchipelago(MAP_SIZE, gameState.mapSeed ?? 0),
+    [gameState.mapSeed]
+  );
 
   // Convert canvas pixel (cx, cy) to world coords (wx, wz)
-  const canvasToWorld = (cx: number, cy: number) => {
-    const wx = (cx / SIZE) * MAP_SIZE;
-    const wz = (cy / SIZE) * MAP_SIZE;
-    return {
-      x: Math.max(0, Math.min(MAP_SIZE, wx)),
-      z: Math.max(0, Math.min(MAP_SIZE, wz)),
-    };
-  };
+  const canvasToWorld = (cx: number, cy: number) => minimapClickTarget(cx, cy, MAP_SIZE, SIZE);
 
   // Convert world coords (wx, wz) to canvas pixel (cx, cy)
-  const worldToCanvas = (wx: number, wz: number) => {
-    return {
-      x: (wx / MAP_SIZE) * SIZE,
-      y: (wz / MAP_SIZE) * SIZE,
-    };
-  };
+  const worldToCanvas = (wx: number, wz: number) => worldToMapPixel(wx, wz, MAP_SIZE, SIZE);
 
-  // Check if a point is in line of sight (LOS)
-  const isPointInActiveVision = (wx: number, wz: number, friendlySources: (Unit | Building)[]) => {
-    for (const source of friendlySources) {
-      const radius = getVisionRadius(source);
-      const dx = source.position.x - wx;
-      const dz = source.position.z - wz;
-      if (dx * dx + dz * dz <= radius * radius) {
-        return true;
-      }
-    }
-    return false;
-  };
+  const isKnown = (x: number, z: number) => revealAll || visionAt(visionGrid, x, z) !== 0;
 
   // Main Minimap Canvas Render Loop
   useEffect(() => {
@@ -102,30 +100,6 @@ export const Minimap: React.FC<MinimapProps> = ({
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
-    // Friendly vision sources
-    const friendlyUnits = gameState.units.filter((u) => u.owner === playerSlot);
-    const friendlyBuildings = gameState.buildings.filter((b) => b.owner === playerSlot);
-    const friendlySources: (Unit | Building)[] = [...friendlyUnits, ...friendlyBuildings];
-
-    // Update explored grid based on active friendly vision
-    friendlySources.forEach((source) => {
-      const radius = getVisionRadius(source);
-      const minX = Math.max(0, Math.floor(source.position.x - radius));
-      const maxX = Math.min(MAP_SIZE - 1, Math.ceil(source.position.x + radius));
-      const minZ = Math.max(0, Math.floor(source.position.z - radius));
-      const maxZ = Math.min(MAP_SIZE - 1, Math.ceil(source.position.z + radius));
-
-      for (let x = minX; x <= maxX; x++) {
-        for (let z = minZ; z <= maxZ; z++) {
-          const dx = source.position.x - x;
-          const dz = source.position.z - z;
-          if (dx * dx + dz * dz <= radius * radius) {
-            exploredGrid.current[x][z] = true;
-          }
-        }
-      }
-    });
 
     // 1. Draw Background Ocean & Ikariam Island
     ctx.clearRect(0, 0, SIZE, SIZE);
@@ -138,7 +112,7 @@ export const Minimap: React.FC<MinimapProps> = ({
     ctx.fillRect(0, 0, SIZE, SIZE);
 
     // Arquipelago (layout puro compartilhado com o gerador: semente do host)
-    const layout = computeArchipelago(MAP_SIZE, gameState.mapSeed ?? 0);
+    const layout = archipelago;
     const scale = SIZE / MAP_SIZE;
     const PROFILE_FILL: Record<IslandProfile, string> = {
       floresta: '#3b6f25',
@@ -208,27 +182,11 @@ export const Minimap: React.FC<MinimapProps> = ({
       }
     });
 
-    // Subtle grid pattern
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-    ctx.lineWidth = 1;
-    const gridStep = SIZE / 6;
-    for (let i = 1; i < 6; i++) {
-      ctx.beginPath();
-      ctx.moveTo(i * gridStep, 0);
-      ctx.lineTo(i * gridStep, SIZE);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(0, i * gridStep);
-      ctx.lineTo(SIZE, i * gridStep);
-      ctx.stroke();
-    }
-
     // 2. Draw Resource Nodes
     gameState.resourceNodes.forEach((res) => {
       const gx = Math.min(MAP_SIZE - 1, Math.max(0, Math.floor(res.position.x)));
       const gz = Math.min(MAP_SIZE - 1, Math.max(0, Math.floor(res.position.z)));
-      const isExplored = !fogEnabled || exploredGrid.current[gx][gz];
+      const isExplored = isKnown(gx, gz);
 
       if (!isExplored) return;
 
@@ -273,7 +231,7 @@ export const Minimap: React.FC<MinimapProps> = ({
     gameState.buildings.forEach((b) => {
       const gx = Math.min(MAP_SIZE - 1, Math.max(0, Math.floor(b.position.x)));
       const gz = Math.min(MAP_SIZE - 1, Math.max(0, Math.floor(b.position.z)));
-      const isExplored = !fogEnabled || exploredGrid.current[gx][gz];
+      const isExplored = isKnown(gx, gz);
 
       if (!isExplored && b.owner !== playerSlot) return;
 
@@ -325,10 +283,11 @@ export const Minimap: React.FC<MinimapProps> = ({
     // 4. Draw Units
     gameState.units.forEach((u) => {
       const isFriendly = u.owner === playerSlot;
-      const isVisible =
-        !fogEnabled ||
-        isFriendly ||
-        isPointInActiveVision(u.position.x, u.position.z, friendlySources);
+      const isVisible = isFriendly || revealAll || visionAt(
+        visionGrid,
+        Math.max(0, Math.min(MAP_SIZE - 1, Math.floor(u.position.x))),
+        Math.max(0, Math.min(MAP_SIZE - 1, Math.floor(u.position.z)))
+      ) === VISION_VISIBLE;
 
       if (!isVisible) return;
 
@@ -376,7 +335,9 @@ export const Minimap: React.FC<MinimapProps> = ({
     });
 
     // 5. Draw Fog of War (Authentic RTS 2-layer Fog: Unexplored Shroud + Explored Semi-Fog)
-    if (fogEnabled) {
+    // A nevoa vem do mesmo grid que a cena 3D usa, entao minimapa, mapa-mundi e
+    // terreno nunca discordam sobre o que ja foi descoberto.
+    if (!revealAll) {
       // Create offscreen fog canvas
       const fogCanvas = document.createElement('canvas');
       fogCanvas.width = SIZE;
@@ -384,50 +345,20 @@ export const Minimap: React.FC<MinimapProps> = ({
       const fogCtx = fogCanvas.getContext('2d');
 
       if (fogCtx) {
-        // Step A: Base unexplored shroud (Deep dark black)
-        fogCtx.fillStyle = 'rgba(7, 10, 15, 0.94)';
-        fogCtx.fillRect(0, 0, SIZE, SIZE);
-
-        // Step B: Explored area revelation (Lightened up to semi-transparent fog)
         const cellW = SIZE / MAP_SIZE;
         const cellH = SIZE / MAP_SIZE;
-        fogCtx.fillStyle = 'rgba(20, 28, 40, 0.52)'; // Explored fog overlay color
 
         for (let x = 0; x < MAP_SIZE; x++) {
           for (let z = 0; z < MAP_SIZE; z++) {
-            if (exploredGrid.current[x][z]) {
-              // Mark as explored by carving out full darkness and replacing with light fog
-              fogCtx.clearRect(x * cellW, z * cellH, cellW + 0.5, cellH + 0.5);
-              fogCtx.fillRect(x * cellW, z * cellH, cellW + 0.5, cellH + 0.5);
-            }
+            const state = visionAt(visionGrid, x, z);
+            if (state === VISION_VISIBLE) continue; // Sob visao atual: sem nevoa
+            // Nunca visto: veu quase opaco. Ja explorado: nevoa leve.
+            fogCtx.fillStyle = state === VISION_EXPLORED
+              ? 'rgba(20, 28, 40, 0.52)'
+              : 'rgba(7, 10, 15, 0.94)';
+            fogCtx.fillRect(x * cellW, z * cellH, cellW + 0.5, cellH + 0.5);
           }
         }
-
-        // Step C: Cut out live Line of Sight (LOS) circles around friendly sources
-        fogCtx.globalCompositeOperation = 'destination-out';
-
-        friendlySources.forEach((source) => {
-          const pt = worldToCanvas(source.position.x, source.position.z);
-          const worldRadius = getVisionRadius(source);
-          const canvasRadius = (worldRadius / MAP_SIZE) * SIZE;
-
-          const grad = fogCtx.createRadialGradient(
-            pt.x,
-            pt.y,
-            canvasRadius * 0.55,
-            pt.x,
-            pt.y,
-            canvasRadius
-          );
-          grad.addColorStop(0, 'rgba(0, 0, 0, 1)');
-          grad.addColorStop(0.85, 'rgba(0, 0, 0, 0.8)');
-          grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-
-          fogCtx.fillStyle = grad;
-          fogCtx.beginPath();
-          fogCtx.arc(pt.x, pt.y, canvasRadius, 0, Math.PI * 2);
-          fogCtx.fill();
-        });
 
         // Overlay fog onto main canvas
         ctx.drawImage(fogCanvas, 0, 0);
@@ -484,7 +415,7 @@ export const Minimap: React.FC<MinimapProps> = ({
 
       ctx.restore();
     }
-  }, [gameState, engine, playerSlot, selectedEntityId, fogEnabled, workZones]);
+  }, [gameState, engine, playerSlot, selectedEntityId, revealAll, workZones, archipelago, visionGrid]);
 
   // Handle click or drag to move camera
   const handleInteraction = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -547,6 +478,20 @@ export const Minimap: React.FC<MinimapProps> = ({
     }
   };
 
+  const worldMapModal = isWorldMapOpen ? (
+    <WorldMapModal
+      gameState={gameState}
+      playerSlot={playerSlot}
+      visibility={visionGrid}
+      developerToolsEnabled={developerToolsEnabled}
+      revealAll={revealAll}
+      onClose={() => setWorldMapOpen(false)}
+      onToggleRevealAll={() => setDeveloperRevealAll((value) => !value)}
+      onNavigate={(target) => engine?.setCameraTarget(target.x, target.z)}
+      onPointerOverChange={(isOver) => engine?.setIsPointerOverUI(isOver)}
+    />
+  ) : null;
+
   // If Minimap is collapsed: render a sleek, compact tactical pill
   if (isMinimapCollapsed) {
     return (
@@ -579,6 +524,31 @@ export const Minimap: React.FC<MinimapProps> = ({
           <Home className="w-3.5 h-3.5" />
         </button>
 
+        <button
+          type="button"
+          onClick={() => setWorldMapOpen(true)}
+          title="Abrir mapa-múndi"
+          className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 transition-colors"
+        >
+          <Map className="w-3.5 h-3.5" />
+        </button>
+
+        {developerToolsEnabled && (
+          <button
+            type="button"
+            onClick={() => setDeveloperRevealAll((value) => !value)}
+            title={revealAll ? 'Restaurar névoa de guerra' : 'Revelar mapa (somente desenvolvimento)'}
+            aria-pressed={revealAll}
+            className={`p-1 rounded-lg transition-colors ${
+              revealAll
+                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+            }`}
+          >
+            {revealAll ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          </button>
+        )}
+
         {/* Camera lock toggle button */}
         {onToggleCameraLock && (
           <button
@@ -598,6 +568,7 @@ export const Minimap: React.FC<MinimapProps> = ({
             {isCameraLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
           </button>
         )}
+        {worldMapModal}
       </div>
     );
   }
@@ -659,16 +630,28 @@ export const Minimap: React.FC<MinimapProps> = ({
 
           <button
             type="button"
-            onClick={() => setFogEnabled(!fogEnabled)}
-            title={fogEnabled ? 'Desativar Névoa de Guerra (Visão Total)' : 'Ativar Névoa de Guerra'}
-            className={`p-1 rounded-lg transition-colors ${
-              fogEnabled
-                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-            }`}
+            onClick={() => setWorldMapOpen(true)}
+            title="Abrir mapa-múndi (todas as ilhas conhecidas)"
+            className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 transition-colors"
           >
-            {fogEnabled ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+            <Map className="w-3.5 h-3.5" />
           </button>
+
+          {developerToolsEnabled && (
+            <button
+              type="button"
+              onClick={() => setDeveloperRevealAll((value) => !value)}
+              title={revealAll ? 'Restaurar Névoa de Guerra' : 'Revelar Mapa (somente modo desenvolvedor)'}
+              aria-pressed={revealAll}
+              className={`p-1 rounded-lg transition-colors ${
+                revealAll
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+              }`}
+            >
+              {revealAll ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          )}
 
           {/* Minimize / Collapse Button */}
           <button
@@ -725,6 +708,8 @@ export const Minimap: React.FC<MinimapProps> = ({
         </div>
         <span className="text-slate-500 font-mono text-[9px]">Clique: Visão</span>
       </div>
+
+      {worldMapModal}
     </div>
   );
 };
