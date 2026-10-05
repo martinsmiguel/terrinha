@@ -84,6 +84,29 @@ function getMap(seed: number): ProceduralMapResult {
 }
 
 describe('capacidade de transporte', () => {
+  it('deduplica IDs locais e recusa payload duplicado na rede', () => {
+    const state = createState({ units: [createBoat(), ...villagers(1)] });
+    const result = applyEmbarkOrder(state, ['villager-0', 'villager-0'], 'boat-1');
+    expect(result.boarded).toEqual(['villager-0']);
+    expect(result.state.units.find((u) => u.id === 'boat-1')?.passengers).toHaveLength(1);
+    expect(isValidNetworkCommand({ type: 'embark', unitIds: ['villager-0', 'villager-0'], boatId: 'boat-1' })).toBe(false);
+  });
+
+  it('remove da população barco afundado e todos os passageiros uma única vez', () => {
+    const state = createState({
+      units: [createBoat({ health: 0, passengers: villagers(2) })],
+      playerResources: { player1: { ...playerResources(), pop: 3 } },
+    });
+    const result = tickGameState(state, context());
+    expect(result.state.units).toHaveLength(0);
+    expect(result.state.playerResources.player1.pop).toBe(0);
+    expect(tickGameState(result.state, context()).state.playerResources.player1.pop).toBe(0);
+  });
+
+  it('não embarca tropas inimigas mesmo numa chamada local', () => {
+    const state = createState({ units: [createBoat(), createUnit({ id: 'enemy', owner: 'player2' })] });
+    expect(applyEmbarkOrder(state, ['enemy'], 'boat-1').boarded).toEqual([]);
+  });
   it('define 2 no barco de pesca, 4 no mercante e 0 na guerra', () => {
     expect(BOAT_CAPACITY.fishing_boat).toBe(2);
     expect(BOAT_CAPACITY.trade_boat).toBe(4);
@@ -303,5 +326,77 @@ describe('tick embarca unidades que chegaram perto do barco', () => {
     expect(result.state.units.find((candidate) => candidate.id === 'walker')).toBeUndefined();
     const updatedBoat = result.state.units.find((candidate) => candidate.id === 'boat-1');
     expect(updatedBoat?.passengers?.map((passenger) => passenger.id)).toEqual(['walker']);
+  });
+});
+
+
+describe('regressões de integridade naval #49', () => {
+  it('repetir embarque em outro barco não duplica a unidade nem altera a população', () => {
+    const initial = createState({ units: [createBoat(), createBoat({ id: 'boat-2' }), ...villagers(1)] });
+    const first = applyEmbarkOrder(initial, ['villager-0'], 'boat-1').state;
+    const repeated = applyEmbarkOrder(first, ['villager-0'], 'boat-2').state;
+    expect(repeated.units.flatMap((u) => u.passengers ?? []).map((u) => u.id)).toEqual(['villager-0']);
+    expect(repeated.units.some((u) => u.id === 'villager-0')).toBe(false);
+    expect(repeated.playerResources).toEqual(initial.playerResources);
+    expect(initial.units).toHaveLength(3);
+    expect(initial.units[0].passengers).toEqual([]);
+  });
+
+  it('ordens repetidas pendentes respeitam capacidade quando chegam no tick', () => {
+    const walkers = villagers(6, { x: 40, z: 40 });
+    const initial = createState({ units: [createBoat(), ...walkers] });
+    const ids = walkers.map((u) => u.id);
+    const ordered = applyEmbarkOrder(initial, [...ids, ...ids], 'boat-1');
+    expect(ordered.pending).toEqual(ids);
+    const arrived = ordered.state.units.map((u) => u.type === 'villager'
+      ? { ...u, position: { x: 21, z: 20 } } : u);
+    const result = boardArrivedPassengers(arrived);
+    const loaded = result.find((u) => u.id === 'boat-1')!;
+    expect(loaded.passengers).toHaveLength(4);
+    expect(new Set(loaded.passengers!.map((u) => u.id)).size).toBe(4);
+    expect(result.filter((u) => u.type === 'villager')).toHaveLength(2);
+    expect(boardArrivedPassengers(result)).toEqual(result);
+  });
+
+  it('embarque e desembarque sobrevivem a snapshot JSON sem criar passageiros', () => {
+    const initial = createState({ units: [createBoat(), ...villagers(2)] });
+    const loaded = applyEmbarkOrder(initial, ['villager-0', 'villager-1'], 'boat-1').state;
+    const snapshot: GameState = JSON.parse(JSON.stringify(loaded));
+    const land = { isWaterAt: () => false, isImpassableAt: () => false };
+    const unloaded = disembarkPassengers(snapshot, 'boat-1', land);
+    expect(unloaded.placed.map((u) => u.id)).toEqual(['villager-0', 'villager-1']);
+    expect(new Set(unloaded.state.units.map((u) => u.id)).size).toBe(3);
+    expect(unloaded.state.playerResources).toEqual(initial.playerResources);
+    expect(disembarkPassengers(unloaded.state, 'boat-1', land).placed).toEqual([]);
+    expect(snapshot.units[0].passengers).toHaveLength(2);
+  });
+
+  it('afundamentos simultâneos debitam cada proprietário e preservam os sobreviventes', () => {
+    const initial = createState({
+      units: [
+        createBoat({ health: 0, passengers: villagers(2) }),
+        createBoat({ id: 'enemy-boat', owner: 'player2', health: 0 }),
+        createUnit({ id: 'survivor' }),
+      ],
+      playerResources: {
+        player1: { ...playerResources(), pop: 4 },
+        player2: { ...playerResources(), pop: 1 },
+      },
+    });
+    const snapshot: GameState = JSON.parse(JSON.stringify(tickGameState(initial, context()).state));
+    expect(snapshot.units.map((u) => u.id)).toEqual(['survivor']);
+    expect(snapshot.playerResources.player1.pop).toBe(1);
+    expect(snapshot.playerResources.player2.pop).toBe(0);
+    expect(tickGameState(snapshot, context()).state.playerResources).toEqual(snapshot.playerResources);
+    expect(initial.playerResources.player1.pop).toBe(4);
+    expect(initial.units[0].passengers).toHaveLength(2);
+  });
+
+  it('afundamento nunca torna população negativa mesmo com contador menor que a carga', () => {
+    const initial = createState({ units: [createBoat({ health: 0, passengers: villagers(2) })] });
+    const result = tickGameState(initial, context()).state;
+    expect(result.units).toEqual([]);
+    expect(result.playerResources.player1.pop).toBe(0);
+    expect(result.playerResources.player2.pop).toBe(initial.playerResources.player2.pop);
   });
 });
