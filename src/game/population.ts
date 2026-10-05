@@ -5,6 +5,7 @@ export type ResourceTable = Record<string, PlayerResources>;
 interface OwnedWithHealth {
   owner: string;
   health: number;
+  passengers?: OwnedWithHealth[];
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -17,6 +18,9 @@ export function countDeathsByOwner(units: OwnedWithHealth[]): Record<string, num
   for (const unit of units) {
     if (unit.health <= 0) {
       deaths[unit.owner] = (deaths[unit.owner] || 0) + 1;
+      for (const passenger of unit.passengers ?? []) {
+        deaths[passenger.owner] = (deaths[passenger.owner] || 0) + 1;
+      }
     }
   }
   return deaths;

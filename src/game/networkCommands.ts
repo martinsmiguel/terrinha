@@ -194,7 +194,7 @@ export function isValidNetworkCommand(value: unknown): value is NetworkCommand {
     case 'remove_resource':
       return allowedKeys('resourceId') && isId(value.resourceId);
     case 'embark':
-      return allowedKeys('unitIds', 'boatId') && isStringList(value.unitIds) && isId(value.boatId);
+      return allowedKeys('unitIds', 'boatId') && isStringList(value.unitIds) && new Set(value.unitIds).size === value.unitIds.length && isId(value.boatId);
     case 'disembark':
       return allowedKeys('boatId') && isId(value.boatId);
     case 'trade':

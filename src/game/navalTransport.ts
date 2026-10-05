@@ -42,7 +42,7 @@ export function applyEmbarkOrder(
   range: number = EMBARK_RANGE
 ): EmbarkResult {
   const boat = state.units.find((unit) => unit.id === boatId);
-  if (!boat || !isBoatUnit(boat.type)) return { state, boarded: [], pending: [] };
+  if (!boat || boat.health <= 0 || !isBoatUnit(boat.type)) return { state, boarded: [], pending: [] };
   if (boatCapacity(boat.type) === 0) return { state, boarded: [], pending: [] };
 
   const passengers = [...(boat.passengers ?? [])];
@@ -50,9 +50,9 @@ export function applyEmbarkOrder(
   const pending: string[] = [];
   const boardedSet = new Set<string>();
 
-  for (const unitId of unitIds) {
+  for (const unitId of new Set(unitIds)) {
     const unit = state.units.find((candidate) => candidate.id === unitId);
-    if (!unit || isBoatUnit(unit.type) || unit.id === boatId) continue;
+    if (!unit || unit.health <= 0 || unit.owner !== boat.owner || isBoatUnit(unit.type) || unit.id === boatId || passengers.some((p) => p.id === unit.id)) continue;
     if (passengers.length >= boatCapacity(boat.type)) break;
     if (distance(unit.position, boat.position) <= range) {
       passengers.push(toPassenger(unit));
@@ -62,10 +62,10 @@ export function applyEmbarkOrder(
   }
 
   const pendingSet = new Set<string>();
-  for (const unitId of unitIds) {
+  for (const unitId of new Set(unitIds)) {
     if (boardedSet.has(unitId)) continue;
     const unit = state.units.find((candidate) => candidate.id === unitId);
-    if (!unit || isBoatUnit(unit.type) || unit.id === boatId) continue;
+    if (!unit || unit.health <= 0 || unit.owner !== boat.owner || isBoatUnit(unit.type) || unit.id === boatId || passengers.some((p) => p.id === unit.id)) continue;
     pendingSet.add(unit.id);
     pending.push(unit.id);
   }
@@ -104,10 +104,10 @@ export function boardArrivedPassengers(units: Unit[], range: number = EMBARK_RAN
   for (const unit of units) {
     if (!unit.embarkTargetId || isBoatUnit(unit.type)) continue;
     const boat = boats.get(unit.embarkTargetId);
-    if (!boat) continue;
+    if (!boat || boat.health <= 0 || unit.health <= 0 || unit.owner !== boat.owner) continue;
     if (!boardByBoat.has(boat.id)) boardByBoat.set(boat.id, [...(boat.passengers ?? [])]);
     const list = boardByBoat.get(boat.id) as Unit[];
-    if (list.length >= boatCapacity(boat.type)) continue;
+    if (list.length >= boatCapacity(boat.type) || list.some((p) => p.id === unit.id)) continue;
     if (distance(unit.position, boat.position) <= range) {
       list.push(toPassenger(unit));
       boarded.add(unit.id);
