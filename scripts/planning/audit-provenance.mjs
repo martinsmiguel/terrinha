@@ -48,7 +48,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try {
     const [, , input, sha, output] = process.argv;
     if (!input || !output) throw new Error('Uso: node scripts/planning/audit-provenance.mjs snapshot.json SHA report.json');
-    const report = auditProvenance(JSON.parse(readFileSync(input, 'utf8')), sha);
+    let snapshot;
+    try { snapshot = JSON.parse(readFileSync(input, 'utf8')); }
+    catch { throw new Error('Snapshot ilegível ou JSON inválido; nenhum corpo foi impresso.'); }
+    const report = auditProvenance(snapshot, sha);
     writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
     console.log(`${report.rows.length} cards: ${report.decision}; relatório ${output}`);
     process.exitCode = report.decision === 'findings' ? 1 : 0;

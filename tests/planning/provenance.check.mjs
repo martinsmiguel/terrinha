@@ -1,4 +1,8 @@
 import test from 'node:test';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { auditProvenance } from '../../scripts/planning/audit-provenance.mjs';
 const sha = 'a'.repeat(40);
@@ -49,4 +53,16 @@ test('relatório não contém corpos nem textos manuais', () => {
 
 test('atividade N03 sem subfatia também é identificada', () => {
   assert.equal(auditProvenance([{number: 100, body: body.replaceAll('A050', 'N03')}], sha).decision, 'structurally-complete');
+});
+
+test('CLI recusa JSON inválido sem expor seu conteúdo', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'terrinha-provenance-'));
+  try {
+    const input = join(dir, 'invalid.json');
+    writeFileSync(input, 'PRIVATE-SENTINEL-invalid-json');
+    const result = spawnSync(process.execPath, ['scripts/planning/audit-provenance.mjs', input, sha, join(dir, 'report.json')], {encoding: 'utf8'});
+    assert.equal(result.status, 2);
+    assert.ok(!result.stderr.includes('PRIVATE-SENTINEL'));
+    assert.match(result.stderr, /Inconclusivo/);
+  } finally { rmSync(dir, {recursive: true}); }
 });
