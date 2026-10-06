@@ -10,6 +10,18 @@ referenciados nos cards do quadro de atividades do GitHub.
 
 ## [Unreleased]
 
+### Added
+
+- Contrato público da alpha `v0.8.0-alpha.1`
+  ([docs/explanation/contrato-alpha.md](docs/explanation/contrato-alpha.md)):
+  seis ilhas amplas, fundação por carroça/kit com escolha da sede, vida por
+  fase, física de corpo/profundidade, ponte MVP, perfis de bots e regras por
+  interface/JSON; defaults experimentais (768×768) distinguidos do histórico
+  superado (340×340, Centro fixo); inclusões, cortes, jornada de aceite e
+  limite do que a documentação não declara. Referências públicas (README,
+  unidades/edifícios, eras/tecnologias, tutorial, arquitetura) ligadas ao
+  contrato com o estado atual separado do compromisso. [#62]
+
 ## [0.1.0] - 2026-09-27
 
 ### Added
