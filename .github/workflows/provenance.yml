@@ -1,0 +1,16 @@
+name: Rastreabilidade dos cards
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  provenance-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/planning/provenance.check.mjs
