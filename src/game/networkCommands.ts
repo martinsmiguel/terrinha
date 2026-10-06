@@ -1,6 +1,6 @@
-import type { Building, BuildingType, GameState, PlayerResources, ResourceNode, Unit, UnitType } from './engine';
-import { BOAT_CAPACITY, isBoatUnit } from './engine';
-import { BUILDING_CATALOG } from './buildingDefs';
+import type { Building, BuildingType, GameState, PlayerResources, ResourceNode, Unit, UnitType } from './model';
+import { BOAT_CAPACITY, isBoatUnit } from './model';
+import { BUILDING_CATALOG } from './buildingCatalog';
 import { researchBlock } from './tech';
 import { UNIT_COSTS, tradeResource, type MarketResourceType } from './economy';
 

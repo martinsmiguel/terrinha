@@ -739,7 +739,7 @@ class SoundManager {
    * Triumphant sound effect when a building reaches 100% construction completion.
    * Plays a rich colonial brass chord, fanfare and bell flourish.
    */
-  public playBuildingCompletedSound(buildingType: string = 'house') {
+  public playBuildingCompletedSound(_buildingType: string = 'house') {
     if (this.isMuted) return;
     const ctx = this.getContext();
     if (!ctx) return;

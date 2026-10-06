@@ -1,6 +1,6 @@
-import { isBoatUnit, MAP_SIZE } from './engine';
+import { isBoatUnit, MAP_SIZE } from './model';
 import { boardArrivedPassengers } from './navalTransport';
-import type { BuildingType, GameState, Unit, UnitType } from './engine';
+import type { BuildingType, GameState, Unit, UnitType } from './model';
 import { applyCost, canAfford, refinePlanks, UNIT_COSTS } from './economy';
 import { findPath, nextWaypoint } from './movement/pathfinding';
 import { resolveSeparation } from './movement/separation';
