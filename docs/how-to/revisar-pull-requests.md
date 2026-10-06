@@ -86,7 +86,7 @@ Não é necessário preencher uma seção artificialmente: escreva “nenhum” 
 ## Trilha do card e quadro
 
 - Ao começar: mova `Ready` → `In Progress` e registre responsável, abordagem e dependências relevantes.
-- Ao abrir PR: mova para `In Review`, vincule PR e atualize o checklist do issue com o que foi concluído e o que falta.
+- Ao abrir PR pronta, sem Draft: registre link clicável da PR na issue, branch, SHA e provas; confirme o vínculo e então mova para `In Review`. PR Draft permanece `In Progress`. Atualize o checklist da issue com o que foi comprovado e o que falta.
 - A cada passada relevante: comente no issue o SHA revisado, veredito, bloqueios/decisões e links para comentários da PR. Atualize checkboxes junto com evidências; não marque item só porque o código foi escrito.
 - Em bloqueio externo: mova para `Blocked` e registre causa, responsável pela resposta e próximo passo. Ao remover o bloqueio, retorne à etapa real.
 - Após merge e validação: marque critérios comprovados, registre SHA de merge/release quando aplicável e mova para `Done`.
@@ -160,3 +160,21 @@ Registre número de PRs, tamanho do diff e contexto (urgência, dependência ext
 ### Critério de avaliação
 
 O piloto é adotável quando todas as reviews concluídas preenchem procedência, evidência e veredito; bloqueios são confirmados antes do merge; e tempo/retrabalho são explicáveis sem queda de cobertura. Só declare melhoria após comparar com a linha de base e analisar regressões; a janela de 30 dias pode exigir retrospectiva posterior. Se o custo aumentar sem reduzir dúvidas, retrabalho ou regressões, simplifique e meça novamente. Registre decisão **adotar**, **ajustar** ou **reverter**, evidências, limitações e responsável no issue de acompanhamento.
+
+## Evidências na entrada em revisão
+
+Aplicar a matriz de [evidências do fluxo](fluxo-de-desenvolvimento.md#evidência-adequada-à-alteração): mudanças visuais incluem screenshots do resultado executado; interações podem exigir vídeo; API/rede incluem entradas e saídas reais. Verificar acessibilidade dos anexos, correspondência ao SHA e reprodução dos critérios. Ausência de prova necessária é pendência explícita. Correções com nova implementação retornam a In Progress até nova passagem de revisão.
+
+
+## Proteção de main e revisão tardia
+
+Main deve exigir pelo menos uma aprovação independente, checks obrigatórios e
+resolução de conversas; alterações posteriores invalidam aprovação anterior.
+Verificar a configuração remota e suas exceções, em vez de inferir proteção pela
+existência deste documento. Administradores também devem seguir o gate normal.
+
+Registrar revisão pós-merge como exceção de processo, com autor, SHA, critérios,
+provas e veredito. Não equivale à revisão prévia e não é evidência de que o gate
+bloqueou integração sem aprovação. A revisão do mantenedor que implementou/integrou
+não deve ser apresentada como revisão independente. O incidente #49/#102 é
+acompanhado no #90; aceite e eventual encerramento continuam explícitos.
