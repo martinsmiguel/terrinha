@@ -2,17 +2,18 @@
   "name": "terrinha",
   "private": false,
   "version": "0.7.1",
-  "description": "RTS de navegador 100% open source para jogar com amigos na sua rede local — inspirado em Age of Empires.",
+  "description": "RTS de navegador 100% open source para jogar com amigos na sua rede local \u2014 inspirado em Age of Empires.",
   "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.server.config.ts",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "clean": "rm -rf dist dist-server",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "start": "node server.ts"
+    "start": "NODE_ENV=production node dist-server/server.js",
+    "smoke": "node scripts/smoke-production.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
