@@ -9,3 +9,5 @@ bun.lock
 graphify-out/
 
 dist-server/
+.planning-state/
+__pycache__/
