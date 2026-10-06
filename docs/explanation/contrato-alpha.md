@@ -141,13 +141,15 @@ Cards: [#63](https://github.com/martinsmiguel/terrinha/issues/63)/
 ## 2. Defaults, história e precedência
 
 Defaults novos são **experimentais e revisáveis**: mudam por decisão registrada
-no card, com changelog, antes de virar promessa. Não são “aprovados na PoC”.
+no card, com changelog, antes de virar promessa. Não são “aprovados na PoC”. A adoção dos valores no catálogo depende da
+decisão `DEC-DEFAULTS` (#63/#65/#88), ainda pendente; o texto abaixo registra
+a proposta de ensaio, sem declarar aceite de equilíbrio ou desempenho.
 
 | Item | Status | Observação |
 |---|---|---|
-| Mundo **768×768** | Default experimental aceito | Ponto de partida do primeiro experimento; não é garantia nem dimensão aprovada por benchmark |
-| Ilhas de **160–220 células** | Default experimental aceito | Sujeito às áreas mínimas e ao orçamento medido |
-| Áreas de capital/regiões (12.000 células, 64×64, 4 regiões) | Defaults de validação aceitos | Revistos por jogada/benchmark em #52/#65/#66/#89 |
+| Mundo **768×768** | Proposta experimental de ensaio | Ponto de partida do primeiro experimento; não é garantia nem dimensão aprovada por benchmark |
+| Ilhas de **160–220 células** | Proposta experimental de ensaio | Sujeito às áreas mínimas e ao orçamento medido |
+| Áreas de capital/regiões (12.000 células, 64×64, 4 regiões) | Propostas de validação | Revistos por jogada/benchmark em #52/#65/#66/#89 |
 | Orçamento de **50 ms por tick** (p95 < orçamento) | Contrato técnico aceito | Velocidades 0,18/0,20/0,26 são distância **por tick**, não por segundo |
 | Mundo **340×340** | **Histórico superado** | Teto fechado anterior; substituído pela diretriz de ilhas amplas de 2026-10-05. Preservado apenas como procedência |
 | **Centro fixo** no spawn | **Histórico superado** | Substituído por carroça + kit + escolha da sede (§1.2) |
@@ -178,6 +180,14 @@ procedência**, não como critério concorrente.
   Misticismo/Alquimia, Balística/Arte Militar) e os seis talentos descritos no
   planejamento de produto: **complementam** eras/pesquisas, não as substituem.
   XP vem de efeitos reais validados pelo host.
+- Plantas raras e monumentos nas ilhas natais e neutras, com coleta/restauração,
+  bênção/farol e estações com efeitos limitados e estado real da sessão
+  (P18, [#84](https://github.com/martinsmiguel/terrinha/issues/84)).
+- Ondas Gerstner com parâmetros/tempo compartilhados entre CPU e shader,
+  tempestades sinalizadas e perdas navais contabilizadas uma vez (P19,
+  [#79](https://github.com/martinsmiguel/terrinha/issues/79)/
+  [#80](https://github.com/martinsmiguel/terrinha/issues/80)/
+  [#86](https://github.com/martinsmiguel/terrinha/issues/86)).
 - Física de corpo/profundidade, ponte interna MVP e perfis de bots.
 - Regras configuráveis por interface e JSON (§1.6), HUD com dados reais,
   rede com visão auditada no host.
@@ -204,8 +214,11 @@ aparecer numa imagem não concede autorização.
 Os seis marcos (M1 base confiável, M2 escala alvo, M3 colonização/logística,
 M4 HUD integrado, M5 progressão por uso, M6 náutica/calibração) são **aceites
 de produto**, não issues fechadas. A publicação segue a cadeia
-`ALPHA-VERSAO → ALPHA-LAN → ALPHA-ACEITE → ALPHA-PUBLICAR`, com os mesmos SHA
-nas etapas finais, depois de:
+`ALPHA-VERSAO → (ALPHA-LAN + ALPHA-HUMANO) → ALPHA-ACEITE → ALPHA-PUBLICAR`.
+LAN e teste humano final podem ocorrer em paralelo, ambos no mesmo SHA
+preparado por ALPHA-VERSAO. ALPHA-ACEITE exige os dois: a avaliação inicial
+da PoC (#56) não substitui o teste humano do build final escolhido. A
+publicação preserva esse SHA, depois de:
 
 - lint/test/build no SHA final e revisão independente;
 - jornada jogável em **quatro dispositivos** reais;

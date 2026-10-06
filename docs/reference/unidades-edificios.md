@@ -9,8 +9,8 @@
 > [contrato da alpha](../explanation/contrato-alpha.md) — previstas, ainda não
 > implementadas: início por **carroça/kit com escolha da sede** em vez de Centro
 > fixo no spawn; **sem renda passiva de ouro** do mercante (o contrato prevê frete
-> real, sem ouro criado por viagem); **entreposto**, **transporte colonial** e
-> **ponte** como construções novas. Enquanto não houver prova no SHA final,
+> real, sem ouro criado por viagem); **entreposto** e **ponte** como infraestrutura nova, e **transporte colonial**
+> como unidade naval nova. Enquanto não houver prova no SHA final,
 > considere os valores desta página como baseline e o contrato como compromisso.
 
 ## Recursos
