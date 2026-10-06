@@ -123,7 +123,7 @@ export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
     benefit: 'Constrói Barcos de Pesca e Mercantes',
     cost: { wood: 140 },
     buildTimeSeconds: 15,
-    maxHealth: 500,
+    maxHealth: 700,
     hotkey: 'B',
     footprintWidth: 3.4,
     footprintDepth: 3.4,

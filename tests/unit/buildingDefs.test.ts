@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { BUILDING_CATALOG } from '../../src/game/buildingDefs';
 
@@ -42,4 +43,14 @@ describe('BUILDING_CATALOG', () => {
       expect(building.type).toBe(type);
     }
   });
+});
+
+it('preserva os atributos mecânicos do catálogo anterior à extração pura #51', () => {
+  const before = JSON.parse(readFileSync('tests/fixtures/building-catalog-before-51.json', 'utf8'));
+  const mechanics = (catalog: Record<string, object>) => Object.fromEntries(
+    Object.entries(catalog).map(([id, definition]) => [id, Object.fromEntries(
+      Object.entries(definition).filter(([key]) => !['name', 'description', 'benefit'].includes(key))
+    )])
+  );
+  expect(mechanics(BUILDING_CATALOG)).toEqual(mechanics(before));
 });
