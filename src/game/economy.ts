@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { PlayerResources, UnitType } from './engine';
+import type { PlayerResources, UnitType } from './model';
 
 export type MarketResourceType = 'wood' | 'food' | 'stone';
 
