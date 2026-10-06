@@ -16,9 +16,6 @@ export interface SimulationMap {
   isOceanAt(x: number, z: number): boolean;
 }
 
-/** Raio máximo do snap de barco quando o mapa não está disponível. */
-const DOCK_BOAT_SPAWN_RADIUS = 3;
-
 export interface SimulationBuildingDefinition {
   name: string;
   buildTimeSeconds: number;
@@ -579,8 +576,8 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     if (boat) {
       // Barco so nasce em oceano navegavel dentro da janela do cais: o raio e
       // limitado pela mesma janela da validacao de posicionamento, entao um
-      // canal curto entre ilhas nunca vira teletransporte. Sem mapa, o snap
-      // legado vale, tambem limitado em raio.
+      // canal curto entre ilhas nunca vira teletransporte. Sem mapa nao ha
+      // prova de navegabilidade, entao a fila aguarda sem criar unidade.
       const oceanCell = context.map
         ? findDockOceanSpawnCell(
             context.map.isOceanAt,
@@ -589,10 +586,11 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
             spawnX,
             spawnZ
           )
-        : context.nearestOceanCell
-        ? context.nearestOceanCell(spawnX, spawnZ, DOCK_BOAT_SPAWN_RADIUS)
         : null;
-      if (oceanCell) spawnPosition = oceanCell;
+      // Um cais legado sem saída oceânica não pode criar barco em terra.
+      // Preservar a fila (e o custo já pago) até existir um spawn válido.
+      if (!oceanCell) return building;
+      spawnPosition = oceanCell;
     }
     const newUnit: Unit = {
       id: context.createId(),

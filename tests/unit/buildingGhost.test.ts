@@ -7,6 +7,9 @@ import {
   generateProceduralTerrain,
   type ProceduralMapResult,
 } from '../../src/game/proceduralMap';
+import { applyBuildingFoundation } from '../../src/game/buildingOrders';
+import { BUILDING_CATALOG } from '../../src/game/buildingDefs';
+import { isAuthorizedPlayerCommand, isValidNetworkCommand } from '../../src/game/networkCommands';
 import { tickGameState, type SimulationContext } from '../../src/game/simulation';
 
 const SIZE = 60;
@@ -253,22 +256,85 @@ describe('nascimento do barco treinado no cais', () => {
     });
   });
 
-  it('sem mapa disponível, o snap legado continua limitado em raio', () => {
+  it('sem mapa aguarda sem consumir fila, aumentar população ou criar barco', () => {
     const map = getMap(SEEDS[0]);
-    const spot = findValidDockSpot(map, map.resourceNodes);
-    expect(spot).not.toBeNull();
+    const spot = findValidDockSpot(map, map.resourceNodes)!;
+    const state = createState(spot);
+    const result = tickGameState(state, { ...context(map), map: undefined });
+    expect(result.state.units).toEqual([]);
+    expect(result.state.buildings[0].trainingQueue).toEqual(state.buildings[0].trainingQueue);
+    expect(result.state.playerResources.player1.pop).toBe(2);
+  });
 
-    const state = createState(spot!);
-    const legacyContext: SimulationContext = {
-      ...context(map),
-      map: undefined,
-      nearestOceanCell: (x, z, maxRadius) => findNearestOceanCell(map, x, z, maxRadius),
-    };
-    const result = tickGameState(state, legacyContext);
-    const boat = result.state.units.find((unit) => unit.id === 'boat-1');
-    expect(boat).toBeDefined();
-    // Snap legado: no máximo raio 3 a partir do ponto preferido (+2.5/+2.5).
-    const distance = Math.hypot(boat!.position.x - spot!.x, boat!.position.z - spot!.z);
-    expect(distance).toBeLessThanOrEqual(6.6);
+  it('cais legado sem oceano não produz barco em terra nem perde fila', () => {
+    const map = getMap(SEEDS[0]);
+    let spot: {x:number;z:number} | null = null;
+    for (let x=4;x<56&&!spot;x++) for(let z=4;z<56;z++) {
+      if (!hasOceanNearDock(map.isOceanAt,x,z) && !map.isOceanAt(x+2.5,z+2.5)) { spot={x,z}; break; }
+    }
+    expect(spot).not.toBeNull();
+    const state=createState(spot!);
+    const result=tickGameState(state,context(map));
+    expect(result.state.units).toEqual([]);
+    expect(result.state.buildings[0].trainingQueue).toEqual(state.buildings[0].trainingQueue);
+    expect(result.state.playerResources.player1.pop).toBe(2);
+  });
+});
+
+describe('margem e aplicação atômica do host', () => {
+  it('recusa cais sem a consulta autoritativa de oceano', () => {
+    expect(checkBuildingPlacementValid('dock',20,20,[],[],SIZE).isValid).toBe(false);
+    expect(checkBuildingPlacementValid('dock',20,20,[],[],SIZE,()=>true).isValid).toBe(false);
+  });
+
+  it('recusa janela inteiramente oceânica distante da terra', () => {
+    const map=getMap(SEEDS[0]);
+    let spot: {x:number;z:number} | null=null;
+    for(let x=4;x<56&&!spot;x++) for(let z=4;z<56;z++) {
+      let allOcean=true;
+      for(let ox=-3;ox<=3;ox++) for(let oz=-3;oz<=3;oz++) if(!map.isOceanAt(x+ox,z+oz)) allOcean=false;
+      if(allOcean) {spot={x,z};break;}
+    }
+    expect(spot).not.toBeNull();
+    expect(checkDock(map,spot!.x,spot!.z)).toMatchObject({isValid:false,reason:REASON_OCEAN});
+  });
+
+  it('comando autorizado constrói na costa, debita uma vez e mantém estado nas recusas', () => {
+    const map=getMap(SEEDS[0]);
+    const spot=findValidDockSpot(map,map.resourceNodes)!;
+    expect(spot).toBeDefined();
+    const def=BUILDING_CATALOG.dock;
+    const foundation:Building={id:'dock-host',type:'dock',owner:'player1',position:spot,
+      health:70,maxHealth:700,isComplete:false,buildProgress:0,trainingQueue:[]};
+    const state:GameState={units:[{id:'builder',type:'villager',owner:'player1',position:map.player1Spawn,
+      health:100,maxHealth:100,attackDamage:2,state:'idle',targetPosition:null,targetEntityId:null}],
+      buildings:[],resourceNodes:map.resourceNodes,
+      playerResources:{player1:{wood:300,food:100,gold:100,stone:0,planks:0,pop:1,maxPop:15}}};
+    const original=JSON.stringify(state);
+    const command={type:'build',buildingType:'dock',owner:'player1',position:spot,builderIds:['builder']} as const;
+    // Simula o JSON de rede, não um cast de payload autorizado.
+    const payload:unknown=JSON.parse(JSON.stringify(command));
+    expect(isValidNetworkCommand(payload)).toBe(true);
+    expect(isAuthorizedPlayerCommand(state,payload,'player1')).toBe(true);
+    const allowed=(current:GameState)=>checkBuildingPlacementValid('dock',spot.x,spot.z,
+      current.buildings,current.resourceNodes,SIZE,map.isWaterAt,map.isCliffAt,map.getHeightAt,map.isOceanAt).isValid;
+    const result=applyBuildingFoundation(state,foundation,def.cost,['builder'],allowed);
+    expect(result.buildings).toEqual([foundation]);
+    expect(result.playerResources.player1.wood).toBe(160);
+    expect(result.units[0]).toMatchObject({state:'building',targetEntityId:'dock-host'});
+    expect(applyBuildingFoundation(result,foundation,def.cost,['builder'],allowed)).toBe(result);
+    expect(applyBuildingFoundation(state,foundation,def.cost,['builder'],()=>false)).toBe(state);
+    expect(applyBuildingFoundation(state,foundation,def.cost,['foreign-builder'],allowed)).toBe(state);
+    const poor={...state,playerResources:{player1:{...state.playerResources.player1,wood:139}}};
+    expect(applyBuildingFoundation(poor,foundation,def.cost,['builder'],allowed)).toBe(poor);
+    expect(isAuthorizedPlayerCommand(state,payload,'player2')).toBe(false);
+    const inland=findInteriorWaterSpot(map);
+    expect(inland).not.toBeNull();
+    const inlandFoundation={...foundation,position:inland!};
+    expect(applyBuildingFoundation(state,inlandFoundation,def.cost,['builder'],current=>
+      checkBuildingPlacementValid('dock',inland!.x,inland!.z,current.buildings,[],SIZE,
+        map.isWaterAt,map.isCliffAt,map.getHeightAt,map.isOceanAt).isValid)).toBe(state);
+    expect(JSON.stringify(state)).toBe(original);
+    expect(JSON.parse(JSON.stringify(result))).toEqual(result);
   });
 });

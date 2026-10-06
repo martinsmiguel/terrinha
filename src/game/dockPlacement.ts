@@ -7,16 +7,16 @@
 export const DOCK_WATER_WINDOW_OFFSETS = [-2, 0, 2] as const;
 
 /**
- * Verdadeiro se algum ponto da janela do cais toca `waterAt` (qualquer água).
+ * Verdadeiro se a janela do cais toca terra firme para acesso pela margem.
  */
-export function hasWaterNearDock(
+export function hasLandNearDock(
   waterAt: (x: number, z: number) => boolean,
   dockX: number,
   dockZ: number
 ): boolean {
   for (const ox of DOCK_WATER_WINDOW_OFFSETS) {
     for (const oz of DOCK_WATER_WINDOW_OFFSETS) {
-      if (waterAt(dockX + ox, dockZ + oz)) return true;
+      if (!waterAt(dockX + ox, dockZ + oz)) return true;
     }
   }
   return false;

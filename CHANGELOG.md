@@ -12,6 +12,13 @@ referenciados nos cards do quadro de atividades do GitHub.
 
 ### Fixed
 
+- Cais exige contato com terra e oceano na mesma janela; recusa mar aberto e
+  geografia ausente. Treino naval sem saída válida conserva a fila sem criar
+  barco em terra. Aplicação de fundações no host revalida posicionamento,
+  saldo e aldeões no estado vigente antes do débito atômico. [#50]
+
+### Fixed
+
 - Cais exige **oceano navegável** na janela de posicionamento, tanto na prévia
   quanto na aplicação autorizada no host; cais em rio/lago interior é recusado
   com mensagem clara (`src/game/buildingGhost.ts`,

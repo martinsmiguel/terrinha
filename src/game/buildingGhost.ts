@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { Building, ResourceNode } from './engine';
 import { BuildingType, BUILDING_CATALOG } from './buildingDefs';
-import { hasOceanNearDock, hasWaterNearDock } from './dockPlacement';
+import { hasOceanNearDock, hasLandNearDock } from './dockPlacement';
 
 export interface GhostPlacementCheck {
   isValid: boolean;
@@ -228,6 +228,12 @@ export function checkBuildingPlacementValid(
     }
   }
 
+  // Sem geografia autoritativa não provar navegabilidade por qualquer água.
+  if (type === 'dock' && (!isWaterAt || !isOceanAt)) {
+    return { isValid: false, reason: 'O Cais deve ser construído na margem do oceano navegável!',
+      footprintWidth, footprintDepth };
+  }
+
   // Water check
   if (isWaterAt) {
     const isWater = isWaterAt(x, z);
@@ -237,8 +243,8 @@ export function checkBuildingPlacementValid(
       // interior never counts, even when it is water (isOceanAt is the only
       // surface boats can use).
       const nearbyNavigableWater = isOceanAt
-        ? hasOceanNearDock(isOceanAt, x, z)
-        : hasWaterNearDock(isWaterAt, x, z);
+        && hasOceanNearDock(isOceanAt, x, z)
+        && hasLandNearDock(isWaterAt, x, z);
       if (!nearbyNavigableWater) {
         return {
           isValid: false,
