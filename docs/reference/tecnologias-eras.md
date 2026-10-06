@@ -4,6 +4,13 @@
 > (`ERA_UPGRADES`, `TECH_DEFS`, `MAX_RESEARCH_QUEUE`) e
 > `src/App.tsx` (aplicação no tick).
 
+> **Contrato vigente.** A [alpha](../explanation/contrato-alpha.md) mantém as
+> **três eras e sete tecnologias** com os pré-requisitos desta página. Não há
+> tecnologia “Navegação” nova: cais e barcos não ganham barreira de era, e
+> Cartografia não revela tudo. **Maestrias e talentos complementam** esta
+> progressão (ainda não implementados); tecnologias continuam pesquisadas por
+> recurso, não por XP.
+
 ## Eras
 
 A colonia começa na **Era Colonial**. Avançar de era é uma pesquisa com custo
