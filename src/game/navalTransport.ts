@@ -1,6 +1,6 @@
 
-import { BOAT_CAPACITY, isBoatUnit, MAP_SIZE, type Building, type GameState, type Unit, type UnitType } from './engine';
-import { BUILDING_CATALOG } from './buildingDefs';
+import { BOAT_CAPACITY, isBoatUnit, MAP_SIZE, type Building, type GameState, type Unit, type UnitType } from './model';
+import { BUILDING_CATALOG } from './buildingCatalog';
 
 export const EMBARK_RANGE = 6;
 

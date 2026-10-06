@@ -4,7 +4,7 @@
  */
 
 import { applyCost, canAfford, type ResourceCost } from './economy';
-import type { PlayerResources } from './engine';
+import type { PlayerResources } from './model';
 
 /** Eras da colonia, em ordem cronologica. */
 export type Era = 'colonial' | 'commercial' | 'industrial';
