@@ -21,6 +21,23 @@ referenciados nos cards do quadro de atividades do GitHub.
   limite do que a documentação não declara. Referências públicas (README,
   unidades/edifícios, eras/tecnologias, tutorial, arquitetura) ligadas ao
   contrato com o estado atual separado do compromisso. [#62]
+### Fixed
+
+- Cais exige contato com terra e oceano na mesma janela; recusa mar aberto e
+  geografia ausente. Treino naval sem saída válida conserva a fila sem criar
+  barco em terra. Aplicação de fundações no host revalida posicionamento,
+  saldo e aldeões no estado vigente antes do débito atômico. [#50]
+
+### Fixed
+
+- Cais exige **oceano navegável** na janela de posicionamento, tanto na prévia
+  quanto na aplicação autorizada no host; cais em rio/lago interior é recusado
+  com mensagem clara (`src/game/buildingGhost.ts`,
+  `src/game/dockPlacement.ts`, 4 call-sites em `src/App.tsx`). O nascimento do
+  barco passa a usar a mesma janela do cais (raio limitado), sem teleporte
+  para outra ilha (`src/game/simulation.ts`). Testes com geografia real de
+  costa, lago/rio interior e cardume em `tests/unit/buildingGhost.test.ts`.
+  Instruções e referências públicas atualizadas. [#50]
 
 ## [0.1.0] - 2026-09-27
 
