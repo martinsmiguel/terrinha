@@ -126,7 +126,7 @@ export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
     type: 'dock',
     name: 'Cais & Doca Naval',
     category: 'naval',
-    description: 'Estaleiro construído na margem do rio para atracar e construir Barcos de Pesca e Comércio.',
+    description: 'Estaleiro construído na margem do oceano navegável para atracar e construir Barcos de Pesca e Comércio.',
     benefit: 'Constrói Barcos de Pesca e Mercantes',
     cost: { wood: 140 },
     buildTimeSeconds: 15,

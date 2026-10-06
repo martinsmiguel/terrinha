@@ -939,7 +939,9 @@ export default function App() {
           playerSlot,
           mode: role,
           map: procMap ?? undefined,
-          nearestOceanCell: procMap ? (x, z) => findNearestOceanCell(procMap, x, z) : undefined,
+          nearestOceanCell: procMap
+            ? (x, z, maxRadius) => findNearestOceanCell(procMap, x, z, maxRadius)
+            : undefined,
           pathCache: unitPathsRef.current,
           activeSlots: activeSlotsRef.current,
           gatherRadiusLimit: gatherRadiusLimitRef.current,
@@ -992,7 +994,8 @@ export default function App() {
         MAP_SIZE,
         proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
-        proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined
+        proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
+        proceduralMapRef.current ? proceduralMapRef.current.isOceanAt : undefined
       );
       if (!placement.isValid) return;
     }
@@ -1141,7 +1144,8 @@ export default function App() {
           MAP_SIZE,
           proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
           proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
-          proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined
+          proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
+          proceduralMapRef.current ? proceduralMapRef.current.isOceanAt : undefined
         );
         if (!placement.isValid) return prev;
 
@@ -1451,7 +1455,7 @@ export default function App() {
           } else if (key === 'b') {
             setBuildMode('dock');
             soundManager.playClickSound();
-            triggerNotification('Modo de Construção: Cais Naval [B]. Posicione na margem do rio.', 'info');
+            triggerNotification('Modo de Construção: Cais Naval [B]. Posicione na margem do oceano navegável.', 'info');
           }
         }
 
@@ -1535,7 +1539,8 @@ export default function App() {
         MAP_SIZE,
         proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
-        proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined
+        proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
+        proceduralMapRef.current ? proceduralMapRef.current.isOceanAt : undefined
       );
 
       if (!check.isValid) {
@@ -1777,7 +1782,8 @@ export default function App() {
             MAP_SIZE,
             proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
             proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
-            proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined
+            proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
+            proceduralMapRef.current ? proceduralMapRef.current.isOceanAt : undefined
           );
           if (ghostBuildingMesh.current) {
             const ghostY = proceduralMapRef.current ? proceduralMapRef.current.getHeightAt(snappedX, snappedZ) : pt.y;

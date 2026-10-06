@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { Building, ResourceNode } from './engine';
 import { BuildingType, BUILDING_CATALOG } from './buildingDefs';
+import { hasOceanNearDock, hasWaterNearDock } from './dockPlacement';
 
 export interface GhostPlacementCheck {
   isValid: boolean;
@@ -174,7 +175,8 @@ export function checkBuildingPlacementValid(
   mapSize: number,
   isWaterAt?: (x: number, z: number) => boolean,
   isCliffAt?: (x: number, z: number) => boolean,
-  getHeightAt?: (x: number, z: number) => number
+  getHeightAt?: (x: number, z: number) => number,
+  isOceanAt?: (x: number, z: number) => boolean
 ): GhostPlacementCheck {
   const def = BUILDING_CATALOG[type] || BUILDING_CATALOG.house;
   const footprintWidth = def.footprintWidth;
@@ -230,18 +232,17 @@ export function checkBuildingPlacementValid(
   if (isWaterAt) {
     const isWater = isWaterAt(x, z);
     if (type === 'dock') {
-      // Docks must be placed at the water boundary or in shallow water
-      let nearbyWater = false;
-      const testOffsets = [-2, 0, 2];
-      for (const ox of testOffsets) {
-        for (const oz of testOffsets) {
-          if (isWaterAt(x + ox, z + oz)) nearbyWater = true;
-        }
-      }
-      if (!nearbyWater) {
+      // Docks must face navigable ocean water: the same rule drives the
+      // placement preview and the host's authorized application. Rio/lago
+      // interior never counts, even when it is water (isOceanAt is the only
+      // surface boats can use).
+      const nearbyNavigableWater = isOceanAt
+        ? hasOceanNearDock(isOceanAt, x, z)
+        : hasWaterNearDock(isWaterAt, x, z);
+      if (!nearbyNavigableWater) {
         return {
           isValid: false,
-          reason: 'O Cais deve ser construído na margem do mar ou rio!',
+          reason: 'O Cais deve ser construído na margem do oceano navegável!',
           footprintWidth,
           footprintDepth,
         };

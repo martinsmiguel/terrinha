@@ -10,6 +10,17 @@ referenciados nos cards do quadro de atividades do GitHub.
 
 ## [Unreleased]
 
+### Fixed
+
+- Cais exige **oceano navegável** na janela de posicionamento, tanto na prévia
+  quanto na aplicação autorizada no host; cais em rio/lago interior é recusado
+  com mensagem clara (`src/game/buildingGhost.ts`,
+  `src/game/dockPlacement.ts`, 4 call-sites em `src/App.tsx`). O nascimento do
+  barco passa a usar a mesma janela do cais (raio limitado), sem teleporte
+  para outra ilha (`src/game/simulation.ts`). Testes com geografia real de
+  costa, lago/rio interior e cardume em `tests/unit/buildingGhost.test.ts`.
+  Instruções e referências públicas atualizadas. [#50]
+
 ## [0.1.0] - 2026-09-27
 
 ### Added

@@ -43,7 +43,7 @@
 | `T` | Mineradora & Pedreira |
 | `Y` | Mercadão do Império |
 | `F` | Fazenda & Granja |
-| `B` | Cais & Doca Naval (só em margem) |
+| `B` | Cais & Doca Naval (só em margem do oceano navegável) |
 
 ## Treino (com edifício próprio selecionado e concluído)
 
