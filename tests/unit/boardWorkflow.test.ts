@@ -79,3 +79,17 @@ describe('release explícita #90', () => {
     expect(release).toContain('l.packages[""].version!==p.version');
   });
 });
+
+describe('referências externas não afetam cards locais', () => {
+  it('ignora owner/repo#N nas três ações do workflow', async () => {
+    for (const index of [RECORD, MOVE, 2]) {
+      const result = await run(index, {merged: index === 2, body: 'Refs: other/project#90'});
+      expect(result.comments).not.toHaveBeenCalled();
+      expect(result.graphql).not.toHaveBeenCalled();
+    }
+  });
+  it('mantém apenas IDs locais numa linha com referências mistas', async () => {
+    const result = await run(2, {merged: true, body: 'Refs: #90 other/project#91'});
+    expect(result.comments.mock.calls.map(([arg]) => arg.issue_number)).toEqual([90]);
+  });
+});

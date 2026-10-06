@@ -40,7 +40,7 @@ jobs:
               if (/^\s*(```|~~~)/.test(line)) { fenced = !fenced; continue; }
               if (fenced) continue;
               const match = line.replace(/`[^`]*`/g, "").match(relatedLine);
-              if (match) for (const ref of match[1].matchAll(/#(\d+)/g)) numbers.add(Number(ref[1]));
+              if (match) for (const ref of match[1].matchAll(/(?<![\w/.-])#(\d+)\b/g)) numbers.add(Number(ref[1]));
             }
             for (const number of numbers) {
               try {
@@ -71,7 +71,7 @@ jobs:
               if (/^\s*(```|~~~)/.test(line)) { fenced = !fenced; continue; }
               if (fenced) continue;
               const match = line.replace(/`[^`]*`/g, "").match(relatedLine);
-              if (match) for (const ref of match[1].matchAll(/#(\d+)/g)) numbers.add(Number(ref[1]));
+              if (match) for (const ref of match[1].matchAll(/(?<![\w/.-])#(\d+)\b/g)) numbers.add(Number(ref[1]));
             }
             if (numbers.size === 0) {
               core.info("Nenhuma referência de issue em linha Refs/Closes/Fixes/Resolves.");
@@ -156,7 +156,7 @@ jobs:
               if (/^\s*(```|~~~)/.test(line)) { fenced = !fenced; continue; }
               if (fenced) continue;
               const match = line.replace(/`[^`]*`/g, "").match(relatedLine);
-              if (match) for (const ref of match[1].matchAll(/#(\d+)/g)) numbers.add(Number(ref[1]));
+              if (match) for (const ref of match[1].matchAll(/(?<![\w/.-])#(\d+)\b/g)) numbers.add(Number(ref[1]));
             }
             for (const number of numbers) {
               await github.rest.issues.createComment({
