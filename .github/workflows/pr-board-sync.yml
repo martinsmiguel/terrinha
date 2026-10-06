@@ -2,6 +2,7 @@ name: Sincronizar quadro com PRs
 
 on:
   pull_request_target:
+    branches: [main]
     types: [opened, ready_for_review, synchronize, reopened, closed]
 
 permissions:
@@ -23,17 +24,53 @@ jobs:
 
       # Usa pull_request_target sem checkout nem execução do código da PR.
       # O corpo da PR é tratado apenas como texto para localizar referências.
+      - name: Registrar a entrada em revisão
+        if: (github.event.action == 'opened' || github.event.action == 'ready_for_review') && !github.event.pull_request.draft
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            if (pr.draft || pr.base.ref !== context.payload.repository.default_branch || context.payload.action === "closed") return;
+            const body = pr.body || "";
+            const numbers = new Set();
+            let fenced = false;
+            const relatedLine = /^\s*(?:[-*]\s*)?(?:refs?|relates-to|closes?|close|fix(?:es|ed)?|resolves?)\s*:?\s*(.*)$/i;
+            for (const line of body.replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/)) {
+              if (/^\s*(```|~~~)/.test(line)) { fenced = !fenced; continue; }
+              if (fenced) continue;
+              const match = line.replace(/`[^`]*`/g, "").match(relatedLine);
+              if (match) for (const ref of match[1].matchAll(/#(\d+)/g)) numbers.add(Number(ref[1]));
+            }
+            for (const number of numbers) {
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: number,
+                  body: `PR pronta para revisão: [#${pr.number}](${pr.html_url}).\nBranch: ${pr.head.ref}; SHA candidato: ${pr.head.sha}.\nConsulte na PR as evidências, checks e pendências. Confirme o campo Status do Project; este registro não declara aceite.`
+                });
+              } catch (error) {
+                throw error;
+              }
+            }
+
       - name: Mover issues relacionadas para In Review
         if: (github.event.action == 'opened' || github.event.action == 'ready_for_review' || github.event.action == 'synchronize' || github.event.action == 'reopened') && !github.event.pull_request.draft
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
           script: |
-            const body = context.payload.pull_request.body || "";
+            const pr = context.payload.pull_request;
+            if (pr.draft || pr.base.ref !== context.payload.repository.default_branch || context.payload.action === "closed") return;
+            const body = pr.body || "";
             const numbers = new Set();
+            let fenced = false;
             const relatedLine = /^\s*(?:[-*]\s*)?(?:refs?|relates-to|closes?|close|fix(?:es|ed)?|resolves?)\s*:?\s*(.*)$/i;
-            for (const line of body.split(/\r?\n/)) {
-              const match = line.match(relatedLine);
+            for (const line of body.replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/)) {
+              if (/^\s*(```|~~~)/.test(line)) { fenced = !fenced; continue; }
+              if (fenced) continue;
+              const match = line.replace(/`[^`]*`/g, "").match(relatedLine);
               if (match) for (const ref of match[1].matchAll(/#(\d+)/g)) numbers.add(Number(ref[1]));
             }
             if (numbers.size === 0) {
@@ -103,134 +140,29 @@ jobs:
               core.info(`Issue #${number} movida para In Review.`);
             }
 
-      - name: Registrar a entrada em revisão
-        if: (github.event.action == 'opened' || github.event.action == 'ready_for_review') && !github.event.pull_request.draft
+      - name: Registrar integração sem declarar aceite
+        if: github.event.action == 'closed' && github.event.pull_request.merged
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const body = context.payload.pull_request.body || "";
+            const pr = context.payload.pull_request;
+            if (!pr.merged || pr.base.ref !== context.payload.repository.default_branch) return;
+            const body = pr.body || "";
             const numbers = new Set();
+            let fenced = false;
             const relatedLine = /^\s*(?:[-*]\s*)?(?:refs?|relates-to|closes?|close|fix(?:es|ed)?|resolves?)\s*:?\s*(.*)$/i;
-            for (const line of body.split(/\r?\n/)) {
-              const match = line.match(relatedLine);
+            for (const line of body.replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/)) {
+              if (/^\s*(```|~~~)/.test(line)) { fenced = !fenced; continue; }
+              if (fenced) continue;
+              const match = line.replace(/`[^`]*`/g, "").match(relatedLine);
               if (match) for (const ref of match[1].matchAll(/#(\d+)/g)) numbers.add(Number(ref[1]));
             }
             for (const number of numbers) {
-              try {
-                await github.rest.issues.createComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: number,
-                  body: `PR #${context.payload.pull_request.number} aberta para revisão; card movido para In Review.`
-                });
-              } catch (error) {
-                core.warning(`#${number}: ${error.message}`);
-              }
-            }
-
-      - name: Mover somente issues que esta PR fecha para Done
-        if: github.event.action == 'closed' && github.event.pull_request.merged
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
-          script: |
-            const body = context.payload.pull_request.body || "";
-            const numbers = new Set();
-            const closingLine = /^\s*(?:[-*]\s*)?(?:closes?|close|fix(?:es|ed)?|resolves?)\s*:?\s*(.*)$/i;
-            for (const line of body.split(/\r?\n/)) {
-              const match = line.match(closingLine);
-              if (match) for (const ref of match[1].matchAll(/#(\d+)/g)) numbers.add(Number(ref[1]));
-            }
-            if (numbers.size === 0) {
-              core.info("Nenhuma issue declarada com Closes/Fixes/Resolves; nenhuma foi movida para Done.");
-              return;
-            }
-
-            const projectData = await github.graphql(`
-              query {
-                user(login: "martinsmiguel") {
-                  projectV2(number: 3) {
-                    id
-                    fields(first: 50) {
-                      nodes {
-                        ... on ProjectV2SingleSelectField {
-                          id
-                          name
-                          options { id name }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            `);
-            const board = projectData.user?.projectV2;
-            if (!board) throw new Error("Project V2 #3 não foi encontrado ou o token não tem acesso.");
-            const statusField = board.fields.nodes.find((field) => field.name === "Status");
-            const statusOption = statusField?.options.find((option) => option.name === "Done");
-            if (!statusField || !statusOption) throw new Error("Campo/opção Status → Done não foi encontrado.");
-
-            for (const number of numbers) {
-              const result = await github.graphql(`
-                query($owner: String!, $repo: String!, $number: Int!) {
-                  repository(owner: $owner, name: $repo) {
-                    issue(number: $number) {
-                      id
-                      projectItems(first: 100) { nodes { id project { id } } }
-                    }
-                  }
-                }
-              `, { owner: context.repo.owner, repo: context.repo.repo, number });
-              const issue = result.repository.issue;
-              if (!issue) {
-                core.warning(`#${number} não existe neste repositório; ignorada.`);
-                continue;
-              }
-              let card = issue.projectItems.nodes.find((item) => item.project.id === board.id);
-              if (!card) {
-                const added = await github.graphql(`
-                  mutation($project: ID!, $content: ID!) {
-                    addProjectV2ItemById(input: { projectId: $project, contentId: $content }) { item { id } }
-                  }
-                `, { project: board.id, content: issue.id });
-                card = added.addProjectV2ItemById.item;
-              }
-              await github.graphql(`
-                mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
-                  updateProjectV2ItemFieldValue(input: {
-                    projectId: $project
-                    itemId: $item
-                    fieldId: $field
-                    value: { singleSelectOptionId: $option }
-                  }) { projectV2Item { id } }
-                }
-              `, { project: board.id, item: card.id, field: statusField.id, option: statusOption.id });
-              core.info(`Issue #${number} movida para Done.`);
-            }
-
-      - name: Registrar a conclusão
-        if: github.event.action == 'closed' && github.event.pull_request.merged
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const body = context.payload.pull_request.body || "";
-            const numbers = new Set();
-            const closingLine = /^\s*(?:[-*]\s*)?(?:closes?|close|fix(?:es|ed)?|resolves?)\s*:?\s*(.*)$/i;
-            for (const line of body.split(/\r?\n/)) {
-              const match = line.match(closingLine);
-              if (match) for (const ref of match[1].matchAll(/#(\d+)/g)) numbers.add(Number(ref[1]));
-            }
-            for (const number of numbers) {
-              try {
-                await github.rest.issues.createComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: number,
-                  body: `PR #${context.payload.pull_request.number} mergeada; card movido para Done.`
-                });
-              } catch (error) {
-                core.warning(`#${number}: ${error.message}`);
-              }
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: number,
+                body: `PR #${pr.number} integrada na branch padrão em ${pr.merge_commit_sha}. Integração registrada; aceite dos critérios ainda deve ser confirmado com evidências e revisão. O workflow não move o card para Done.`,
+              });
             }
