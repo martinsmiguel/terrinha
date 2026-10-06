@@ -15,6 +15,14 @@ services:
         - action: rebuild
           path: ./index.html
         - action: rebuild
+          path: ./poc.html
+        - action: rebuild
+          path: ./poc-hud.html
+        - action: rebuild
+          path: ./poc-avaliacao.html
+        - action: rebuild
+          path: ./vite.server.config.ts
+        - action: rebuild
           path: ./vite.config.ts
         - action: rebuild
           path: ./package.json
@@ -22,3 +30,5 @@ services:
           path: ./package-lock.json
         - action: rebuild
           path: ./Dockerfile
+        - action: rebuild
+          path: ./tsconfig.json
