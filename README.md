@@ -77,3 +77,7 @@ Documentada com [Diátaxis](https://diataxis.fr/) — veja
 | `npm test` | testes unitários (Vitest) |
 | `npm run build` | build de produção em `dist/` |
 | `npm start` | roda o build de produção |
+
+### Produção e avaliação do HUD
+
+`npm run build` compila cliente e servidor; `npm start` executa `dist-server/server.js` em produção. Docker usa o mesmo servidor compilado. Rotas de avaliação, Compose Watch e smoke estão no [guia de produção](docs/how-to/executar-producao.md).
