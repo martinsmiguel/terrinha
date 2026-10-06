@@ -7,3 +7,6 @@ coverage/
 .env*
 bun.lock
 graphify-out/
+
+.planning-state/
+__pycache__/
