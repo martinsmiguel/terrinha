@@ -33,9 +33,7 @@ npm run build     # build de produção (vite build)
 
 ### 4. Versão e tag
 
-O workflow `version-bump.yml` sobe a versão e cria a tag automaticamente em
-cada push na `main` (usa os Conventional Commits desde a última tag). Para
-release manual:
+O workflow `version-bump.yml` é manual (`workflow_dispatch`) na main e recebe a versão explícita. Ele valida lint/test/build, atualiza package e lock e cria a tag; não publica GitHub Release. O aceite humano e o CHANGELOG devem estar prontos antes de acioná-lo. Durante o desenvolvimento da alpha, pushes não criam versões estáveis automaticamente. Para release manual:
 
 ```bash
 # confira a versão proposta
@@ -75,3 +73,16 @@ gh release create vX.Y.Z --title "vX.Y.Z" --notes "$(awk '/^## \[X.Y.Z\]/{f=1;ne
 
 - [v0.1.0](https://github.com/martinsmiguel/terrinha/releases/tag/v0.1.0) —
   protótipo base + fundação do repositório.
+
+## Alpha do arquipélago
+
+Alvo: `v0.8.0-alpha.1`, com aceite na [issue #89](https://github.com/martinsmiguel/terrinha/issues/89). Publicar como pré-release (`gh release create v0.8.0-alpha.1 --prerelease --title "v0.8.0-alpha.1" --notes-file release-notes.md`) apenas depois do aceite. Tags históricas não comprovam a existência de uma GitHub Release.
+
+
+## Validação manual do candidato
+
+O workflow version-bump.yml deixou de reagir a push. Ele só recebe uma execução
+manual em main com version e candidate_sha completos; o pacote e o lock já precisam
+ter essa versão. Faz instalação e checks no SHA, sem publicar commit, tag ou Release.
+Não trata checks como aceite. Preparar versão/changelog antes das provas finais;
+publicar o mesmo candidato aceito exige etapa explícita do mantenedor.

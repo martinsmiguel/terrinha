@@ -3,6 +3,12 @@
 > Quadrante **Tutorial** — aprenda fazendo. Se já sabe jogar, vá para
 > [How-to](../how-to/hospedar-partida-wifi.md).
 
+> **Este tutorial descreve o build atual**, que começa com o Centro da Vila já
+> colocado no spawn. O [contrato da alpha](../explanation/contrato-alpha.md)
+> prevê começo diferente: **carroça de fundação + kit, com escolha do sítio da
+> sede** antes do primeiro Centro (card [#98](https://github.com/martinsmiguel/terrinha/issues/98)).
+> Quando essa fatia for integrada, os passos 3.1–3.3 mudam junto.
+
 ## 1. Suba o jogo
 
 ```bash
