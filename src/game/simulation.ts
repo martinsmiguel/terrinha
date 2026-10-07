@@ -2,6 +2,7 @@ import { isBoatUnit, MAP_SIZE } from './model';
 import { boardArrivedPassengers } from './navalTransport';
 import type { BuildingType, GameState, Unit, UnitType } from './model';
 import { applyCost, canAfford, refinePlanks, UNIT_COSTS } from './economy';
+import { findDockOceanSpawnCell } from './dockPlacement';
 import { findPath, nextWaypoint } from './movement/pathfinding';
 import { resolveSeparation } from './movement/separation';
 import { applyPopDelta, countDeathsByOwner } from './population';
@@ -31,7 +32,7 @@ export interface SimulationContext {
   playerSlot: string;
   mode: 'host' | 'single';
   map?: SimulationMap;
-  nearestOceanCell?(x: number, z: number): { x: number; z: number };
+  nearestOceanCell?(x: number, z: number, maxRadius?: number): { x: number; z: number };
   pathCache?: SimulationPathCache;
   activeSlots?: string[];
   gatherRadiusLimit: number;
@@ -571,13 +572,31 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         : 100;
     const spawnX = building.position.x + (boat ? 2.5 : context.random() * 2 + 2);
     const spawnZ = building.position.z + (boat ? 2.5 : context.random() * 2 + 2);
+    let spawnPosition: { x: number; z: number } = { x: spawnX, z: spawnZ };
+    if (boat) {
+      // Barco so nasce em oceano navegavel dentro da janela do cais: o raio e
+      // limitado pela mesma janela da validacao de posicionamento, entao um
+      // canal curto entre ilhas nunca vira teletransporte. Sem mapa nao ha
+      // prova de navegabilidade, entao a fila aguarda sem criar unidade.
+      const oceanCell = context.map
+        ? findDockOceanSpawnCell(
+            context.map.isOceanAt,
+            building.position.x,
+            building.position.z,
+            spawnX,
+            spawnZ
+          )
+        : null;
+      // Um cais legado sem saída oceânica não pode criar barco em terra.
+      // Preservar a fila (e o custo já pago) até existir um spawn válido.
+      if (!oceanCell) return building;
+      spawnPosition = oceanCell;
+    }
     const newUnit: Unit = {
       id: context.createId(),
       type: currentItem.unitType,
       owner: building.owner,
-      position: boat && context.nearestOceanCell
-        ? context.nearestOceanCell(spawnX, spawnZ)
-        : { x: spawnX, z: spawnZ },
+      position: spawnPosition,
       targetPosition: null,
       targetEntityId: null,
       health: maxHp,

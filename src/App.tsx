@@ -60,6 +60,7 @@ import { FACTION_COLORS } from './game/factions';
 import { pickFrontMostCandidate, resolveClickSelection } from './game/entitySelection';
 import { applyEmbarkOrder, boatCapacity, disembarkPassengers } from './game/navalTransport';
 import { tickGameState } from './game/simulation';
+import { applyBuildingFoundation } from './game/buildingOrders';
 import { useSceneSynchronization } from './hooks/useSceneSynchronization';
 import { LobbyScreen } from './components/LobbyScreen';
 import { GameDialogs } from './components/GameDialogs';
@@ -939,7 +940,9 @@ export default function App() {
           playerSlot,
           mode: role,
           map: procMap ?? undefined,
-          nearestOceanCell: procMap ? (x, z) => findNearestOceanCell(procMap, x, z) : undefined,
+          nearestOceanCell: procMap
+            ? (x, z, maxRadius) => findNearestOceanCell(procMap, x, z, maxRadius)
+            : undefined,
           pathCache: unitPathsRef.current,
           activeSlots: activeSlotsRef.current,
           gatherRadiusLimit: gatherRadiusLimitRef.current,
@@ -992,7 +995,8 @@ export default function App() {
         MAP_SIZE,
         proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
-        proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined
+        proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
+        proceduralMapRef.current ? proceduralMapRef.current.isOceanAt : undefined
       );
       if (!placement.isValid) return;
     }
@@ -1129,45 +1133,17 @@ export default function App() {
         buildProgress: 0,
         trainingQueue: [],
       };
-      setGameState((prev) => {
-        const pRes = prev.playerResources[cmd.owner];
-        if (!pRes || !canAfford(pRes, def.cost)) return prev;
-        const placement = checkBuildingPlacementValid(
-          cmd.buildingType,
-          cmd.position.x,
-          cmd.position.z,
-          prev.buildings,
-          prev.resourceNodes,
-          MAP_SIZE,
-          proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
-          proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
-          proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined
-        );
-        if (!placement.isValid) return prev;
-
-        // Auto-assign any selected villagers from the builder to start hammering
-        const updatedUnits = prev.units.map((u) => {
-          if (cmd.builderIds && cmd.builderIds.includes(u.id)) {
-            return {
-              ...u,
-              state: 'building' as const,
-              targetEntityId: newBuilding.id,
-              targetPosition: null,
-            };
-          }
-          return u;
-        });
-
-        return {
-          ...prev,
-          buildings: [...prev.buildings, newBuilding],
-          units: updatedUnits,
-          playerResources: {
-            ...prev.playerResources,
-            [cmd.owner]: applyCost(pRes, def.cost),
-          },
-        };
-      });
+      setGameState((prev) => applyBuildingFoundation(
+        prev, newBuilding, def.cost, cmd.builderIds ?? [],
+        (current) => checkBuildingPlacementValid(
+          cmd.buildingType, cmd.position.x, cmd.position.z,
+          current.buildings, current.resourceNodes, MAP_SIZE,
+          proceduralMapRef.current?.isWaterAt,
+          proceduralMapRef.current?.isCliffAt,
+          proceduralMapRef.current?.getHeightAt,
+          proceduralMapRef.current?.isOceanAt,
+        ).isValid,
+      ));
     } else if (cmd.type === 'train') {
       setGameState((prev) => {
         const building = prev.buildings.find((candidate) => candidate.id === cmd.buildingId);
@@ -1451,7 +1427,7 @@ export default function App() {
           } else if (key === 'b') {
             setBuildMode('dock');
             soundManager.playClickSound();
-            triggerNotification('Modo de Construção: Cais Naval [B]. Posicione na margem do rio.', 'info');
+            triggerNotification('Modo de Construção: Cais Naval [B]. Posicione na margem do oceano navegável.', 'info');
           }
         }
 
@@ -1535,7 +1511,8 @@ export default function App() {
         MAP_SIZE,
         proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
-        proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined
+        proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
+        proceduralMapRef.current ? proceduralMapRef.current.isOceanAt : undefined
       );
 
       if (!check.isValid) {
@@ -1777,7 +1754,8 @@ export default function App() {
             MAP_SIZE,
             proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
             proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
-            proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined
+            proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
+            proceduralMapRef.current ? proceduralMapRef.current.isOceanAt : undefined
           );
           if (ghostBuildingMesh.current) {
             const ghostY = proceduralMapRef.current ? proceduralMapRef.current.getHeightAt(snappedX, snappedZ) : pt.y;
