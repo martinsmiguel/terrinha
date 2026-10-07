@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Building } from './engine';
+import type { Building } from './model';
 
 /** Estado da partida segundo a condição de vitória. */
 export type MatchStatus =

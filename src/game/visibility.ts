@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Building, Unit } from './engine';
+import type { Building, Unit } from './model';
 
 /** Nunca vista pelo jogador (véu preto). */
 export const VISION_UNEXPLORED = 0;

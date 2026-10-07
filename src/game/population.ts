@@ -1,4 +1,4 @@
-import type { PlayerResources } from './engine';
+import type { PlayerResources } from './model';
 
 export type ResourceTable = Record<string, PlayerResources>;
 

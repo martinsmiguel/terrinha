@@ -1,6 +1,11 @@
 # Explicação: arquitetura geral
 
 > Quadrante **Explicação** — entenda o como e o porquê.
+>
+> Esta página descreve o **código atual**. O compromisso de produto da entrega
+> `v0.8.0-alpha.1` — seis ilhas amplas, fundação por carroça, vida por fase,
+> física de profundidade, ponte, bots e settings — está no
+> [contrato da alpha](contrato-alpha.md).
 
 ## Visão em uma frase
 

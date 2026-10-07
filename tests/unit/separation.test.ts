@@ -52,7 +52,7 @@ describe('resolveSeparation', () => {
   });
 
   it('refuses to move a unit into blocked terrain', () => {
-    const blocked = (x: number, z: number): boolean => x >= 20;
+    const blocked = (x: number, _z: number): boolean => x >= 20;
     const result = resolveSeparation([body('a', 19.7, 10), body('b', 20.5, 10)], {
       radius: 0.5,
       isBlocked: blocked,

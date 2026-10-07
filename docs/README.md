@@ -12,7 +12,8 @@ quadrantes. Escolha pelo que você quer fazer:
 
 Páginas mais consultadas:
 
-- [Comandos de teclado](reference/comandos-teclado.md) ·
+- [Contrato da alpha](explanation/contrato-alpha.md) ·
+  [Comandos de teclado](reference/comandos-teclado.md) ·
   [Unidades e edifícios](reference/unidades-edificios.md) ·
   [Eras e tecnologias](reference/tecnologias-eras.md)
 - [Hospedar na Wi-Fi](how-to/hospedar-partida-wifi.md) ·

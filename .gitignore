@@ -7,3 +7,5 @@ coverage/
 .env*
 bun.lock
 graphify-out/
+
+dist-server/
