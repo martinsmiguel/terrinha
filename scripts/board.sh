@@ -25,6 +25,10 @@ case "$COLUNA" in
   *) echo "Coluna inválida: $COLUNA"; exit 1 ;;
 esac
 
+case "$ISSUE" in
+  ''|*[!0-9]*) echo "Número de issue inválido." >&2; exit 2 ;;
+esac
+
 # 1. Descobre o ID do projeto e do campo Status (com as opções)
 read -r PROJECT_ID FIELD_ID OPTION_ID < <(gh api graphql -f query='
   query($login: String!, $number: Int!) {
@@ -47,6 +51,11 @@ read -r PROJECT_ID FIELD_ID OPTION_ID < <(gh api graphql -f query='
     | (\$p.fields.nodes[] | select(.name == \"Status\")) as \$f
     | (\$f.options[] | select(.name == \"$LABEL\")) as \$o
     | \"\(\$p.id) \(\$f.id) \(\$o.id)\"")
+
+if [[ -z "$PROJECT_ID" || -z "$FIELD_ID" || -z "$OPTION_ID" ]]; then
+  echo "Projeto, campo Status ou opção '$LABEL' não encontrados." >&2
+  exit 1
+fi
 
 # 2. Descobre o ID do item (card) da issue no projeto
 ITEM_ID=$(gh api graphql -f query='
@@ -76,5 +85,21 @@ gh api graphql -f query='
       value: { singleSelectOptionId: $value }
     }) { projectV2Item { id } }
   }' -F project="$PROJECT_ID" -F item="$ITEM_ID" -F field="$FIELD_ID" -f value="$OPTION_ID" > /dev/null
+
+# Confirma a escrita, inclusive quando a API devolve HTTP sem erro.
+ACTUAL=$(gh api graphql -f query='
+  query($item: ID!) {
+    node(id: $item) {
+      ... on ProjectV2Item {
+        fieldValueByName(name: "Status") {
+          ... on ProjectV2ItemFieldSingleSelectValue { name }
+        }
+      }
+    }
+  }' -F item="$ITEM_ID" --jq '.data.node.fieldValueByName.name')
+if [[ "$ACTUAL" != "$LABEL" ]]; then
+  echo "Status não confirmado: esperado '$LABEL', obtido '$ACTUAL'." >&2
+  exit 1
+fi
 
 echo "Issue #$ISSUE movida para '$LABEL'"

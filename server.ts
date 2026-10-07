@@ -5,7 +5,6 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { fileURLToPath } from 'url';
-import { createServer as createViteServer } from 'vite';
 import { GAME_STATE_COMPRESSION_OPTIONS } from './src/game/networkSync';
 import { registerGameSocketHandlers } from './src/game/socketServer';
 
@@ -51,6 +50,7 @@ async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
 
   if (!isProd) {
+    const { createServer: createViteServer } = await import('vite');
     const viteServer = await createViteServer({
       server: { middlewareMode: true },
       appType: 'custom',
@@ -59,7 +59,8 @@ async function startServer() {
     app.use('*', async (req, res, next) => {
       try {
         const url = req.originalUrl;
-        const indexPath = path.resolve(__dirname, 'index.html');
+        const page = ['/poc.html', '/poc-hud.html', '/poc-avaliacao.html'].includes(req.path) ? req.path.slice(1) : 'index.html';
+        const indexPath = path.resolve(__dirname, page);
         let template = fs.readFileSync(indexPath, 'utf-8');
         template = await viteServer.transformIndexHtml(url, template);
         res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
@@ -69,9 +70,12 @@ async function startServer() {
       }
     });
   } else {
-    app.use(express.static(path.join(__dirname, 'dist')));
+    const clientDir = path.resolve(__dirname, '../dist');
+    app.use(express.static(clientDir));
+    // Uma página de avaliação ausente não pode parecer válida via fallback SPA.
+    app.get(['/poc.html', '/poc-hud.html', '/poc-avaliacao.html'], (_req, res) => res.sendStatus(404));
     app.get('*', (_req, res) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+      res.sendFile(path.join(clientDir, 'index.html'));
     });
   }
 

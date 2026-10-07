@@ -21,7 +21,7 @@ const resourceLayout = (map: ProceduralMapResult) =>
 
 /** BFS 4-vizinhanca com predicates do proprio mapa (celula avaliada no centro). */
 function bfs(
-  map: ProceduralMapResult,
+  _map: ProceduralMapResult,
   startX: number,
   startZ: number,
   isBlocked: (x: number, z: number) => boolean

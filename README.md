@@ -66,6 +66,7 @@ Documentada com [Diátaxis](https://diataxis.fr/) — veja
 - **Código de conduta:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 - **Lançar uma release:** [docs/how-to/lancar-release.md](docs/how-to/lancar-release.md)
 - **Especificação do produto:** [docs/explanation/especificacao-v2.html](docs/explanation/especificacao-v2.html)
+- **Contrato da alpha v0.8.0-alpha.1:** [docs/explanation/contrato-alpha.md](docs/explanation/contrato-alpha.md)
 
 ## Comandos
 
@@ -76,3 +77,7 @@ Documentada com [Diátaxis](https://diataxis.fr/) — veja
 | `npm test` | testes unitários (Vitest) |
 | `npm run build` | build de produção em `dist/` |
 | `npm start` | roda o build de produção |
+
+### Produção e avaliação do HUD
+
+`npm run build` compila cliente e servidor; `npm start` executa `dist-server/server.js` em produção. Docker usa o mesmo servidor compilado. Rotas de avaliação, Compose Watch e smoke estão no [guia de produção](docs/how-to/executar-producao.md).
