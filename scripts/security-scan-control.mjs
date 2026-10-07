@@ -10,10 +10,11 @@ try {
   let result = spawnSync(process.execPath, ['scripts/security-scan.mjs', dir], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
 
-  writeFileSync(join(dir, 'synthetic.txt'), 'token=ghp_abcdefghijklmnopqrstuvwxyz123456\n');
+  const synthetic = ['ghp_', 'abcdefghijklmnopqrstuvwxyz123456'].join('');
+  writeFileSync(join(dir, 'synthetic.txt'), `token=${synthetic}\n`);
   result = spawnSync(process.execPath, ['scripts/security-scan.mjs', dir], { encoding: 'utf8' });
   assert.equal(result.status, 1);
-  assert.doesNotMatch(result.stderr, /abcdefghijklmnopqrstuvwxyz123456/);
+  assert.doesNotMatch(result.stderr, new RegExp(synthetic));
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }

@@ -22,7 +22,7 @@ jobs:
       - name: Scan tracked workspace for credential patterns
         run: node scripts/security-scan.mjs .
       - name: Verify scanner control negative
-        run: node scripts/security-scan.test.mjs
+        run: node scripts/security-scan-control.mjs
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high --json > npm-audit.json
       - name: Publish audit report
