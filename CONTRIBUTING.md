@@ -19,12 +19,18 @@ Issue criada (card) → Ready → In Progress → In Review → Done
 1. **Crie/pegue um card** — cada issue tem história de usuário, critério de
    aceite e versão alvo (SemVer).
 2. **Trabalhe em um branch**: `git checkout -b feat/<escopo>-<issue>`
+   Ao iniciar o desenvolvimento nessa branch, mova o card para **In Progress**
+   com `./scripts/board.sh <issue> in-progress` e confirme o estado no quadro.
+   Após implementar e executar os checks, abra a PR com o template, registre
+   seu link na issue e então mova para **In Review** com
+   `./scripts/board.sh <issue> in-review`. PR em Draft mantém **In Progress**.
 3. **Commite referenciando o card**: o corpo do commit (ou a mensagem) deve
    citar `#<número da issue>` — um commit = uma parte descritível de um card.
 4. **Abra um PR** apontando para `main`, citando `#<número>` no corpo.
 5. **CI deve passar** (`npm run lint`, testes).
 6. **Review independente** no SHA atual, com evidências e veredito registrados conforme o [roteiro de revisão](docs/how-to/revisar-pull-requests.md).
-7. **Merge** → card vai para Done → bump de versão SemVer + CHANGELOG.
+7. **Merge** registra integração. Confirme no card a prova de cada critério e a revisão no SHA integrado antes de marcar **Done**. Pendências mantêm o card em revisão; use `Refs: #N` no PR enquanto o aceite estiver incompleto.
+8. **Release** é uma etapa explícita do mantenedor, com aceite, CHANGELOG, versão, tag e notas. Merge não faz bump automático.
 
 ### Formato dos commits
 
