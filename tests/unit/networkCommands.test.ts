@@ -72,6 +72,12 @@ describe('network command validation', () => {
     expect(isAuthorizedPlayerCommand(state, { type: 'gather', unitId: 'villager-1', targetId: 'missing-node' }, 'player1')).toBe(false);
   });
 
+  it('rejects attack orders forged for civilian boats', () => {
+    const boat = { ...state.units[0], id: 'civil-boat', type: 'trade_boat' as const };
+    expect(isAuthorizedPlayerCommand({ ...state, units: [...state.units, boat] },
+      { type: 'attack', unitId: boat.id, targetId: 'soldier-2' }, 'player1')).toBe(false);
+  });
+
   it('rejects building orders with a forged owner or insufficient resources', () => {
     const command = { type: 'build', buildingType: 'house', owner: 'player1', position: { x: 20, z: 20 } };
     expect(isAuthorizedPlayerCommand(state, command, 'player1')).toBe(true);

@@ -9,6 +9,7 @@ import { applyPopDelta, countDeathsByOwner } from './population';
 import { advanceResearch, gatherMultiplier, TECH_DEFS, unitDamageMultiplier } from './tech';
 import type { TechState } from './tech';
 import { evaluateMatch } from './victory';
+import { UNIT_ATTRIBUTES, effectiveAttribute, unitAttribute, type RuleSettings } from './unitAttributes';
 
 export interface SimulationMap {
   isWaterAt(x: number, z: number): boolean;
@@ -29,6 +30,7 @@ export interface SimulationPath {
 export type SimulationPathCache = Map<string, SimulationPath>;
 
 export interface SimulationContext {
+  ruleSettings?: RuleSettings;
   playerSlot: string;
   mode: 'host' | 'single';
   map?: SimulationMap;
@@ -128,7 +130,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         return { ...unit, targetPosition: null, state: 'idle' as const };
       }
 
-      const speed = unit.type === 'soldier' ? 0.2 : unit.type === 'cavalry' ? 0.3 : 0.16;
+      const speed = unitAttribute(unit.type, 'movePerTick', context.ruleSettings);
       const boat = isBoatUnit(unit.type);
 
       let heading = goal;
@@ -281,7 +283,8 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
 
         gatherRate *= gatherMultiplier(updatedTechs[unit.owner], targetNode.type);
 
-        targetNode.remaining = Math.max(0, targetNode.remaining - gatherRate);
+        const gathered = Math.min(gatherRate, targetNode.remaining);
+        targetNode.remaining -= gathered;
 
         const resKey =
           targetNode.type === 'tree'
@@ -296,7 +299,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
             ...updatedResources,
             [unit.owner]: {
               ...updatedResources[unit.owner],
-              [resKey]: updatedResources[unit.owner][resKey] + gatherRate,
+              [resKey]: updatedResources[unit.owner][resKey] + gathered,
             },
           };
         }
@@ -384,6 +387,8 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     }
 
     if (unit.state === 'attacking' && unit.targetEntityId) {
+      const attributes = UNIT_ATTRIBUTES[unit.type];
+      if (!attributes.canAttack) return { ...unit, state: 'idle' as const, targetEntityId: null };
       const targetEnemy = updatedUnits.find((candidate) => candidate.id === unit.targetEntityId);
       const targetBuilding = !targetEnemy ? updatedBuildings.find((b) => b.id === unit.targetEntityId) ?? null : null;
       const target = targetEnemy || targetBuilding;
@@ -393,22 +398,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         const dz = target.position.z - unit.position.z;
         const dist = Math.sqrt(dx * dx + dz * dz);
 
-        const attackRange =
-          unit.type === 'soldier'
-            ? targetBuilding
-              ? 5.5
-              : 4.5
-            : unit.type === 'cavalry'
-            ? targetBuilding
-              ? 3.5
-              : 2.5
-            : unit.type === 'warship'
-            ? targetBuilding
-              ? 5
-              : 7
-            : targetBuilding
-            ? 2.5
-            : 1.2;
+        const attackRange = targetBuilding ? attributes.attackRangeBuilding : attributes.attackRangeUnit;
 
         if (dist > attackRange) {
           const approachSpeed = unit.type === 'cavalry' ? 0.26 : unit.type === 'warship' ? 0.2 : 0.18;
@@ -424,9 +414,8 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         const cooldown = unit.attackCooldown ?? 0;
         if (cooldown > 0) return { ...unit, attackCooldown: cooldown - 1 };
 
-        const baseDamage =
-          unit.type === 'soldier' ? 24 : unit.type === 'cavalry' ? 32 : unit.type === 'warship' ? 20 : 8;
-        const damage = Math.round(baseDamage * unitDamageMultiplier(updatedTechs[unit.owner], unit.type));
+        const damage = Math.round(effectiveAttribute(unitAttribute(unit.type, 'attackDamage', context.ruleSettings), [],
+          [unitDamageMultiplier(updatedTechs[unit.owner], unit.type) - 1]));
         const prevHealth = target.health;
         target.health = Math.max(0, target.health - damage);
 
@@ -454,7 +443,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
           }
         }
 
-        return { ...unit, attackCooldown: isMusket ? 12 : unit.type === 'warship' ? 16 : 8 };
+        return { ...unit, attackCooldown: attributes.attackCooldownTicks };
       }
 
       return { ...unit, state: 'idle' as const, targetEntityId: null };
@@ -560,16 +549,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     }
 
     const boat = isBoatUnit(currentItem.unitType);
-    const maxHp =
-      currentItem.unitType === 'warship'
-        ? 300
-        : boat
-        ? 220
-        : currentItem.unitType === 'soldier'
-        ? 150
-        : currentItem.unitType === 'cavalry'
-        ? 180
-        : 100;
+    const maxHp = unitAttribute(currentItem.unitType, 'maxHealth', context.ruleSettings);
     const spawnX = building.position.x + (boat ? 2.5 : context.random() * 2 + 2);
     const spawnZ = building.position.z + (boat ? 2.5 : context.random() * 2 + 2);
     let spawnPosition: { x: number; z: number } = { x: spawnX, z: spawnZ };
@@ -601,14 +581,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       targetEntityId: null,
       health: maxHp,
       maxHealth: maxHp,
-      attackDamage:
-        currentItem.unitType === 'soldier'
-          ? 18
-          : currentItem.unitType === 'cavalry'
-          ? 20
-          : currentItem.unitType === 'warship'
-          ? 24
-          : 5,
+      attackDamage: unitAttribute(currentItem.unitType, 'attackDamage', context.ruleSettings),
       state: 'idle',
       ...(boat ? { passengers: [] as Unit[] } : {}),
     };

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Building, GameState, PlayerResources, Unit } from '../../src/game/engine';
 import { tickGameState, type SimulationContext } from '../../src/game/simulation';
+import { parseRuleSettings } from '../../src/game/unitAttributes';
 
 const playerResources = (): PlayerResources => ({
   wood: 100,
@@ -61,6 +62,25 @@ const context = (overrides: Partial<SimulationContext> = {}): SimulationContext 
 });
 
 describe('tickGameState', () => {
+  it('credits only the remainder of a nearly exhausted deposit', () => {
+    const state = createState({
+      units: [createUnit({ targetEntityId: 'ore', state: 'gathering' })],
+      resourceNodes: [{ id: 'ore', type: 'stone', position: { x: 10.5, z: 10 }, remaining: 0.1 }],
+    });
+    const result = tickGameState(state, context());
+    expect(result.state.playerResources.player1.stone).toBeCloseTo(0.1);
+    expect(result.state.resourceNodes).toEqual([]);
+  });
+
+  it('does not let a civilian boat damage a target even with a forged attack state', () => {
+    const state = createState({ units: [
+      createUnit({ id: 'boat', type: 'trade_boat', state: 'attacking', targetEntityId: 'enemy' }),
+      createUnit({ id: 'enemy', owner: 'player2', position: { x: 11, z: 10 } }),
+    ] });
+    const result = tickGameState(state, context());
+    expect(result.state.units.find((unit) => unit.id === 'enemy')?.health).toBe(100);
+    expect(result.state.units.find((unit) => unit.id === 'boat')).toMatchObject({ state: 'idle', targetEntityId: null });
+  });
   it('moves units toward their target by one simulation step', () => {
     const state = createState({
       units: [createUnit({ targetPosition: { x: 12, z: 10 }, state: 'moving' })],
@@ -70,6 +90,13 @@ describe('tickGameState', () => {
 
     expect(result.state.units[0].position).toEqual({ x: 10.16, z: 10 });
     expect(state.units[0].position).toEqual({ x: 10, z: 10 });
+  });
+
+  it('uses a validated rules override in the authoritative tick', () => {
+    const state = createState({ units: [createUnit({ type: 'soldier', targetPosition: { x: 12, z: 10 }, state: 'moving' })] });
+    const ruleSettings = parseRuleSettings({ version: 1, units: { soldier: { movePerTick: 0.25 } } });
+    const result = tickGameState(state, context({ ruleSettings }));
+    expect(result.state.units[0].position.x).toBeCloseTo(10.25);
   });
 
   it('gathers resources and removes an exhausted deposit without mutating the input state', () => {
