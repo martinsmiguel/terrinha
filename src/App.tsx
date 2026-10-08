@@ -1317,6 +1317,16 @@ export default function App() {
         return;
       }
 
+      // Modal overlays own the keyboard until they are closed. Escape follows
+      // the most-recent overlay order and never clears the game selection.
+      if (isWorkZoneModalOpen || isEmpireCatalogOpen) {
+        if (e.key === 'Escape') {
+          if (isWorkZoneModalOpen) setIsWorkZoneModalOpen(false);
+          else setIsEmpireCatalogOpen(false);
+        }
+        return;
+      }
+
       if (e.key === 'Escape') {
         if (buildMode) {
           setBuildMode(null);
@@ -1463,7 +1473,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [buildMode, playerSlot, selectedEntity, isWorldMapOpen]);
+  }, [buildMode, playerSlot, selectedEntity, isWorldMapOpen, isWorkZoneModalOpen, isEmpireCatalogOpen]);
 
   // Manage 3D Building Ghost in the scene during build mode
   useEffect(() => {
