@@ -1299,8 +1299,16 @@ export default function App() {
   // Keyboard hotkeys: HUD toggle (H), Base focus (Space), Cancel/Clear (Escape), Build hotkeys (Q, W, E)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Do not trigger game hotkeys if focused on text input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      // Do not trigger game hotkeys while a control owns keyboard input.
+      // This keeps native select/contenteditable behavior intact and prevents
+      // modifier shortcuts from leaking into the game command layer.
+      const target = e.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) return;
 
       // Com o mapa-múndi aberto o Esc apenas fecha o mapa: a partida retoma com
       // a mesma seleção e as mesmas ordens pendentes.
