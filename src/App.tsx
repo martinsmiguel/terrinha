@@ -846,7 +846,7 @@ export default function App() {
   useEffect(() => {
     const sources = [...gameState.units, ...gameState.buildings]
       .filter((entity) => entity.owner === playerSlot)
-      .map((entity) => ({ x: entity.position.x, z: entity.position.z, radius: visionRadiusFor(entity) }));
+      .map((entity) => ({ x: entity.position.x, z: entity.position.z, radius: visionRadiusFor(entity, gameState.ruleSettings) }));
     const grid = revealVision(expireVision(visionGridRef.current), sources);
     visionGridRef.current = grid;
     engineRef.current?.setFogGrid(grid);

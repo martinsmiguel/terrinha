@@ -117,6 +117,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     Object.entries(state.playerResources).map(([slot, resources]) => [slot, { ...resources }])
   );
   const updatedTechs: Record<string, TechState> = { ...(state.techs ?? {}) };
+  const ruleSettings = context.ruleSettings ?? state.ruleSettings;
 
   updatedUnits = updatedUnits.map((unit) => {
     if (unit.targetPosition) {
@@ -130,7 +131,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         return { ...unit, targetPosition: null, state: 'idle' as const };
       }
 
-      const speed = unitAttribute(unit.type, 'movePerTick', context.ruleSettings);
+      const speed = unitAttribute(unit.type, 'movePerTick', ruleSettings);
       const boat = isBoatUnit(unit.type);
 
       let heading = goal;
@@ -414,7 +415,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         const cooldown = unit.attackCooldown ?? 0;
         if (cooldown > 0) return { ...unit, attackCooldown: cooldown - 1 };
 
-        const damage = Math.round(effectiveAttribute(unitAttribute(unit.type, 'attackDamage', context.ruleSettings), [],
+        const damage = Math.round(effectiveAttribute(unitAttribute(unit.type, 'attackDamage', ruleSettings), [],
           [unitDamageMultiplier(updatedTechs[unit.owner], unit.type) - 1]));
         const prevHealth = target.health;
         target.health = Math.max(0, target.health - damage);
@@ -549,7 +550,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     }
 
     const boat = isBoatUnit(currentItem.unitType);
-    const maxHp = unitAttribute(currentItem.unitType, 'maxHealth', context.ruleSettings);
+    const maxHp = unitAttribute(currentItem.unitType, 'maxHealth', ruleSettings);
     const spawnX = building.position.x + (boat ? 2.5 : context.random() * 2 + 2);
     const spawnZ = building.position.z + (boat ? 2.5 : context.random() * 2 + 2);
     let spawnPosition: { x: number; z: number } = { x: spawnX, z: spawnZ };
@@ -581,7 +582,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       targetEntityId: null,
       health: maxHp,
       maxHealth: maxHp,
-      attackDamage: unitAttribute(currentItem.unitType, 'attackDamage', context.ruleSettings),
+      attackDamage: unitAttribute(currentItem.unitType, 'attackDamage', ruleSettings),
       state: 'idle',
       ...(boat ? { passengers: [] as Unit[] } : {}),
     };

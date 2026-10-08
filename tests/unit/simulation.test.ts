@@ -95,7 +95,8 @@ describe('tickGameState', () => {
   it('uses a validated rules override in the authoritative tick', () => {
     const state = createState({ units: [createUnit({ type: 'soldier', targetPosition: { x: 12, z: 10 }, state: 'moving' })] });
     const ruleSettings = parseRuleSettings({ version: 1, units: { soldier: { movePerTick: 0.25 } } });
-    const result = tickGameState(state, context({ ruleSettings }));
+    state.ruleSettings = ruleSettings;
+    const result = tickGameState(state, context());
     expect(result.state.units[0].position.x).toBeCloseTo(10.25);
   });
 
