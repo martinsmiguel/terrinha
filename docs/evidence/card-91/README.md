@@ -44,3 +44,17 @@ Após integrar #62 na main, atualizar a base/mesclar mudanças do processo #90,
 revisar conflitos de templates e repetir checks/provas afetadas. Não mergear esta
 branch na branch do contrato. Artefatos adicionados depois da auditoria não
 alteram o script testado; identificar o SHA publicado na descrição da PR.
+
+## Reexecução na base integrada (2026-10-10)
+
+Depois da integração do #62 e dos processos #90 a #96 na main, a branch foi sincronizada com a
+`main` e a auditoria repetida sobre as issues abertas naquele momento.
+
+- Código executado: `scripts/planning/audit-provenance.mjs` neste branch, SHA do relatório
+  `0a39dfe555e2c312a827bf0d7f92696003e81c00`; testes `node --test tests/planning/provenance.check.mjs`: 8 de 8.
+- Consulta: `gh issue list --state open --limit 200` retornou 41 cards, abaixo do limite 200.
+- Primeiro resultado: `findings` (código de saída 1). A única lacuna era a #115, o follow-up do #59
+  criado em 2026-10-10 sem o bloco de procedência. O corpo da #115 foi completado no formato do
+  template e a auditoria repetida: `structurally-complete`, código de saída 0, 41 de 41 cards.
+- Limite: presença estrutural de campos não comprova correção semântica nem aceite de cada card.
+  Esta rodada também não escreveu nos corpos dos outros 40 cards.
