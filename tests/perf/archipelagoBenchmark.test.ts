@@ -198,7 +198,7 @@ describe('tamanhos de mapa no gerador e no A*', () => {
   }, 60000);
   it('registra o relatório de tamanhos', () => {
     report.mapSizes = rows;
-    report.supportedSize = 'O produto suporta 60x60: MAP_SIZE, a validação de rede (limite 60) e o grid de névoa são fixos em 60. O gerador e o A* aceitam 90 e 120, mas o tick completo só é validado em 60.';
+    report.supportedSize = 'Mundo configurável de 60 a 1024 (parseWorldSize). Suporte garantido até 192: ordem em massa de 120 unidades abaixo do tick de 50 ms. 384 e 768 funcionam (tick estável p95 abaixo de 2 ms), mas a primeira ordem em massa causa um engasgo único de 57 ms (384) a 154 ms (768); são experimentais. A rede aceita o tamanho do mundo da sessão.';
   });
 });
 

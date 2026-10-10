@@ -1,3 +1,4 @@
+import { BOT_PROFILE_LABEL, DEFAULT_BOT_PROFILE, type BotProfile } from '../game/bots';
 import { WORLD_SIZE_OPTIONS } from '../game/worldConfig';
 import type { Dispatch, SetStateAction } from 'react';
 import { Check, Copy, Play, Shield, Sparkles, Users, Wifi } from 'lucide-react';
@@ -20,6 +21,8 @@ interface LobbyScreenProps {
   lobbyError: string | null;
   matchSize: 2 | 3 | 4;
   setMatchSize: Dispatch<SetStateAction<2 | 3 | 4>>;
+  botProfile: BotProfile;
+  setBotProfile: Dispatch<SetStateAction<BotProfile>>;
   /** Dimensão do mundo escolhida pelo host (ou no treino solo). */
   worldSize: number;
   setWorldSize: Dispatch<SetStateAction<number>>;
@@ -28,7 +31,7 @@ interface LobbyScreenProps {
 
 export function LobbyScreen({
   lanIps, copiedIp, copyLanUrl, playerName, setPlayerName, roomId, setRoomId,
-  playerSlot, setPlayerSlot, lobbyError, matchSize, setMatchSize, worldSize, setWorldSize, onStartGame,
+  playerSlot, setPlayerSlot, lobbyError, matchSize, setMatchSize, botProfile, setBotProfile, worldSize, setWorldSize, onStartGame,
 }: LobbyScreenProps) {
   return (
 
@@ -174,6 +177,30 @@ export function LobbyScreen({
                 {matchSize === 2
                   ? 'Você contra uma colônia rival.'
                   : `${matchSize - 1} colônias rivais controladas pela IA.`}
+              </p>
+            </div>
+
+            <div className="pt-1">
+              <span id="bot-profile-label" className="block text-xs font-medium text-slate-400 mb-1.5">Comportamento da IA (treino solo)</span>
+              <div role="group" aria-labelledby="bot-profile-label" className="grid grid-cols-3 gap-2">
+                {(['peaceful', 'defensive', 'raids'] as const).map((profile) => (
+                  <button
+                    key={profile}
+                    type="button"
+                    aria-pressed={botProfile === profile}
+                    onClick={() => { setBotProfile(profile); soundManager.playClickSound(); }}
+                    className={`py-2 rounded-xl border text-xs font-semibold transition-all ${
+                      botProfile === profile
+                        ? 'bg-amber-500/15 border-amber-500/60 text-amber-300 ring-1 ring-amber-500/30'
+                        : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                    }`}
+                  >
+                    {BOT_PROFILE_LABEL[profile]}{profile === DEFAULT_BOT_PROFILE ? ' (padrão)' : ''}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">
+                {botProfile === 'peaceful' ? 'A IA nunca inicia agressão.' : botProfile === 'defensive' ? 'A IA reage a quem chega perto e solta a perseguição.' : 'A IA tenta incursões depois de 300 s, só contra alvos já descobertos.'}
               </p>
             </div>
 

@@ -10,14 +10,14 @@ O host (ou o treino solo) escolhe o tamanho do mundo no lobby. O valor viaja em 
 
 | Mundo | Situação | Latência da ordem em massa (120 unidades) |
 | --- | --- | --- |
-| 60 | validado (passo completo da simulação testado) | 7 ms |
+| 60 | suportado (validado) | 7 ms |
 | 120 | experimental | dentro de 50 ms |
-| 192 | experimental | 29 ms |
-| 384 | experimental | 56 ms (passa de 50 ms) |
-| 768 | experimental (dimensão-alvo) | 112 ms (passa de 50 ms) |
+| 192 | suportado (validado) | 28 ms |
+| 384 | experimental | 57 ms (passa de 50 ms) |
+| 768 | experimental (dimensão-alvo) | 154 ms (passa de 50 ms) |
 
-Medições em `docs/evidence/card-65/README.md`. Acima de 192, ordens em massa podem causar engasgos até a navegação
-hierárquica (#77) e os campos de fluxo (#78).
+Medições em `docs/evidence/card-65/README.md` e `docs/evidence/card-52/`. Acima de 192, a primeira ordem em massa pode causar um engasgo único; o tick
+estável fica abaixo de 2 ms. A navegação hierárquica foi dispensada (#77) e os campos de fluxo (#78) reduzem o custo para grupos de 6 ou mais.
 
 ## Ilhas
 

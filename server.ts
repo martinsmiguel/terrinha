@@ -40,7 +40,7 @@ async function startServer() {
   // Endpoint to return LAN IPs for sharing with other players
   app.get('/api/lan-info', (_req, res) => {
     res.json({
-      port: 3000,
+      port: Number(process.env.PORT) || 3000,
       localIps: getLocalIpAddresses(),
     });
   });
@@ -80,7 +80,7 @@ async function startServer() {
     });
   }
 
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Age of Empires Dev Server running on http://0.0.0.0:${PORT}`);
   });

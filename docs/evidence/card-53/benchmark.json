@@ -1,0 +1,159 @@
+{
+  "environment": {
+    "node": "v25.6.1",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M1",
+    "cores": 8,
+    "memoryGb": 8
+  },
+  "scenario": "4 jogadores, host envia 1 snapshot (160 unidades) por convidado a 20 Hz; servidor em processo próprio; bytes contados em proxy TCP",
+  "limitation": "Quatro dispositivos reais em LAN/Wi-Fi NÃO foram usados: links são simulados por proxy no mesmo computador. Resultado não prova usabilidade em Wi-Fi real.",
+  "notes": "Com compressão desligada o link de 5 Mbps satura e nem todos os quadros chegam dentro da tolerância; o p95 desse caso só considera os quadros entregues e subestima a piora.",
+  "threshold": {
+    "minByteReduction": 0.5,
+    "maxP95RegressionMs": 10,
+    "scenarios": "wifi-simulado-*"
+  },
+  "verdict": "ganho-confirmado-no-ambiente-simulado",
+  "rows": [
+    {
+      "scenario": "loopback",
+      "off": {
+        "compressed": false,
+        "link": "loopback",
+        "frames": 200,
+        "delivered": 600,
+        "expectedDeliveries": 600,
+        "outOfOrder": 0,
+        "corrupt": 0,
+        "bytesToClients": 17320785,
+        "bytesPerSnapshot": 28868,
+        "serverCpuMs": 508.2,
+        "serverCpuPercentOfOneCore": 4.79,
+        "latencyMs": {
+          "p50": 4.73,
+          "p95": 24.69,
+          "max": 46.13
+        }
+      },
+      "on": {
+        "compressed": true,
+        "link": "loopback",
+        "frames": 200,
+        "delivered": 600,
+        "expectedDeliveries": 600,
+        "outOfOrder": 0,
+        "corrupt": 0,
+        "bytesToClients": 626463,
+        "bytesPerSnapshot": 1044,
+        "serverCpuMs": 964.1,
+        "serverCpuPercentOfOneCore": 8.89,
+        "latencyMs": {
+          "p50": 9.01,
+          "p95": 86.63,
+          "max": 176.94
+        }
+      },
+      "byteReduction": 0.964,
+      "p95LatencyDeltaMs": 61.94,
+      "cpuDeltaMs": 455.9
+    },
+    {
+      "scenario": "wifi-simulado-20mbps-8ms",
+      "off": {
+        "compressed": false,
+        "link": {
+          "bandwidthMbps": 20,
+          "oneWayDelayMs": 8
+        },
+        "frames": 200,
+        "delivered": 555,
+        "expectedDeliveries": 600,
+        "outOfOrder": 0,
+        "corrupt": 0,
+        "bytesToClients": 16022125,
+        "bytesPerSnapshot": 28869,
+        "serverCpuMs": 495.2,
+        "serverCpuPercentOfOneCore": 3.18,
+        "latencyMs": {
+          "p50": 60.99,
+          "p95": 80.07,
+          "max": 292.05
+        }
+      },
+      "on": {
+        "compressed": true,
+        "link": {
+          "bandwidthMbps": 20,
+          "oneWayDelayMs": 8
+        },
+        "frames": 200,
+        "delivered": 600,
+        "expectedDeliveries": 600,
+        "outOfOrder": 0,
+        "corrupt": 0,
+        "bytesToClients": 626463,
+        "bytesPerSnapshot": 1044,
+        "serverCpuMs": 752.9,
+        "serverCpuPercentOfOneCore": 7.27,
+        "latencyMs": {
+          "p50": 22.42,
+          "p95": 30.06,
+          "max": 90.86
+        }
+      },
+      "byteReduction": 0.961,
+      "p95LatencyDeltaMs": -50.01,
+      "cpuDeltaMs": 257.7
+    },
+    {
+      "scenario": "wifi-simulado-5mbps-15ms",
+      "off": {
+        "compressed": false,
+        "link": {
+          "bandwidthMbps": 5,
+          "oneWayDelayMs": 15
+        },
+        "frames": 200,
+        "delivered": 333,
+        "expectedDeliveries": 600,
+        "outOfOrder": 0,
+        "corrupt": 0,
+        "bytesToClients": 9612891,
+        "bytesPerSnapshot": 28868,
+        "serverCpuMs": 340.9,
+        "serverCpuPercentOfOneCore": 2.2,
+        "latencyMs": {
+          "p50": 4941.23,
+          "p95": 9193.33,
+          "max": 9665.44
+        }
+      },
+      "on": {
+        "compressed": true,
+        "link": {
+          "bandwidthMbps": 5,
+          "oneWayDelayMs": 15
+        },
+        "frames": 200,
+        "delivered": 600,
+        "expectedDeliveries": 600,
+        "outOfOrder": 0,
+        "corrupt": 0,
+        "bytesToClients": 626463,
+        "bytesPerSnapshot": 1044,
+        "serverCpuMs": 742.5,
+        "serverCpuPercentOfOneCore": 7,
+        "latencyMs": {
+          "p50": 38.31,
+          "p95": 50.34,
+          "max": 340.47
+        }
+      },
+      "byteReduction": 0.935,
+      "p95LatencyDeltaMs": -9142.99,
+      "cpuDeltaMs": 401.6
+    }
+  ]
+}

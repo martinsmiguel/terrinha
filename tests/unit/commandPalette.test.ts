@@ -79,3 +79,51 @@ describe('foco de localidade', () => {
     expect(focusLocality(2, 0)).toBe(0);
   });
 });
+
+describe('ociosos e ordens (!)', () => {
+  const villagers = [{ id: 'v1', position: { x: 10, z: 10 } }, { id: 'v2', position: { x: 12, z: 10 } }];
+  const nodes = [
+    { id: 'far', type: 'tree', remaining: 100, position: { x: 40, z: 10 } },
+    { id: 'near', type: 'tree', remaining: 100, position: { x: 14, z: 10 } },
+    { id: 'empty', type: 'tree', remaining: 0, position: { x: 11, z: 10 } },
+    { id: 'ore', type: 'gold_mine', remaining: 500, position: { x: 20, z: 12 } },
+  ];
+
+  it('! lista só ordens e ociosos; os mesmos itens aparecem na busca geral', () => {
+    const result = searchPalette('!', [], { idleVillagers: villagers, knownNodes: nodes });
+    expect(result.scope).toBe('order');
+    expect(result.entries.every((entry) => entry.group === 'Ordens')).toBe(true);
+    expect(searchPalette('ociosos', [], { idleVillagers: villagers, knownNodes: nodes }).entries[0].id).toBe('order:select-idle');
+  });
+
+  it('a ordem declara alvo e efeito e leva os comandos de jogador para o recurso conhecido mais próximo, sem esgotado', () => {
+    const entry = searchPalette('!madeira', [], { idleVillagers: villagers, knownNodes: nodes }).entries.find((e) => e.id === 'order:gather:tree')!;
+    expect(entry.label).toMatch(/Coletar madeira: 2 aldeão\(ões\) ocioso\(s\) → recurso a 4/);
+    expect(entry.description).toMatch(/efeito/);
+    expect(entry.run).toEqual({ kind: 'order', commands: [{ type: 'gather', unitId: 'v1', targetId: 'near' }, { type: 'gather', unitId: 'v2', targetId: 'near' }] });
+    expect(entry.disabledReason).toBeUndefined();
+  });
+
+  it('seleção de ociosos tem efeito explícito e leva só os ociosos', () => {
+    const entry = searchPalette('!', [], { idleVillagers: villagers, knownNodes: [] }).entries.find((e) => e.id === 'order:select-idle')!;
+    expect(entry.run).toEqual({ kind: 'select', ids: ['v1', 'v2'] });
+  });
+
+  it('explica a ausência: sem ociosos ou sem recurso conhecido a entrada fica desabilitada com a razão e sem comandos', () => {
+    const noIdle = searchPalette('!', [], { idleVillagers: [], knownNodes: nodes }).entries;
+    expect(noIdle.every((entry) => entry.disabledReason === 'Não há aldeões ociosos.')).toBe(true);
+    const blind = searchPalette('!', [], { idleVillagers: villagers, knownNodes: [] }).entries.filter((e) => e.id.startsWith('order:gather'));
+    expect(blind.every((entry) => /Nenhum recurso de .* conhecido: explore antes\./.test(entry.disabledReason ?? ''))).toBe(true);
+    expect(blind.every((entry) => entry.run.kind === 'order' && entry.run.commands.length === 0)).toBe(true);
+    expect(searchPalette('!', [], undefined).empty).toBe(true); // sem contexto, nenhuma ordem aparece
+  });
+
+  it('o comando da ordem é recusado pelo host quando o alvo não é conhecido (sem cheat pela busca)', async () => {
+    const { isAuthorizedPlayerCommand } = await import('../../src/game/networkCommands');
+    const { updateOwnerVision } = await import('../../src/game/visionAuthority');
+    const state = { mapSize: 100, units: [{ id: 'v1', type: 'villager', owner: 'player1', position: { x: 10, z: 10 }, targetPosition: null, targetEntityId: null, health: 100, maxHealth: 100, attackDamage: 0, state: 'idle' }], buildings: [], resourceNodes: [{ id: 'near', type: 'tree', position: { x: 14, z: 10 }, remaining: 100 }, { id: 'hidden', type: 'tree', position: { x: 90, z: 90 }, remaining: 100 }], playerResources: {} } as never;
+    const vision = updateOwnerVision(undefined, state, ['player1'], 100);
+    expect(isAuthorizedPlayerCommand(state, { type: 'gather', unitId: 'v1', targetId: 'near' }, 'player1', vision)).toBe(true);
+    expect(isAuthorizedPlayerCommand(state, { type: 'gather', unitId: 'v1', targetId: 'hidden' }, 'player1', vision)).toBe(false);
+  });
+});
