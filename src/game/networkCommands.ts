@@ -7,6 +7,7 @@ import { FOUNDATION_KIT, lifePhase } from './foundation';
 import { canTarget, type OwnerVision } from './visionAuthority';
 import { bodyOf, type BodyId } from './bodyModel';
 import { outpostSpacingReason } from './colonies';
+import { HOME, canPayAt, depotsIn, type LocalityResolver } from './depots';
 import { UNIT_COSTS, tradeResource, type MarketResourceType } from './economy';
 
 export const PLAYER_SLOTS = ['player1', 'player2', 'player3', 'player4'] as const;
@@ -227,7 +228,14 @@ function ownsBuilding(state: GameState, buildingId: string, owner: PlayerSlot): 
   return state.buildings.find((building) => building.id === buildingId && building.owner === owner);
 }
 
-function canAffordTraining(state: GameState, building: Building, unitType: TrainableType): boolean {
+/** Localidade que paga uma obra: a do local; o primeiro posto de uma ilha sem depósito é pago pela metrópole. */
+export function payerLocality(state: GameState, owner: string, type: string, position: { x: number; z: number }, localityOf?: LocalityResolver): string {
+  const locality = localityOf?.(owner, position) ?? HOME;
+  if (locality !== HOME && type === 'outpost' && depotsIn(state.buildings, owner, locality, localityOf!, false).length === 0) return HOME;
+  return locality;
+}
+
+function canAffordTraining(state: GameState, building: Building, unitType: TrainableType, localityOf?: LocalityResolver): boolean {
   const resources = state.playerResources[building.owner];
   if (!resources || building.trainingQueue.length >= 5) return false;
 
@@ -236,7 +244,7 @@ function canAffordTraining(state: GameState, building: Building, unitType: Train
     .reduce((total, candidate) => total + candidate.trainingQueue.length, 0);
   if (resources.pop + queuedForOwner >= resources.maxPop) return false;
 
-  return canAffordResources(resources, UNIT_COSTS[unitType]);
+  return canPayAt(state, building.owner, localityOf?.(building.owner, building.position) ?? HOME, UNIT_COSTS[unitType]);
 }
 
 /**
@@ -249,7 +257,7 @@ export function isAuthorizedPlayerCommand(
   value: unknown,
   owner: PlayerSlot,
   vision?: OwnerVision,
-  terrain?: { canStandAt(body: BodyId, x: number, z: number): boolean }
+  terrain?: { canStandAt(body: BodyId, x: number, z: number): boolean; localityOf?: LocalityResolver }
 ): value is NetworkCommand {
   if (!isValidNetworkCommand(value, worldSizeOf(state))) return false;
 
@@ -311,7 +319,7 @@ export function isAuthorizedPlayerCommand(
       if (value.owner !== owner) return false;
       const def = BUILDING_CATALOG[value.buildingType];
       const resources = state.playerResources[owner];
-      if (!def || !resources || !canAffordResources(resources, def.cost)) return false;
+      if (!def || !resources || !canPayAt(state, owner, payerLocality(state, owner, value.buildingType, value.position, terrain?.localityOf), def.cost)) return false;
       if (!canTarget(vision, owner, { position: value.position }, 'explored')) return false;
       if (value.buildingType === 'outpost') {
         // Posto avançado: solo transitável conhecido e distância mínima de outros postos e da capital própria.
@@ -322,7 +330,7 @@ export function isAuthorizedPlayerCommand(
     }
     case 'train': {
       const building = ownsBuilding(state, value.buildingId, owner);
-      if (!building || !building.isComplete || !canAffordTraining(state, building, value.unitType)) return false;
+      if (!building || !building.isComplete || !canAffordTraining(state, building, value.unitType, terrain?.localityOf)) return false;
       return (
         (building.type === 'town_center' && value.unitType === 'villager') ||
         (building.type === 'barracks' && (value.unitType === 'soldier' || value.unitType === 'cavalry')) ||

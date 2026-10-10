@@ -106,6 +106,8 @@ export interface GameState {
   mapSize?: number;
   /** Kit de fundacao reservado por jogador ate a capital ser fundada (separado do suprimento). */
   foundationKits?: Record<string, { wood: number; stone: number }>;
+  /** Estoques das localidades coloniais (dono → ilha). A metrópole usa `playerResources`. */
+  localStocks?: Record<string, Record<string, { wood: number; food: number; gold: number; stone: number; planks: number }>>;
 }
 
 /** Dimensão padrão do mundo; a dimensão real da sessão vem de `GameState.mapSize`. */

@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { makeLocalityResolver, type LocalityResolver } from './depots';
 import * as THREE from 'three';
 import { ResourceNode } from './engine';
 import { evaluateCapitalSite } from './capitalSite';
@@ -47,6 +48,8 @@ export interface ProceduralMapResult {
   islandCenter: { x: number; z: number };
   /** Layout puro do arquipelago (perfis, lagos, rios) — usado tambem pelo minimapa. */
   islands: ArchipelagoLayout['islands'];
+  /** Localidade (metrópole ou ilha colonial) de uma posição para um dono: base dos estoques locais. */
+  localityOf: LocalityResolver;
   terrainMesh: THREE.Mesh;
   waterMesh: THREE.Mesh;
   riverBankDecorations: THREE.Group;
@@ -595,6 +598,7 @@ function buildProceduralTerrain(mapSize: number, actualSeed: number): Procedural
     islandRadius: layout.islands[0].baseRadius,
     islandCenter: { ...layout.islands[0].center },
     islands: layout.islands,
+    localityOf: makeLocalityResolver(layout.islands, (owner) => Math.max(0, Number(owner.replace(/\D/g, '')) - 1)),
     terrainMesh,
     waterMesh,
     riverBankDecorations,

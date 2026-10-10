@@ -54,7 +54,8 @@ import {
   UNIT_COSTS,
   halfCost,
 } from './game/economy';
-import { PLAYER_SLOTS, hostLeftSessionMessage, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, soloMatchSlots, type PlayerSlot } from './game/networkCommands';
+import { HOME, debitAt, depotsIn, refundAt } from './game/depots';
+import { PLAYER_SLOTS, payerLocality, hostLeftSessionMessage, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, soloMatchSlots, type PlayerSlot } from './game/networkCommands';
 import { localOutcome, type LocalOutcome } from './game/victory';
 import {
   createTechState,
@@ -1214,6 +1215,7 @@ export default function App() {
           proceduralMapRef.current?.fertilityAt,
           cmd.owner,
         ).isValid,
+        payerLocality(gameStateRef.current, cmd.owner, cmd.buildingType, cmd.position, proceduralMapRef.current?.localityOf),
       ));
     } else if (cmd.type === 'train') {
       setGameState((prev) => {
@@ -1227,21 +1229,18 @@ export default function App() {
           .reduce((total, candidate) => total + candidate.trainingQueue.length, 0);
         if (resources.pop + queuedForOwner >= resources.maxPop) return prev;
         const unitCost = UNIT_COSTS[cmd.unitType];
-        if (cmd.playerSlot && !canAfford(resources, unitCost)) return prev;
+        // O estoque da localidade do edifício paga o treino (colônia: estoque local; natal: metrópole).
+        const trainLocality = proceduralMapRef.current?.localityOf(owner, building.position) ?? HOME;
+        const paid = cmd.playerSlot ? debitAt(prev, owner, trainLocality, unitCost) : prev;
+        if (!paid) return prev;
 
         return {
-          ...prev,
+          ...paid,
           buildings: prev.buildings.map((candidate) =>
             candidate.id === cmd.buildingId
               ? { ...candidate, trainingQueue: [...candidate.trainingQueue, { unitType: cmd.unitType, progress: 0 }] }
               : candidate
           ),
-          ...(cmd.playerSlot ? {
-            playerResources: {
-              ...prev.playerResources,
-              [owner]: applyCost(resources, unitCost),
-            },
-          } : {}),
         };
       });
     } else if (cmd.type === 'cancel_train') {
@@ -1250,17 +1249,17 @@ export default function App() {
         if (!b || b.trainingQueue.length <= cmd.index) return prev;
         const item = b.trainingQueue[cmd.index];
         const unitCost = UNIT_COSTS[item.unitType];
-        const pRes = prev.playerResources[b.owner];
         const newQueue = b.trainingQueue.filter((_, idx) => idx !== cmd.index);
+        // Devolve à localidade de origem do débito; se ela perdeu o último posto, a devolução se perde.
+        const refundLocality = proceduralMapRef.current?.localityOf(b.owner, b.position) ?? HOME;
+        const resolve = proceduralMapRef.current?.localityOf;
+        const hasDepot = refundLocality === HOME || (resolve ? depotsIn(prev.buildings, b.owner, refundLocality, resolve, false).length > 0 : true);
+        const refunded = refundAt(prev, b.owner, refundLocality, unitCost, hasDepot).state;
         return {
-          ...prev,
+          ...refunded,
           buildings: prev.buildings.map((bd) =>
             bd.id === cmd.buildingId ? { ...bd, trainingQueue: newQueue } : bd
           ),
-          playerResources: {
-            ...prev.playerResources,
-            [b.owner]: refundCost(pRes, unitCost),
-          },
         };
       });
     } else if (cmd.type === 'research') {
