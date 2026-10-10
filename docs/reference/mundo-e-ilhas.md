@@ -10,11 +10,11 @@ O host (ou o treino solo) escolhe o tamanho do mundo no lobby. O valor viaja em 
 
 | Mundo | Situação | Latência da ordem em massa (120 unidades) |
 | --- | --- | --- |
-| 60 | validado (passo completo da simulação testado) | 9 ms |
+| 60 | validado (passo completo da simulação testado) | 7 ms |
 | 120 | experimental | dentro de 50 ms |
-| 192 | experimental | 32 ms |
-| 384 | experimental | 82 ms (passa de 50 ms) |
-| 768 | experimental (dimensão-alvo) | 135 ms (passa de 50 ms) |
+| 192 | experimental | 29 ms |
+| 384 | experimental | 56 ms (passa de 50 ms) |
+| 768 | experimental (dimensão-alvo) | 112 ms (passa de 50 ms) |
 
 Medições em `docs/evidence/card-65/README.md`. Acima de 192, ordens em massa podem causar engasgos até a navegação
 hierárquica (#77) e os campos de fluxo (#78).

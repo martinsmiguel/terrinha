@@ -323,3 +323,39 @@ describe('empurrão, desembarque, treino e rota parcial respeitam o corpo', () =
   });
 });
 
+describe('calado do barco na simulação', () => {
+  it('o barco nunca entra no raso de costa (menos de 1,0 de fundo) nem em rio ou lago, ao seguir uma ordem', () => {
+    const map = generateProceduralTerrain(60, 52723);
+    // Barco em água navegável com raso de costa logo à frente.
+    let start: { x: number; z: number } | null = null;
+    let target: { x: number; z: number } | null = null;
+    for (let x = 2; x < 56 && !start; x += 0.5) {
+      for (let z = 2; z < 58 && !start; z += 0.5) {
+        const ahead = map.surfaceAt(x + 2, z);
+        if (map.isNavigableAt(x, z) && ahead.water === 'ocean' && ahead.depth < 1.0) { start = { x, z }; target = { x: x + 4, z }; }
+      }
+    }
+    expect(start, 'sem raso de costa ao lado de água navegável').not.toBeNull();
+    const boat: Unit = { id: 'boat', type: 'fishing_boat', owner: 'player1', position: { ...start! }, targetPosition: { ...target! }, targetEntityId: null, health: 220, maxHealth: 220, attackDamage: 0, state: 'moving' };
+    let state: GameState = { units: [boat], buildings: [], resourceNodes: [], playerResources: { player1: { wood: 0, food: 0, gold: 0, stone: 0, planks: 0, pop: 1, maxPop: 9 } } };
+    const ctx: SimulationContext = { playerSlot: 'player1', mode: 'host', map, pathCache: new Map(), gatherRadiusLimit: 14, sustainableForestryEnabled: false, buildingDefinitions: {}, random: () => 0.5, createId: () => 'x' };
+    for (let tick = 0; tick < 300; tick += 1) {
+      state = tickGameState(state, ctx).state;
+      const position = state.units[0].position;
+      expect(map.isNavigableAt(position.x, position.z), `tick ${tick} em ${JSON.stringify(position)}`).toBe(true);
+    }
+  });
+
+  it('o mesmo destino é alcançável por um humano vadeando, mas não por um barco: o calado separa os dois', () => {
+    const map = generateProceduralTerrain(60, 52723);
+    let shallow: { x: number; z: number } | null = null;
+    for (let x = 2; x < 58 && !shallow; x += 0.5) for (let z = 2; z < 58 && !shallow; z += 0.5) {
+      const s = map.surfaceAt(x, z);
+      if (s.water === 'ocean' && s.depth > 0.3 && s.depth < 0.7) shallow = { x, z };
+    }
+    expect(shallow).not.toBeNull();
+    expect(map.canStandAt('human', shallow!.x, shallow!.z)).toBe(true);
+    expect(map.isNavigableAt(shallow!.x, shallow!.z)).toBe(false);
+  });
+});
+
