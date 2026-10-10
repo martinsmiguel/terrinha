@@ -1,4 +1,4 @@
-import type { BuildingType as BuildableType } from './buildingDefs';
+import type { BuildingType as BuildableType } from './buildingCatalog';
 import type { BuildingType, UnitType } from './model';
 
 /** Overlays modais, na ordem em que foram abertos (o último é o mais recente). */

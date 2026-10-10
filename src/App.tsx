@@ -12,7 +12,7 @@ import { TechPanel } from './components/TechPanel';
 import { soundManager } from './game/audio';
 import { update3DHealthBar, align3DHealthBarToCamera } from './game/healthBar';
 import { createBuildingGhost, updateBuildingGhost, checkBuildingPlacementValid } from './game/buildingGhost';
-import { BUILDING_CATALOG, BuildingType } from './game/buildingDefs';
+import { BUILDING_CATALOG, BuildingType } from './game/buildingCatalog';
 import { resolveHotkey, syncOverlayOrder, type OverlayId } from './game/hotkeys';
 import { generateProceduralTerrain, findNearestOceanCell, ProceduralMapResult } from './game/proceduralMap';
 import { EmpireCatalogModal } from './components/EmpireCatalogModal';

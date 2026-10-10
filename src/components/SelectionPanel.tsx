@@ -5,8 +5,8 @@ import {
   Users, Wrench, X,
 } from 'lucide-react';
 import { isBoatUnit, type Building, type GameState, type PlayerResources, type ResourceNode, type Unit, type UnitType } from '../game/engine';
-import type { BuildingType } from '../game/buildingDefs';
-import { BUILDING_CATALOG } from '../game/buildingDefs';
+import type { BuildingType } from '../game/buildingCatalog';
+import { BUILDING_CATALOG } from '../game/buildingCatalog';
 import type { PlayerSlot } from '../game/networkCommands';
 import type { MultiplayerManager } from '../game/multiplayer';
 import { soundManager } from '../game/audio';

@@ -5,7 +5,7 @@
 
 import * as THREE from 'three';
 import { Building, ResourceNode } from './engine';
-import { BuildingType, BUILDING_CATALOG } from './buildingDefs';
+import { BuildingType, BUILDING_CATALOG } from './buildingCatalog';
 import { hasOceanNearDock, hasLandNearDock } from './dockPlacement';
 
 export interface GhostPlacementCheck {

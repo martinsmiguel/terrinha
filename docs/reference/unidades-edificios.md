@@ -1,7 +1,7 @@
 # Referência: unidades, edifícios e recursos
 
 > Quadrante **Referência** — dados exatos. Fontes: `src/game/economy.ts`
-> (`UNIT_COSTS`, taxas do Mercadão, refino de tábuas), `src/game/buildingDefs.ts`
+> (`UNIT_COSTS`, taxas do Mercadão, refino de tábuas), `src/game/buildingCatalog.ts`
 > (catálogo), `src/game/engine.ts` (tipos), `src/game/proceduralMap.ts` (pedreiras).
 
 > **Estado ≠ contrato.** Esta página descreve o **código atual**, não a entrega
