@@ -2,7 +2,7 @@ import type { BuildingType as BuildableType } from './buildingCatalog';
 import type { BuildingType, UnitType } from './model';
 
 /** Overlays modais, na ordem em que foram abertos (o último é o mais recente). */
-export type OverlayId = 'world-map' | 'work-zone' | 'empire-catalog' | 'controls' | 'tutorial';
+export type OverlayId = 'world-map' | 'work-zone' | 'empire-catalog' | 'controls' | 'tutorial' | 'palette';
 
 export type SquadFormation = 'box' | 'line' | 'spread';
 
@@ -14,6 +14,7 @@ export type HotkeyAction =
   | { kind: 'toggle-hud-hidden' }
   | { kind: 'cycle-hud-composition' }
   | { kind: 'toggle-hud-panel' }
+  | { kind: 'open-palette' }
   | { kind: 'hud-undo' }
   | { kind: 'hud-redo' }
   | { kind: 'toggle-minimap' }
@@ -161,6 +162,10 @@ export function isNativeKeyboardEvent(event: HotkeyEventLike): boolean {
  * apenas o mais recente: seleção e ordens da partida não são tocadas.
  */
 export function resolveHotkey(event: HotkeyEventLike, context: HotkeyContext): HotkeyAction | null {
+  // Ctrl/Cmd+K abre a busca, mesmo a partir de um botão; em campo de texto e com overlay aberto não age.
+  if (event.key.toLowerCase() === 'k' && (event.ctrlKey || event.metaKey) && !event.altKey && !isEditableTarget(event.target) && context.overlays.length === 0) {
+    return { kind: 'open-palette' };
+  }
   // Desfazer/refazer do HUD: Ctrl/Cmd+Z e Ctrl/Cmd+Shift+Z. Só em jogo (sem overlay), fora de campos de texto, e só configuração.
   if (event.key.toLowerCase() === 'z' && (event.ctrlKey || event.metaKey) && !event.altKey && !isEditableTarget(event.target) && context.overlays.length === 0) {
     return { kind: event.shiftKey ? 'hud-redo' : 'hud-undo' };

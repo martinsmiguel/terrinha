@@ -37,6 +37,7 @@ interface MinimapProps {
   developerToolsEnabled?: boolean;
   /** Localidade de uma posição (metrópole ou ilha colonial) para a administração de colônias no mapa-múndi. */
   localityOf?: (owner: string, position: { x: number; z: number }) => string;
+  focusedIsland?: number | null;
 }
 
 const FACTION_MINIMAP_COLORS: Record<string, string> = {
@@ -62,6 +63,7 @@ export const Minimap: React.FC<MinimapProps> = ({
   onWorldMapOpenChange,
   developerToolsEnabled = false,
   localityOf,
+  focusedIsland,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -507,6 +509,7 @@ export const Minimap: React.FC<MinimapProps> = ({
       onToggleRevealAll={() => setDeveloperRevealAll((value) => !value)}
       onNavigate={(target) => engine?.setCameraTarget(target.x, target.z)}
       localityOf={localityOf}
+      focusedIsland={focusedIsland}
       onPointerOverChange={(isOver) => engine?.setIsPointerOverUI(isOver)}
     />,
     document.body
