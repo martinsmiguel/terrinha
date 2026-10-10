@@ -26,6 +26,9 @@ export interface VisionOptions {
   size?: number;
 }
 
+/** A grade é quadrada: o lado sai do comprimento do vetor (60 -> 3600 células). */
+export const gridSizeOf = (grid: Uint8Array): number => Math.round(Math.sqrt(grid.length));
+
 /**
  * Grid de névoa em vetor plano. O índice é `x * size + z`, a mesma ordem do
  * `exploredGrid[x][z]` do `Minimap`, para que cena 3D e minimapa leiam os
@@ -46,7 +49,7 @@ export const visionRadiusFor = (entity: Unit | Building, settings?: RuleSettings
 
 /** Estado de uma célula; células fora do grid são tratadas como nunca vistas. */
 export const visionAt = (grid: Uint8Array, x: number, z: number, options: VisionOptions = {}): VisionCell => {
-  const size = options.size ?? 60;
+  const size = options.size ?? gridSizeOf(grid);
   if (x < 0 || z < 0 || x >= size || z >= size) return VISION_UNEXPLORED;
   const value = grid[x * size + z];
   return value === VISION_VISIBLE ? VISION_VISIBLE : value === VISION_EXPLORED ? VISION_EXPLORED : VISION_UNEXPLORED;
@@ -67,7 +70,7 @@ export const revealVision = (
   sources: VisionSource[],
   options: VisionOptions = {}
 ): Uint8Array => {
-  const size = options.size ?? 60;
+  const size = options.size ?? gridSizeOf(grid);
   const next = grid.slice();
 
   for (const source of sources) {
