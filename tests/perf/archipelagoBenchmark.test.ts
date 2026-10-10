@@ -144,6 +144,36 @@ describe('arquipélago em mapa procedural real: movimento em massa', () => {
   it('registra o relatório de movimento', () => { report.movement = rows; });
 });
 
+describe('passo da simulação por tamanho de mundo (120 unidades na ilha natal do jogador 1)', () => {
+  const rows: Record<string, unknown>[] = [];
+  it.each([60, 192, 384, 768])('mundo %i: mede o passo com a dimensão da sessão', (size) => {
+    const map = generateProceduralTerrain(size, 4242);
+    const home = landComponents(map).find((cells) => cells.some((c) => Math.hypot(c.x - map.player1Spawn.x, c.z - map.player1Spawn.z) < 2))!;
+    const units = Array.from({ length: 120 }, (_, i) => {
+      const start = home[(i * 37) % home.length];
+      let goal = home[(i * 101 + 17) % home.length];
+      for (let k = 1; Math.hypot(goal.x - start.x, goal.z - start.z) < 12 && k < 20; k += 1) goal = home[(i * 101 + 17 + k * 53) % home.length];
+      return unit(`u${i}`, i % 2 ? 'player2' : 'player1', start.x, start.z, { state: 'moving', targetPosition: goal });
+    });
+    const capital = (owner: string, spawn: { x: number; z: number }): Building => ({
+      id: `capital-${owner}`, type: 'town_center', owner, position: { ...spawn }, health: 2400, maxHealth: 2400, isComplete: true, trainingQueue: [],
+    });
+    let state: GameState = { ...stateOf(units, [capital('player1', map.player1Spawn), capital('player2', map.player2Spawn)]), mapSize: size };
+    const ctx = contextFor(map);
+    const tickMs: number[] = [];
+    for (let tick = 0; tick < 100; tick += 1) {
+      const startedAt = performance.now();
+      state = tickGameState(state, ctx).state;
+      tickMs.push(performance.now() - startedAt);
+    }
+    rows.push({ size, units: 120, commandLatencyMs: +tickMs[0].toFixed(3), tick: summarize(tickMs), stillMoving: state.units.filter((u) => u.state === 'moving').length });
+    // Só o tamanho validado do produto (60) tem orçamento duro; os demais são medidos e relatados.
+    if (size === 60) expect(percentile(tickMs, 95)).toBeLessThan(TICK_BUDGET_MS);
+    else expect(percentile(tickMs, 95)).toBeLessThan(TICK_BUDGET_MS * 4);
+  }, 120000);
+  it('registra o relatório por tamanho', () => { report.tickBySize = rows; });
+});
+
 describe('tamanhos de mapa no gerador e no A*', () => {
   const rows: Record<string, unknown>[] = [];
   it.each([60, 90, 120])('mapa %ix%i: gera, posiciona os quatro pontos de chegada e acha caminho', (size) => {

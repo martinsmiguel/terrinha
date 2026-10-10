@@ -16,9 +16,9 @@ export interface WorldSizeOption {
 export const WORLD_SIZE_OPTIONS: readonly WorldSizeOption[] = [
   { size: 60, label: 'Padrão (60)', status: 'validado', note: 'Ilhas pequenas, partida rápida.' },
   { size: 120, label: 'Médio (120)', status: 'experimental', note: 'Ilhas com o dobro do diâmetro.' },
-  { size: 192, label: 'Grande (192)', status: 'experimental', note: 'Espaço para expansão por colônias.' },
-  { size: 384, label: 'Enorme (384)', status: 'experimental', note: 'Distâncias longas; rotas e rede ainda sem otimização.' },
-  { size: 768, label: 'Experimental (768)', status: 'experimental', note: 'Dimensão-alvo do produto; sem garantia de desempenho.' },
+  { size: 192, label: 'Grande (192)', status: 'experimental', note: 'Espaço para expansão; ordem para 120 unidades de uma vez ainda cabe no passo de 50 ms.' },
+  { size: 384, label: 'Enorme (384)', status: 'experimental', note: 'Ordem em massa passa de 50 ms (medido 82 ms): pode haver engasgos até os cards #77 e #78.' },
+  { size: 768, label: 'Experimental (768)', status: 'experimental', note: 'Dimensão-alvo do produto; ordem em massa medida em 135 ms, sem garantia de desempenho.' },
 ];
 
 /** Lê um tamanho de mundo vindo de fora (JSON, rede, armazenamento): inteiro dentro dos limites ou o padrão. */
