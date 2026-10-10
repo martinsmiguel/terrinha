@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Building, GameState, Unit } from '../../src/game/model';
 import {
-  CAPITAL_BUILD_SECONDS, CAPITAL_MAX_HEALTH, FOUNDATION_KIT, advanceFoundation, findCapitalSites, foundCapital, lifePhase,
+  CAPITAL_BUILD_SECONDS, CAPITAL_MAX_HEALTH, FOUNDATION_KIT, advanceFoundation, createStartingForce, findCapitalSites, foundCapital, lifePhase,
 } from '../../src/game/foundation';
 import { evaluateMatch, localOutcome } from '../../src/game/victory';
 import { UNIT_ATTRIBUTES } from '../../src/game/unitAttributes';
@@ -162,5 +162,16 @@ describe('vitória por fase de vida', () => {
     expect(evaluateMatch([capital('player3')], ['player3', 'player4'], [])).toMatchObject({ status: 'finished', winner: 'player3' });
     expect(evaluateMatch([], players.slice(0, 2), [])).toEqual({ status: 'finished', winner: null, players: players.slice(0, 2) });
     expect(evaluateMatch([], players, [wagon('player4')])).toMatchObject({ status: 'finished', winner: 'player4' });
+  });
+});
+
+describe('createStartingForce', () => {
+  it('entrega carroça, 2 aldeões e 1 soldado do dono, sem Centro, com ids distintos', () => {
+    let n = 0;
+    const force = createStartingForce('player3', { x: 20, z: 20 }, () => `u${n += 1}`);
+    expect(force.map((unit) => unit.type)).toEqual(['wagon', 'villager', 'villager', 'soldier']);
+    expect(force.every((unit) => unit.owner === 'player3' && unit.health === unit.maxHealth)).toBe(true);
+    expect(new Set(force.map((unit) => unit.id)).size).toBe(4);
+    expect(lifePhase('player3', [], force)).toBe('arriving');
   });
 });

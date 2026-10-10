@@ -1,4 +1,5 @@
-import type { Building, GameState, Unit } from './model';
+import type { Building, GameState, Unit, UnitType } from './model';
+import { UNIT_ATTRIBUTES } from './unitAttributes';
 
 /** Kit de fundação reservado: só pode ser gasto fundando a capital, nunca no suprimento comum. */
 export const FOUNDATION_KIT = { wood: 400, stone: 200 } as const;
@@ -117,4 +118,27 @@ export function advanceFoundation(building: Building): Building {
     isComplete: done,
     health: done ? building.maxHealth : Math.max(building.health, Math.round(building.maxHealth * (0.1 + 0.9 * (progress / 100)))),
   };
+}
+
+const newUnit = (id: string, type: UnitType, owner: string, position: Point): Unit => ({
+  id,
+  type,
+  owner,
+  position,
+  targetPosition: null,
+  targetEntityId: null,
+  health: UNIT_ATTRIBUTES[type].maxHealth,
+  maxHealth: UNIT_ATTRIBUTES[type].maxHealth,
+  attackDamage: UNIT_ATTRIBUTES[type].attackDamage,
+  state: 'idle',
+});
+
+/** Força inicial sem Centro fixo: a carroça no ponto de chegada, dois aldeões e um soldado ao redor. */
+export function createStartingForce(owner: string, arrival: Point, createId: () => string): Unit[] {
+  return [
+    newUnit(createId(), 'wagon', owner, { x: arrival.x, z: arrival.z }),
+    newUnit(createId(), 'villager', owner, { x: arrival.x + 1.8, z: arrival.z + 2 }),
+    newUnit(createId(), 'villager', owner, { x: arrival.x - 1.8, z: arrival.z + 2 }),
+    newUnit(createId(), 'soldier', owner, { x: arrival.x + 2.5, z: arrival.z - 1.5 }),
+  ];
 }

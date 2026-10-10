@@ -7,7 +7,7 @@ import vm from 'node:vm';
 const rulesDir = path.resolve(process.argv[2] ?? 'src/game');
 const roots = process.argv[3] ? [process.argv[3]] : [
   'model', 'simulation', 'navalTransport', 'networkCommands', 'buildingCatalog',
-  'economy', 'tech', 'population', 'victory', 'visibility',
+  'economy', 'tech', 'population', 'victory', 'visibility', 'foundation', 'capitalSite',
 ];
 const visited = new Set();
 function visit(file, chain) {
