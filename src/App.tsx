@@ -77,6 +77,8 @@ import {
 import { FACTION_COLORS } from './game/factions';
 import { pickFrontMostCandidate, resolveClickSelection } from './game/entitySelection';
 import { applyEmbarkOrder, boatCapacity } from './game/navalTransport';
+import { RELIC_REACH, applyRelicAction, checkRelicAction, generateRelics } from './game/mysticism';
+import { isExploredBy } from './game/visionAuthority';
 import { buyTalent, effectiveBuildCost, talentById } from './game/talents';
 import { findBerth, routeAlerts } from './game/tradeRoutes';
 import { assignRoute, cancelRoute, pauseRoute, redirectRoute, resumeRoute } from './game/tradeRoutes';
@@ -921,6 +923,8 @@ export default function App() {
       mapSeed: procMap.seed,
       mapSize: worldSizeSetting,
       foundationKits,
+      relics: generateRelics(procMap.islands),
+      elapsed: 0,
     };
     if (role === 'single') {
       slots.filter((slot) => slot !== playerSlot).forEach((slot) => {
@@ -1205,6 +1209,16 @@ export default function App() {
       }
       setGameState(next);
       triggerNotification(cmd.type === 'load_kit' ? 'Kit de colonização embarcado.' : 'Carga embarcada.', 'success');
+    } else if (cmd.type === 'harvest_plant' || cmd.type === 'restore_monument') {
+      const known = (x: number, z: number) => !hostVisionRef.current || isExploredBy(hostVisionRef.current, commandOwner, x, z);
+      const applied = applyRelicAction(gameStateRef.current, commandOwner, cmd.type === 'harvest_plant' ? 'harvest' : 'restore', cmd.unitId, cmd.relicId, known);
+      if (!applied.check.ok) { triggerNotification(applied.check.message ?? 'Ação recusada.', 'warning'); return; }
+      setGameState((prev) => {
+        const again = applyRelicAction(prev, commandOwner, cmd.type === 'harvest_plant' ? 'harvest' : 'restore', cmd.unitId, cmd.relicId, known);
+        if (!again.check.ok || !again.xp) return prev;
+        return { ...again.state, mastery: creditAll(again.state.mastery, [{ owner: commandOwner, event: again.xp }]) };
+      });
+      triggerNotification(cmd.type === 'harvest_plant' ? 'Planta colhida: bênção de coleta por 60 s.' : 'Monumento restaurado: a runa dá visão ao redor.', 'success');
     } else if (cmd.type === 'buy_talent') {
       const bought = buyTalent(gameStateRef.current, commandOwner, cmd.id);
       if (!bought.check.ok) { triggerNotification(bought.check.message ?? 'Talento recusado.', 'warning'); return; }
@@ -3265,6 +3279,24 @@ export default function App() {
           canRedo={hud.canRedo}
           onTogglePanel={() => hud.setPanelOpen((prev) => !prev)}
           onOpenTalents={() => setIsTalentsOpen(true)}
+          relics={(gameState.relics ?? []).filter((relic) => isExploredAt(visionGridRef.current, Math.round(relic.position.x), Math.round(relic.position.z))).map((relic) => {
+            const action = relic.kind === 'plant' ? 'harvest' : 'restore';
+            const near = gameState.units.find((u) => u.owner === playerSlot && u.type === 'villager' && u.health > 0 && Math.hypot(u.position.x - relic.position.x, u.position.z - relic.position.z) <= RELIC_REACH);
+            const check = checkRelicAction(gameState, playerSlot, action, near?.id ?? '', relic.id);
+            return {
+              id: relic.id, kind: relic.kind, position: relic.position, unitId: near?.id ?? null,
+              label: `${relic.kind === 'plant' ? 'Planta' : 'Monumento'} (ilha ${relic.island})`,
+              state: relic.state === 'available' ? 'disponível' : relic.state === 'harvested' ? 'colhida' : relic.state === 'ruined' ? 'em ruínas' : 'restaurado',
+              check: near ? check : { ok: false, message: `Leve um aldeão a até ${RELIC_REACH} de distância.` },
+            };
+          })}
+          onRelicAction={(row) => {
+            if (!row.unitId) return;
+            const cmd = { type: row.kind === 'plant' ? 'harvest_plant' : 'restore_monument', unitId: row.unitId, relicId: row.id };
+            if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+            else multiRef.current?.sendToHost(cmd);
+          }}
+          onFocusRelic={(x, z) => engineRef.current?.setCameraTarget(x, z)}
           talentPoints={gameState.mastery?.[playerSlot]?.points ?? 0}
           onSelectComposition={hud.setComposition}
           onToggleIdle={hud.setIdleCollapse}

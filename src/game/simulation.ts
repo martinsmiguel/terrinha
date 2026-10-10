@@ -2,6 +2,7 @@ import { healUnitsInTerritory } from './colonies';
 import { cargoTotal, disembarkStep } from './colonialTransport';
 import { BLESSING_FARM, BRISA_SPEED, hasTalent } from './talents';
 import { creditAll, type XpEvent } from './mastery';
+import { blessingMultiplier, seasonFarmFactor, seasonOf, tickBuffs } from './mysticism';
 import { isExploredBy } from './visionAuthority';
 import { stepRoute } from './tradeRoutes';
 import { HOME, productionPaused, reconcileDepots, refineAt, type LocalityResolver } from './depots';
@@ -399,6 +400,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         }
 
         gatherRate *= gatherMultiplier(updatedTechs[unit.owner], targetNode.type);
+        gatherRate *= blessingMultiplier(state.buffs, unit.owner);
 
         const gathered = Math.min(gatherRate, targetNode.remaining);
         targetNode.remaining -= gathered;
@@ -744,7 +746,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       (building) => building.owner === slot && building.type === 'farm' && building.isComplete && building.health > 0
     );
     // Cada fazenda rende 0,1 por passo vezes a fertilidade declarada da ilha onde está.
-    const blessing = hasTalent(state, slot, 'bencao') ? BLESSING_FARM : 1;
+    const blessing = (hasTalent(state, slot, 'bencao') ? BLESSING_FARM : 1) * seasonFarmFactor(seasonOf(state.elapsed ?? 0));
     for (const farm of completedFarms) res.food += 0.1 * blessing * (context.fertilityAt?.(farm.position.x, farm.position.z) ?? 1);
 
     const completedMarkets = updatedBuildings.filter(
@@ -960,6 +962,8 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     state: {
       ...state,
       ...(updatedLocalStocks ? { localStocks: updatedLocalStocks } : {}),
+      elapsed: (state.elapsed ?? 0) + TICK_SECONDS,
+      ...(state.buffs ? { buffs: tickBuffs(state.buffs, TICK_SECONDS) } : {}),
       ...(xpEvents.length > 0 || state.mastery ? { mastery: creditAll(state.mastery, xpEvents) } : {}),
       units: updatedUnits,
       buildings: updatedBuildings,

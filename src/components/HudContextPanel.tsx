@@ -5,6 +5,8 @@ import {
   type HudConfig, type HudComposition, type HudReadout,
 } from '../game/hudConfig';
 
+export interface RelicRow { id: string; kind: 'plant' | 'monument'; state: string; label: string; position: { x: number; z: number }; unitId: string | null; check: { ok: boolean; message?: string } }
+
 interface HudContextPanelProps {
   config: HudConfig;
   readout: HudReadout;
@@ -13,6 +15,9 @@ interface HudContextPanelProps {
   canRedo: boolean;
   onTogglePanel(): void;
   onOpenTalents(): void;
+  relics: RelicRow[];
+  onRelicAction(row: RelicRow): void;
+  onFocusRelic(x: number, z: number): void;
   talentPoints: number;
   onSelectComposition(composition: HudComposition): void;
   onToggleIdle(enabled: boolean): void;
@@ -132,6 +137,28 @@ export function HudContextPanel(props: HudContextPanelProps) {
           )}
           {visible.has('selection') && (
             <div className="text-[11px]"><span className="text-slate-400">Seleção: </span>{readout.selection ? `${readout.selection.kind === 'unit' ? 'unidade' : readout.selection.kind === 'building' ? 'edifício' : 'recurso'} ${readout.selection.id.slice(0, 8)}` : 'nenhuma'}</div>
+          )}
+
+          {props.relics.length > 0 && (
+            <div className="text-[11px]" aria-label="Plantas e monumentos conhecidos">
+              <div className="text-slate-400">Plantas e monumentos</div>
+              <ul className="space-y-1">
+                {props.relics.map((row) => (
+                  <li key={row.id} className="flex items-center justify-between gap-2">
+                    <span>{row.label} <span className="text-slate-500">· {row.state}</span></span>
+                    <span className="flex gap-1">
+                      <button type="button" onClick={() => props.onFocusRelic(row.position.x, row.position.z)} className="rounded bg-slate-800 px-1.5 py-0.5 hover:bg-slate-700">Ir</button>
+                      {(row.state === 'disponível' || row.state === 'em ruínas') && (
+                        <button type="button" disabled={!row.check.ok} title={row.check.ok ? undefined : row.check.message} onClick={() => props.onRelicAction(row)}
+                          className={`rounded px-1.5 py-0.5 font-semibold ${row.check.ok ? 'bg-amber-600 text-white hover:bg-amber-500' : 'cursor-not-allowed bg-slate-800 text-slate-500'}`}>
+                          {row.kind === 'plant' ? 'Colher' : 'Restaurar'}
+                        </button>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
 
           <label className="flex items-center gap-1.5 text-[11px] text-slate-300">

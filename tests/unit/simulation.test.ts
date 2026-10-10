@@ -483,11 +483,13 @@ describe('simulation performance', () => {
 
     it('a fazenda rende 0,1 por passo vezes a fertilidade do solo onde está', () => {
       const farm = (id: string, x: number) => createBuilding({ id, type: 'farm', owner: 'player1', position: { x, z: 10 }, isComplete: true });
+      // Estação úmida (início da partida) rende +10%; o teste mede a fertilidade, então usa o fator da estação.
+      const wet = 1.1;
       const state = createState({ buildings: [farm('rich', 10), farm('barren', 40)] });
       const fertility = (x: number) => (x < 30 ? 1.2 : 0.4);
       const gain = (ctx: SimulationContext) => tickGameState(state, ctx).state.playerResources.player1.food - 100;
-      expect(gain(context({ fertilityAt: fertility }))).toBeCloseTo(0.1 * 1.2 + 0.1 * 0.4, 6);
-      expect(gain(context())).toBeCloseTo(0.2, 6); // sem informação de solo: fertilidade 1
+      expect(gain(context({ fertilityAt: fertility }))).toBeCloseTo((0.1 * 1.2 + 0.1 * 0.4) * wet, 6);
+      expect(gain(context())).toBeCloseTo(0.2 * wet, 6); // sem informação de solo: fertilidade 1
     });
   });
 
