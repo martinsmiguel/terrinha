@@ -101,8 +101,14 @@ export interface GameState {
   techs?: Record<string, TechState>;
   /** Semente do mapa procedural: a mesma semente recria o mesmo arquipelago. */
   mapSeed?: number;
+  /** Lado do mundo em células, compartilhado por host e convidados junto com a semente. */
+  mapSize?: number;
   /** Kit de fundacao reservado por jogador ate a capital ser fundada (separado do suprimento). */
   foundationKits?: Record<string, { wood: number; stone: number }>;
 }
 
+/** Dimensão padrão do mundo; a dimensão real da sessão vem de `GameState.mapSize`. */
 export const MAP_SIZE = 60;
+
+/** Lado do mundo da partida: o configurado na sessão ou o padrão. */
+export const worldSizeOf = (state: { mapSize?: number }): number => state.mapSize ?? MAP_SIZE;

@@ -1,5 +1,5 @@
 import type { Building, BuildingType, GameState, PlayerResources, ResourceNode, Unit, UnitType } from './model';
-import { BOAT_CAPACITY, isBoatUnit } from './model';
+import { BOAT_CAPACITY, isBoatUnit, worldSizeOf } from './model';
 import { UNIT_ATTRIBUTES } from './unitAttributes';
 import { BUILDING_CATALOG } from './buildingCatalog';
 import { researchBlock } from './tech';
@@ -93,20 +93,16 @@ export function isPlayerSlot(value: unknown): value is PlayerSlot {
   return typeof value === 'string' && PLAYER_SLOTS.includes(value as PlayerSlot);
 }
 
-function isPosition(value: unknown): value is Position {
+function isPositionWithin(value: unknown, limit: number): value is Position {
   return (
     isRecord(value) &&
-    typeof value.x === 'number' && Number.isFinite(value.x) && value.x >= 0 && value.x <= MAP_LIMIT &&
-    typeof value.z === 'number' && Number.isFinite(value.z) && value.z >= 0 && value.z <= MAP_LIMIT
+    typeof value.x === 'number' && Number.isFinite(value.x) && value.x >= 0 && value.x <= limit &&
+    typeof value.z === 'number' && Number.isFinite(value.z) && value.z >= 0 && value.z <= limit
   );
 }
 
 function isStringList(value: unknown, maxLength = 100): value is string[] {
   return Array.isArray(value) && value.length > 0 && value.length <= maxLength && value.every(isId);
-}
-
-function isOptionalPosition(value: unknown): boolean {
-  return value === undefined || isPosition(value);
 }
 
 function isOptionalRadius(value: unknown): boolean {
@@ -143,7 +139,10 @@ export function roomJoinError(request: JoinRoomRequest, members: RoomMember[]): 
   return null;
 }
 
-export function isValidNetworkCommand(value: unknown): value is NetworkCommand {
+/** Valida a forma do comando; as posições devem caber no mundo da sessão (padrão 60). */
+export function isValidNetworkCommand(value: unknown, mapSize: number = MAP_LIMIT): value is NetworkCommand {
+  const isPosition = (candidate: unknown): candidate is Position => isPositionWithin(candidate, mapSize);
+  const isOptionalPosition = (candidate: unknown): boolean => candidate === undefined || isPosition(candidate);
   if (!isRecord(value) || typeof value.type !== 'string') return false;
   if ((value.playerSlot !== undefined && !isPlayerSlot(value.playerSlot)) || (value.senderId !== undefined && !isId(value.senderId))) {
     return false;
@@ -242,7 +241,7 @@ export function isAuthorizedPlayerCommand(
   value: unknown,
   owner: PlayerSlot
 ): value is NetworkCommand {
-  if (!isValidNetworkCommand(value)) return false;
+  if (!isValidNetworkCommand(value, worldSizeOf(state))) return false;
 
   switch (value.type) {
     case 'found_capital': {

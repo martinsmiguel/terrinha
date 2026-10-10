@@ -62,8 +62,10 @@ export function WorldMapModal({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hovered, setHovered] = useState<{ x: number; z: number } | null>(null);
 
-  const layout = useMemo(() => computeArchipelago(MAP_SIZE, gameState.mapSeed ?? 0), [gameState.mapSeed]);
-  const query = useMemo<MapDiscoveryQuery>(() => ({ mapSize: MAP_SIZE, visibility, revealAll }), [visibility, revealAll]);
+  // Dimensão do mundo da sessão (60 no padrão).
+  const mapSize = gameState.mapSize ?? MAP_SIZE;
+  const layout = useMemo(() => computeArchipelago(mapSize, gameState.mapSeed ?? 0), [mapSize, gameState.mapSeed]);
+  const query = useMemo<MapDiscoveryQuery>(() => ({ mapSize, visibility, revealAll }), [mapSize, visibility, revealAll]);
   const discoveredIslands = useMemo(
     () => layout.islands.filter((island) => isIslandDiscovered(island, query)),
     [layout, query]
@@ -82,7 +84,7 @@ export function WorldMapModal({
     const context = canvas?.getContext('2d');
     if (!canvas || !context) return;
 
-    const scale = WORLD_MAP_PIXEL_SIZE / MAP_SIZE;
+    const scale = WORLD_MAP_PIXEL_SIZE / mapSize;
     context.clearRect(0, 0, WORLD_MAP_PIXEL_SIZE, WORLD_MAP_PIXEL_SIZE);
     const ocean = context.createLinearGradient(0, 0, WORLD_MAP_PIXEL_SIZE, WORLD_MAP_PIXEL_SIZE);
     ocean.addColorStop(0, '#0c2438');
@@ -99,7 +101,7 @@ export function WorldMapModal({
           const point = worldToMapPixel(
             island.center.x + Math.cos(angle) * radius,
             island.center.z + Math.sin(angle) * radius,
-            MAP_SIZE,
+            mapSize,
             WORLD_MAP_PIXEL_SIZE
           );
           if (angle === 0) context.moveTo(point.x, point.y);
@@ -115,25 +117,27 @@ export function WorldMapModal({
       context.lineWidth = 2;
       context.stroke();
 
-      coast(1.6);
+      coast(1.6 * (mapSize / MAP_SIZE));
       context.fillStyle = PROFILE_COLORS[island.profile];
       context.fill();
     });
 
     // Nevoa: o que nunca foi visto fica opaco; o explorado ganha nevoa leve.
     if (!revealAll) {
-      for (let x = 0; x < MAP_SIZE; x++) {
-        for (let z = 0; z < MAP_SIZE; z++) {
-          const known = isMapCellKnown(x, z, query);
+      // Em mundos grandes a névoa é desenhada por blocos (no máximo ~120 por eixo).
+      const stride = Math.max(1, Math.ceil(mapSize / 120));
+      for (let x = 0; x < mapSize; x += stride) {
+        for (let z = 0; z < mapSize; z += stride) {
+          const known = isMapCellKnown(Math.min(mapSize - 1, x + Math.floor(stride / 2)), Math.min(mapSize - 1, z + Math.floor(stride / 2)), query);
           context.fillStyle = known ? 'rgba(15, 23, 42, 0.5)' : 'rgba(2, 6, 23, 0.97)';
-          context.fillRect(x * scale, z * scale, scale + 0.4, scale + 0.4);
+          context.fillRect(x * scale, z * scale, scale * stride + 0.4, scale * stride + 0.4);
         }
       }
     }
 
     // Rotulos apenas das ilhas ja descobertas.
     discoveredIslands.forEach((island) => {
-      const anchor = worldToMapPixel(island.center.x, island.center.z + island.baseRadius + 2, MAP_SIZE, WORLD_MAP_PIXEL_SIZE);
+      const anchor = worldToMapPixel(island.center.x, island.center.z + island.baseRadius + 2 * (mapSize / MAP_SIZE), mapSize, WORLD_MAP_PIXEL_SIZE);
       context.fillStyle = '#f8fafc';
       context.font = '600 13px system-ui';
       context.textAlign = 'center';
@@ -145,9 +149,9 @@ export function WorldMapModal({
 
     gameState.resourceNodes.forEach((resource) => {
       if (resource.remaining <= 0) return;
-      const cell = worldToCell(resource.position.x, resource.position.z, MAP_SIZE);
+      const cell = worldToCell(resource.position.x, resource.position.z, mapSize);
       if (!isMapCellKnown(cell.x, cell.z, query)) return;
-      const point = worldToMapPixel(resource.position.x, resource.position.z, MAP_SIZE, WORLD_MAP_PIXEL_SIZE);
+      const point = worldToMapPixel(resource.position.x, resource.position.z, mapSize, WORLD_MAP_PIXEL_SIZE);
       context.fillStyle =
         resource.type === 'gold_mine' ? '#facc15'
           : resource.type === 'stone' ? '#cbd5e1'
@@ -160,9 +164,9 @@ export function WorldMapModal({
     });
 
     gameState.buildings.forEach((building) => {
-      const cell = worldToCell(building.position.x, building.position.z, MAP_SIZE);
+      const cell = worldToCell(building.position.x, building.position.z, mapSize);
       if (building.owner !== playerSlot && !isMapCellKnown(cell.x, cell.z, query)) return;
-      const point = worldToMapPixel(building.position.x, building.position.z, MAP_SIZE, WORLD_MAP_PIXEL_SIZE);
+      const point = worldToMapPixel(building.position.x, building.position.z, mapSize, WORLD_MAP_PIXEL_SIZE);
       context.fillStyle = PLAYER_COLORS[building.owner] ?? '#e2e8f0';
       const size = building.type === 'town_center' ? 10 : 7;
       context.fillRect(point.x - size / 2, point.y - size / 2, size, size);
@@ -172,9 +176,9 @@ export function WorldMapModal({
     });
 
     gameState.units.forEach((unit) => {
-      const cell = worldToCell(unit.position.x, unit.position.z, MAP_SIZE);
+      const cell = worldToCell(unit.position.x, unit.position.z, mapSize);
       if (unit.owner !== playerSlot && !isMapCellVisible(cell.x, cell.z, query)) return;
-      const point = worldToMapPixel(unit.position.x, unit.position.z, MAP_SIZE, WORLD_MAP_PIXEL_SIZE);
+      const point = worldToMapPixel(unit.position.x, unit.position.z, mapSize, WORLD_MAP_PIXEL_SIZE);
       context.fillStyle = PLAYER_COLORS[unit.owner] ?? '#e2e8f0';
       context.beginPath();
       context.arc(point.x, point.y, unit.owner === playerSlot ? 3 : 2.5, 0, Math.PI * 2);
@@ -187,7 +191,7 @@ export function WorldMapModal({
     const target = worldMapClickTarget({
       pixelX: ((event.clientX - bounds.left) / bounds.width) * WORLD_MAP_PIXEL_SIZE,
       pixelY: ((event.clientY - bounds.top) / bounds.height) * WORLD_MAP_PIXEL_SIZE,
-      mapSize: MAP_SIZE,
+      mapSize: mapSize,
       visibility,
       revealAll,
     });
@@ -199,9 +203,9 @@ export function WorldMapModal({
   const handleMapMove = (event: MouseEvent<HTMLCanvasElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const cell = worldToCell(
-      ((event.clientX - bounds.left) / bounds.width) * MAP_SIZE,
-      ((event.clientY - bounds.top) / bounds.height) * MAP_SIZE,
-      MAP_SIZE
+      ((event.clientX - bounds.left) / bounds.width) * mapSize,
+      ((event.clientY - bounds.top) / bounds.height) * mapSize,
+      mapSize
     );
     setHovered({ x: cell.x, z: cell.z });
   };

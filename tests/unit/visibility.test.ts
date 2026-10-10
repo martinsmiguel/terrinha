@@ -5,6 +5,7 @@ import {
   VISION_VISIBLE,
   createVisionGrid,
   exploredCount,
+  gridSizeOf,
   expireVision,
   isExploredAt,
   isVisibleAt,
@@ -163,3 +164,21 @@ describe('performance', () => {
     expect(isVisibleAt(state, 0, 0, { size: SIZE })).toBe(true);
   });
 });
+
+describe('grade de névoa em qualquer dimensão', () => {
+  it('deduz o lado da própria grade e revela, explora e consulta em mundos maiores que 60', () => {
+    for (const size of [60, 192, 768]) {
+      const grid = createVisionGrid({ size });
+      expect(gridSizeOf(grid)).toBe(size);
+      const center = Math.floor(size / 2);
+      const revealed = revealVision(grid, [{ x: center, z: center, radius: 5 }]);
+      expect(isVisibleAt(revealed, center, center)).toBe(true);
+      expect(isVisibleAt(revealed, center + 9, center)).toBe(false);
+      const aged = expireVision(revealed);
+      expect(isExploredAt(aged, center, center)).toBe(true);
+      expect(isVisibleAt(aged, center, center)).toBe(false);
+      expect(isExploredAt(aged, size - 1, size - 1)).toBe(false);
+    }
+  });
+});
+

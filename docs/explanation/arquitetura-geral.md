@@ -25,7 +25,9 @@ src/
     ├── engine.ts        → cena Three.js, câmera, tipos do domínio (GameState…)
     ├── simulation.ts    → tick puro: movimento, coleta, combate, IA, treino
     ├── archipelago.ts   → layout determinístico de 4 ilhas por semente
-    ├── proceduralMap.ts → terreno do arquipélago: biomas, rios, 4 spawns
+    ├── proceduralMap.ts → terreno do arquipélago: biomas, rios, 4 spawns, rejeição de sementes
+    ├── worldProofs.ts   → provas por ilha natal (área, janela de capital, regiões, costas)
+    ├── worldConfig.ts   → tamanhos do mundo oferecidos no lobby e validação
     ├── navalTransport.ts → embarque/desembarque de unidades em barcos
     ├── worldMap.ts      → regras do mapa-múndi (descoberta, clique, névoa)
     ├── mapProjection.ts → projeção única mundo ↔ pixel (minimapa/mapa-múndi)

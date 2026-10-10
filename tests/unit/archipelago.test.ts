@@ -20,13 +20,47 @@ describe('computeArchipelago', () => {
     expect(JSON.stringify(first)).not.toEqual(JSON.stringify(second));
   });
 
-  it('sempre cria quatro ilhas com quatro perfis distintos', () => {
+  it('sempre cria seis ilhas: quatro natais com perfis distintos e duas neutras', () => {
     SEEDS.forEach((seed) => {
       const layout = computeArchipelago(60, seed);
-      expect(layout.islands).toHaveLength(4);
-      const profiles = layout.islands.map((i) => i.profile);
+      expect(layout.islands).toHaveLength(6);
+      const natives = layout.islands.filter((i) => i.kind === 'native');
+      const neutrals = layout.islands.filter((i) => i.kind === 'neutral');
+      expect(natives.map((i) => i.index)).toEqual([0, 1, 2, 3]);
+      expect(neutrals.map((i) => i.index)).toEqual([4, 5]);
+      const profiles = natives.map((i) => i.profile);
       expect(new Set(profiles).size).toBe(4);
       expect(profiles).toContain('floresta');
+    });
+  });
+
+  it('as ilhas neutras ficam entre as natais sem encostar nelas, em qualquer tamanho de mundo', () => {
+    for (const size of [60, 192, 768]) {
+      for (const seed of SEEDS) {
+        const { islands } = computeArchipelago(size, seed);
+        for (let a = 0; a < islands.length; a += 1) {
+          for (let b = a + 1; b < islands.length; b += 1) {
+            const gap = Math.hypot(islands[a].center.x - islands[b].center.x, islands[a].center.z - islands[b].center.z)
+              - islands[a].baseRadius - islands[b].baseRadius;
+            expect(gap, `${size} seed ${seed}: ilhas ${a} e ${b}`).toBeGreaterThan(0);
+          }
+        }
+        for (const island of islands) {
+          expect(island.center.x - island.baseRadius).toBeGreaterThan(0);
+          expect(island.center.z - island.baseRadius).toBeGreaterThan(0);
+          expect(island.center.x + island.baseRadius).toBeLessThan(size);
+          expect(island.center.z + island.baseRadius).toBeLessThan(size);
+        }
+      }
+    }
+  });
+
+  it('em 768 as ilhas natais têm diâmetro dentro da faixa de 160 a 220', () => {
+    SEEDS.forEach((seed) => {
+      for (const island of computeArchipelago(768, seed).islands.filter((i) => i.kind === 'native')) {
+        expect(island.baseRadius * 2).toBeGreaterThanOrEqual(160);
+        expect(island.baseRadius * 2).toBeLessThanOrEqual(220);
+      }
     });
   });
 
@@ -43,7 +77,7 @@ describe('computeArchipelago', () => {
 
   it('nascedouros ficam no centro fixo de cada ilha', () => {
     const layout = computeArchipelago(60, 24680);
-    expect(layout.islands.map((i) => i.spawn)).toEqual([
+    expect(layout.islands.filter((i) => i.kind === 'native').map((i) => i.spawn)).toEqual([
       { x: 16, z: 16 },
       { x: 44, z: 44 },
       { x: 16, z: 44 },

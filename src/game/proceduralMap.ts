@@ -5,6 +5,10 @@
 
 import * as THREE from 'three';
 import { ResourceNode } from './engine';
+import { evaluateCapitalSite } from './capitalSite';
+import { checkBuildingPlacementValid } from './buildingGhost';
+import { CAPITAL_MIN_SITES, findCapitalSites } from './foundation';
+import { proveWorld, type WorldProof } from './worldProofs';
 import {
   ArchipelagoLayout,
   ElevData,
@@ -56,6 +60,14 @@ export interface ProceduralMapResult {
   isOceanAt: (x: number, z: number) => boolean;
   isCliffAt: (x: number, z: number) => boolean;
   isImpassableAt: (x: number, z: number) => boolean;
+  /** Provas por ilha natal (área, janela de capital, regiões, costas) feitas na geração. */
+  proof: WorldProof;
+  /** Sítios de capital distintos encontrados em cada nascedouro (player1 a player4). */
+  capitalSites: number[];
+  /** O mundo passou nas provas e todo nascedouro tem sítios suficientes. */
+  viable: boolean;
+  /** Sementes tentadas até achar um mundo viável (a semente usada está em `seed`). */
+  seedAttempts: number;
 }
 
 /** Paleta por perfil geografico: deixa as ilhas legivelmente distintas no terreno. */
@@ -76,7 +88,53 @@ const PROFILE_PALETTES: Record<
  * validados por alcance terrestre (criterios de aceite do card #40).
  */
 export function generateProceduralTerrain(mapSize: number = 60, seed?: number): ProceduralMapResult {
-  const actualSeed = seed ?? Math.floor(Math.random() * 100000);
+  const start = seed ?? Math.floor(Math.random() * 100000);
+  let last: ProceduralMapResult | null = null;
+  for (let attempt = 0; attempt < MAX_SEED_ATTEMPTS; attempt += 1) {
+    const candidate = buildProceduralTerrain(mapSize, start + attempt * SEED_STEP);
+    assessViability(candidate);
+    candidate.seedAttempts = attempt + 1;
+    if (candidate.viable) return candidate;
+    last = candidate;
+  }
+  return last!;
+}
+
+/** Quantas sementes seguidas o gerador tenta antes de aceitar o último mapa, mesmo inviável. */
+export const MAX_SEED_ATTEMPTS = 12;
+/** Passo entre sementes candidatas: primo, para não repetir layouts parecidos. */
+const SEED_STEP = 7919;
+
+/** Prova as ilhas natais e conta os sítios de capital de cada nascedouro; registra o veredito no mapa. */
+function assessViability(map: ProceduralMapResult): void {
+  const proof = proveWorld(map, { islands: map.islands });
+  const terrain = {
+    mapSize: map.mapSize, buildings: [], nodes: map.resourceNodes, isWaterAt: map.isWaterAt, isCliffAt: map.isCliffAt,
+    getHeightAt: map.getHeightAt, isImpassableAt: map.isImpassableAt,
+  };
+  const capitalSites = [map.player1Spawn, map.player2Spawn, map.player3Spawn, map.player4Spawn].map((spawn) =>
+    findCapitalSites(spawn, (x, z) => evaluateCapitalSite({ x, z }, terrain, { from: spawn }).valid, { maxRadius: 30, minSpacing: 4 }).length
+  );
+  // Regra herdada do #40: expansão imediata com pelo menos 25 células construíveis num raio de 6.
+  const immediateExpansion = [map.player1Spawn, map.player2Spawn, map.player3Spawn, map.player4Spawn].map((spawn) => {
+    let buildable = 0;
+    for (let x = Math.floor(spawn.x - 6); x <= Math.ceil(spawn.x + 6); x += 1) {
+      for (let z = Math.floor(spawn.z - 6); z <= Math.ceil(spawn.z + 6); z += 1) {
+        const cx = x + 0.5;
+        const cz = z + 0.5;
+        if (Math.hypot(cx - spawn.x, cz - spawn.z) > 6) continue;
+        const check = checkBuildingPlacementValid('house', cx, cz, [], map.resourceNodes, map.mapSize, map.isWaterAt, map.isCliffAt, map.getHeightAt);
+        if (check.isValid) buildable += 1;
+      }
+    }
+    return buildable;
+  });
+  map.proof = proof;
+  map.capitalSites = capitalSites;
+  map.viable = proof.viable && capitalSites.every((count) => count >= CAPITAL_MIN_SITES) && immediateExpansion.every((cells) => cells >= 25);
+}
+
+function buildProceduralTerrain(mapSize: number, actualSeed: number): ProceduralMapResult {
   const layout = computeArchipelago(mapSize, actualSeed);
   const noise: TerrainNoise = {
     elev: createNoise2D(new SeededRandom(actualSeed)),
@@ -94,7 +152,8 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
   const p4Spawn = layout.islands[3].spawn;
 
   // High-resolution mesh for smooth, beautiful archipelago topography
-  const resolution = 96;
+  // A malha acompanha o tamanho do mundo (96 segmentos em 60; no máximo 320 por custo de geração).
+  const resolution = Math.min(320, Math.max(96, Math.round(mapSize * 1.6)));
   const geo = new THREE.PlaneGeometry(mapSize, mapSize, resolution, resolution);
   geo.rotateX(-Math.PI / 2);
   geo.translate(mapSize / 2, 0, mapSize / 2);
@@ -461,6 +520,10 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
     isOceanAt,
     isCliffAt,
     isImpassableAt,
+    proof: { islands: [], viable: false },
+    capitalSites: [],
+    viable: false,
+    seedAttempts: 1,
   };
 }
 
