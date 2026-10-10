@@ -25,7 +25,7 @@ Testes: `tests/unit/hudConfig.test.ts` e `hotkeys.test.ts` (541 no total, lint e
 
 O painel se posiciona pela medida real do cabeçalho e do minimapa (`data-hud-region="minimap"`), e a rolagem horizontal da página não aparece em nenhum viewport.
 
-Controle negativo: sem a checagem de overlay ou campo de texto, os testes de Ctrl+Z falham; sem o limite, o teste do histórico falha.
+Controle negativo: sem a checagem de overlay aberto, 1 teste de Ctrl+Z falha; sem o limite do histórico, 1 teste falha (ambos executados).
 
 ## Limites
 
