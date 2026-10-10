@@ -16,6 +16,8 @@ interface HudContextPanelProps {
   canRedo: boolean;
   onTogglePanel(): void;
   onOpenTalents(): void;
+  bridgeActive: boolean;
+  onToggleBridge(): void;
   flows: FlowRow[];
   relics: RelicRow[];
   onRelicAction(row: RelicRow): void;
@@ -91,6 +93,16 @@ export function HudContextPanel(props: HudContextPanelProps) {
       >
         Talentos <kbd className="rounded bg-slate-800 px-1 font-mono text-[10px]">Alt+T</kbd>
         {props.talentPoints > 0 && <span className="rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-slate-950" aria-label={`${props.talentPoints} pontos disponíveis`}>{props.talentPoints}</span>}
+      </button>
+
+      <button
+        type="button"
+        onClick={props.onToggleBridge}
+        aria-pressed={props.bridgeActive}
+        title="Construir ponte: clique nas duas margens (150 madeira, 50 pedra, 20 tábuas)"
+        className={`pointer-events-auto flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${props.bridgeActive ? 'border-amber-500 bg-amber-500/20 text-amber-200' : 'border-slate-700 bg-slate-950/90 text-slate-200 hover:border-amber-500/60'}`}
+      >
+        Ponte
       </button>
 
       {config.panelOpen && (

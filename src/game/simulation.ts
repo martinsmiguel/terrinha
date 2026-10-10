@@ -1,5 +1,6 @@
 import { healUnitsInTerritory } from './colonies';
 import { cargoTotal, disembarkStep } from './colonialTransport';
+import { bridgeVersion, completedBridges, relocateFromDestroyed, withBridges } from './bridges';
 import { buildFlowField, followFlowField, type FlowField } from './movement/flowField';
 import { applyStormDamage, stormAt, stormPhase } from './storms';
 import { BLESSING_FARM, BRISA_SPEED, hasTalent } from './talents';
@@ -192,9 +193,12 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
   if (state.match?.status === 'finished') return { state, effects: [] };
 
   const playerSlot = context.playerSlot;
-  const pMap = context.map;
+  // Pontes ativas abrem deck para os corpos terrestres; sem ponte, o terreno é o original. A versão da superfície acompanha o conjunto de pontes.
+  const pMap = context.map && context.map.canStandAt && context.map.surfaceAt
+    ? withBridges(context.map as unknown as SimulationMap & Parameters<typeof withBridges>[0], state.buildings) as SimulationMap
+    : context.map;
   const pathCache: SimulationPathCache = context.pathCache ?? new Map<string, SimulationPath>();
-  const surfaceVersion = context.surfaceVersion ?? 0;
+  const surfaceVersion = (context.surfaceVersion ?? 0) + bridgeVersion(state.buildings);
   // Rota em cache só vale na versão da superfície em que foi calculada.
   const cachedRoute = (id: string): SimulationPath | undefined => {
     const entry = pathCache.get(id);
@@ -976,6 +980,15 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       const boat = updatedUnits.find((unit) => unit.id === id);
       if (boat) effects.push({ type: 'boat-sinking', x: boat.position.x, z: boat.position.z });
     });
+  }
+
+  // Ponte destruída: quem estava no deck volta ao apoio mais próximo (margem do próprio lado), sem levitar nem saltar de margem.
+  const lostBridges = completedBridges(state.buildings).filter((bridge) => !updatedBuildings.some((b) => b.id === bridge.id && b.health > 0));
+  if (lostBridges.length > 0) {
+    const relocated = relocateFromDestroyed(updatedUnits, lostBridges);
+    updatedUnits = relocated.units;
+    if (relocated.moved > 0) effects.push({ type: 'notification', message: `Ponte destruída: ${relocated.moved} unidade(s) voltaram à margem.`, level: 'warning' });
+    else effects.push({ type: 'notification', message: 'Ponte destruída: a passagem foi fechada.', level: 'warning' });
   }
 
   // Cura terrestre dentro do território de postos próprios concluídos (efeito some com o posto).

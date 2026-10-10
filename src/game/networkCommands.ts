@@ -6,6 +6,7 @@ import { researchBlock } from './tech';
 import { FOUNDATION_KIT, lifePhase } from './foundation';
 import { canTarget, isExploredBy, type OwnerVision } from './visionAuthority';
 import { bodyOf, type BodyId } from './bodyModel';
+import { checkBridge, type BridgeTerrain } from './bridges';
 import { checkRelicAction } from './mysticism';
 import { canBuyTalent, effectiveBuildCost } from './talents';
 import { outpostSpacingReason } from './colonies';
@@ -84,6 +85,7 @@ export type NetworkCommand = CommandMetadata & (
   | { type: 'load_cargo'; boatId: string; cargo: Partial<Record<'wood' | 'food' | 'gold' | 'stone' | 'planks', number>> }
   | { type: 'load_kit'; boatId: string }
   | { type: 'buy_talent'; id: string }
+  | { type: 'build_bridge'; a: Position; b: Position; builderIds: string[] }
   | { type: 'harvest_plant' | 'restore_monument'; unitId: string; relicId: string }
   | { type: 'set_route'; boatId: string; a: RoutePort; b: RoutePort; outbound: RouteLeg; back: RouteLeg | null; partial?: boolean }
   | { type: 'cancel_route'; boatId: string }
@@ -227,6 +229,9 @@ export function isValidNetworkCommand(value: unknown, mapSize: number = MAP_LIMI
       return allowedKeys('boatId') && isId(value.boatId);
     case 'buy_talent':
       return allowedKeys('id') && isId(value.id);
+    case 'build_bridge':
+      return allowedKeys('a', 'b', 'builderIds') && isPosition(value.a) && isPosition(value.b)
+        && Array.isArray(value.builderIds) && value.builderIds.length >= 1 && value.builderIds.length <= 100 && value.builderIds.every(isId);
     case 'harvest_plant':
     case 'restore_monument':
       return allowedKeys('unitId', 'relicId') && isId(value.unitId) && isId(value.relicId);
@@ -289,6 +294,11 @@ function canAffordTraining(state: GameState, building: Building, unitType: Train
  * alvo o que conhece: inimigos visíveis agora, recursos e terreno de construção já explorados. Sem `vision`, só vale a
  * posse e as demais regras.
  */
+const hasBridgeTerrain = (terrain: unknown): terrain is BridgeTerrain => {
+  const t = terrain as Partial<BridgeTerrain>;
+  return typeof t.canStandAt === 'function' && typeof t.surfaceAt === 'function' && typeof t.isOceanAt === 'function' && typeof t.getHeightAt === 'function';
+};
+
 export function isAuthorizedPlayerCommand(
   state: GameState,
   value: unknown,
@@ -354,6 +364,7 @@ export function isAuthorizedPlayerCommand(
     }
     case 'build': {
       if (value.owner !== owner) return false;
+      if (value.buildingType === 'bridge') return false; // ponte só por `build_bridge`, com as duas margens
       const def = BUILDING_CATALOG[value.buildingType];
       const resources = state.playerResources[owner];
       if (!def || !resources || !canPayAt(state, owner, payerLocality(state, owner, value.buildingType, value.position, terrain?.localityOf), effectiveBuildCost(state, owner, value.buildingType, def.cost))) return false;
@@ -415,6 +426,12 @@ export function isAuthorizedPlayerCommand(
         const unit = ownsUnit(state, unitId, owner);
         return Boolean(unit) && !isBoatUnit((unit as Unit).type);
       });
+    }
+    case 'build_bridge': {
+      // Margens da mesma ilha, vão de água doce até 12, declive, aldeões próprios, saldo e posição conhecida: tudo no host.
+      if (!terrain || !hasBridgeTerrain(terrain)) return false;
+      if (vision && !(isExploredBy(vision, owner, value.a.x, value.a.z) && isExploredBy(vision, owner, value.b.x, value.b.z))) return false;
+      return checkBridge(state, owner, { a: value.a, b: value.b }, value.builderIds, terrain).ok;
     }
     case 'harvest_plant':
     case 'restore_monument': {

@@ -4,8 +4,8 @@ import { BUILDING_CATALOG } from '../../src/game/buildingCatalog';
 
 
 describe('BUILDING_CATALOG', () => {
-  it('defines the nine buildable structures', () => {
-    expect(Object.keys(BUILDING_CATALOG)).toHaveLength(9);
+  it('defines the ten buildable structures', () => {
+    expect(Object.keys(BUILDING_CATALOG)).toHaveLength(10);
   });
 
   it('has non-negative resource costs and positive build times', () => {
@@ -53,7 +53,7 @@ it('preserva os atributos mecânicos do catálogo anterior à extração pura #5
     )])
   );
   // O posto avançado (#67) é posterior à extração: só o conjunto anterior é comparado.
-  const { outpost: _outpost, ...legacy } = BUILDING_CATALOG;
+  const { outpost: _outpost, bridge: _bridge, ...legacy } = BUILDING_CATALOG;
   expect(mechanics(legacy)).toEqual(mechanics(before));
 });
 
