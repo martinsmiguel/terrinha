@@ -39,7 +39,7 @@ Decisões arquiteturais são registradas como **ADRs** em
 - Tutoriais: [configurando o ambiente](tutorials/configurando-ambiente.md) · [primeira partida](tutorials/primeira-partida.md)
 - How-to: [entrar em partida](how-to/entrar-em-partida.md) · [criar novo módulo](how-to/criar-novo-modulo.md) ·
   [auditar procedência dos cards](how-to/auditar-procedencia-cards.md) · [proteção da main](how-to/protecao-main.md) ·
-  [executar em produção](how-to/executar-producao.md)
+  [executar em produção](how-to/executar-producao.md) · [testar o alpha](how-to/validar-alpha.md)
 - Referência: [mundo e ilhas](reference/mundo-e-ilhas.md) · [economia das ilhas](reference/economia-das-ilhas.md) ·
   [atributos das unidades](reference/atributos-unidades.md) · [toolchain](reference/toolchain.md) · [análise estática](reference/analise-estatica.md)
 
