@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { type FlowRow } from '../game/flows';
 import { PanelLeftClose, PanelLeftOpen, Redo2, Undo2 } from 'lucide-react';
 import {
   COMPOSITION_INDICATORS, COMPOSITION_LABEL, COMPOSITION_ORDER, HISTORY_LIMIT, indicatorsFor,
@@ -15,6 +16,7 @@ interface HudContextPanelProps {
   canRedo: boolean;
   onTogglePanel(): void;
   onOpenTalents(): void;
+  flows: FlowRow[];
   relics: RelicRow[];
   onRelicAction(row: RelicRow): void;
   onFocusRelic(x: number, z: number): void;
@@ -124,6 +126,28 @@ export function HudContextPanel(props: HudContextPanelProps) {
             <dt className="text-slate-400">Tábuas</dt><dd className="text-right font-mono">{Math.floor(readout.planks)}</dd>
             <dt className="text-slate-400">População</dt><dd className="text-right font-mono">{readout.population.current}/{readout.population.max}</dd>
           </dl>
+
+          <div className="text-[11px]" aria-label="Fluxo líquido por minuto">
+            <div className="text-slate-400">Fluxo líquido por minuto</div>
+            <table className="w-full text-right font-mono text-[10px]">
+              <thead><tr className="text-slate-500"><th className="text-left font-normal"></th><th className="font-normal">império</th><th className="font-normal">colônias</th><th className="font-normal">trânsito</th></tr></thead>
+              <tbody>
+                {props.flows.map((row) => {
+                  const fmt = (rate: FlowRow['empire']) => (rate.perMinute === null ? '—' : `${rate.perMinute >= 0 ? '+' : ''}${rate.perMinute.toFixed(1)}`);
+                  const partial = row.empire.partial && row.empire.perMinute !== null;
+                  return (
+                    <tr key={row.key}>
+                      <td className="text-left text-slate-400">{{ wood: 'Madeira', food: 'Comida', gold: 'Ouro', stone: 'Pedra', planks: 'Tábuas', pop: 'Pop.' }[row.key]}</td>
+                      <td title={partial ? `janela parcial: ${Math.round(row.empire.seconds)} s` : 'janela de 60 s'}>{fmt(row.empire)}{partial ? '*' : ''}</td>
+                      <td>{fmt(row.colonies)}</td>
+                      <td>{fmt(row.transit)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <div className="text-[10px] text-slate-500">Dado real da partida · * janela parcial · transferência interna não conta como produção.</div>
+          </div>
 
           {visible.has('era') && <div className="text-[11px]"><span className="text-slate-400">Era: </span>{era}</div>}
           {visible.has('idle-villagers') && <div className="text-[11px]"><span className="text-slate-400">Aldeões ociosos: </span>{readout.idleVillagers}</div>}
