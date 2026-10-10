@@ -9,7 +9,7 @@ const tree = (x: number, z: number): ResourceNode => ({ id: 't', type: 'tree', p
 
 describe('evaluateCapitalSite', () => {
   it('aceita terreno aberto, plano, acessível e com kit completo', () => {
-    expect(evaluateCapitalSite({ x: 30, z: 30 }, open, { from: { x: 20, z: 20 }, kit })).toEqual({ valid: true, space: true, terrain: true, access: true, kit: true, reasons: [] });
+    expect(evaluateCapitalSite({ x: 30, z: 30 }, open, { from: { x: 20, z: 20 }, kit })).toEqual({ valid: true, space: true, terrain: true, access: true, discovered: true, kit: true, reasons: [] });
   });
 
   it('recusa fora do mapa, sobre edifício ou recurso e com coordenadas não finitas', () => {
@@ -44,6 +44,15 @@ describe('evaluateCapitalSite', () => {
     const report = evaluateCapitalSite({ x: 30, z: 30 }, open, { from: { x: 30.2, z: 30 }, kit });
     expect(report.access).toBe(true);
     expect(report.valid).toBe(true);
+  });
+
+  it('exige sítio explorado quando há névoa e ignora a névoa quando ela não é informada', () => {
+    const fogged = { ...open, isDiscovered: (x: number) => x < 35 };
+    expect(evaluateCapitalSite({ x: 30, z: 30 }, fogged).discovered).toBe(true);
+    const unseen = evaluateCapitalSite({ x: 40, z: 30 }, fogged);
+    expect(unseen).toMatchObject({ discovered: false, valid: false });
+    expect(unseen.reasons).toContain('Sítio ainda não explorado');
+    expect(evaluateCapitalSite({ x: 40, z: 30 }, open).discovered).toBe(true);
   });
 });
 

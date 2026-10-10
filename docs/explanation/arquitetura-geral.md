@@ -55,7 +55,8 @@ tests/unit/              → 182 testes Vitest cobrindo os módulos puros
    define a partida como 2, 3 ou 4 jogadores (ver [ADR-0005](adr/0005-participantes-dinamicos-da-partida.md)).
 2. **Boot** — host/single gera o arquipélago a partir de uma semente grava em
    `GameState.mapSeed`, com 4 spawns (um por ilha), base inicial por slot
-   (Centro da Vila + aldeões + soldado) e recursos ao redor. O cliente regera
+   (carroça de fundação + 2 aldeões + soldado, sem Centro; a capital é fundada
+   pelo jogador, ver `foundation.ts`) e recursos ao redor. O cliente regera
    o mesmo terreno a partir da semente recebida — ver [ADR-0007](adr/0007-geografia-por-semente-e-exploracao-local.md).
 3. **Tick (20 Hz, só no host)** — `App.tsx` roda `setInterval(50ms)`:
    movimento (A* + separação), coleta (com bônus de edifícios/tecnologias),

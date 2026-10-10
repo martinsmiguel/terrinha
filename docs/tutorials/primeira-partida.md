@@ -3,11 +3,10 @@
 > Quadrante **Tutorial** — aprenda fazendo. Se já sabe jogar, vá para
 > [How-to](../how-to/hospedar-partida-wifi.md).
 
-> **Este tutorial descreve o build atual**, que começa com o Centro da Vila já
-> colocado no spawn. O [contrato da alpha](../explanation/contrato-alpha.md)
-> prevê começo diferente: **carroça de fundação + kit, com escolha do sítio da
-> sede** antes do primeiro Centro (card [#98](https://github.com/martinsmiguel/terrinha/issues/98)).
-> Quando essa fatia for integrada, os passos 3.1–3.3 mudam junto.
+> A partida começa **sem Centro da Vila**: você chega com uma carroça de
+> fundação, 2 aldeões e 1 soldado, e escolhe onde fundar a capital
+> ([contrato da alpha](../explanation/contrato-alpha.md), card
+> [#98](https://github.com/martinsmiguel/terrinha/issues/98)).
 
 ## 1. Suba o jogo
 
@@ -30,7 +29,11 @@ Abra <http://localhost:3000>.
 
 ## 3. Fundamentos (sobreviver os primeiros 2 minutos)
 
-1. **Selecione** o Centro da Vila clicando nele (ou arraste um retângulo para
+1. **Funde a capital:** clique na carroça, escolha um dos sítios do painel
+   (ele mostra espaço, terreno, acesso e kit) e confirme em **Fundar aqui**.
+   A fundação leva 20 s e usa o kit reservado de 400 madeira e 200 pedra;
+   cancelar não gasta nada. Sem a carroça e sem a capital você é eliminado.
+   Depois, selecione unidades clicando nelas (ou arraste um retângulo para
    seleção múltipla).
 2. **Ordene aldeões** com botão direito em árvores, arbustos ou jazidas de
    ouro — eles coletam sozinhos dentro do raio da zona de trabalho.
@@ -41,7 +44,7 @@ Abra <http://localhost:3000>.
 5. **Construa um Quartel** (tecla `W`) e **treine soldados** nele (tecla `S`);
    cavalaria sai com a tecla `G`.
 6. **Ataque** selecionando soldados e clicando com o botão direito em
-   inimigos — destrua o Centro da Vila inimigo para vencer.
+   inimigos — elimine a capital inimiga (ou a carroça, antes de fundar) para vencer.
 
 ## 4. Navegue
 
@@ -49,7 +52,7 @@ Abra <http://localhost:3000>.
 - **Scroll do mouse** — zoom
 - **Minimapa** (canto inferior esquerdo) — clique para saltar a câmera;
   arraste para pan; ele mostra névoa de guerra e a visão das suas unidades
-- **Espaço** — centralizar no Centro da Vila
+- **Espaço** — centralizar na base (capital ou, antes de fundar, a carroça)
 
 ## 5. Progressão (depois dos primeiros minutos)
 

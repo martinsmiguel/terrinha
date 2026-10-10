@@ -15,6 +15,8 @@ export interface CapitalSiteTerrain {
   isCliffAt?: (x: number, z: number) => boolean;
   getHeightAt?: (x: number, z: number) => number;
   isImpassableAt?: (x: number, z: number) => boolean;
+  /** Névoa de guerra do jogador: sem esta função todo sítio conta como descoberto. */
+  isDiscovered?: (x: number, z: number) => boolean;
 }
 
 export interface CapitalSiteReport {
@@ -25,6 +27,8 @@ export interface CapitalSiteReport {
   terrain: boolean;
   /** A carroça consegue chegar ao sítio por terra. */
   access: boolean;
+  /** O sítio já foi explorado pelo jogador. */
+  discovered: boolean;
   /** O jogador ainda tem o kit reservado completo. */
   kit: boolean;
   reasons: string[];
@@ -94,8 +98,11 @@ export function evaluateCapitalSite(
     if (!access) reasons.push('A carroça não alcança este sítio por terra');
   }
 
+  const discovered = !terrain.isDiscovered || terrain.isDiscovered(x, z);
+  if (!discovered) reasons.push('Sítio ainda não explorado');
+
   const kit = options.kit === undefined || (options.kit.wood >= FOUNDATION_KIT.wood && options.kit.stone >= FOUNDATION_KIT.stone);
   if (!kit) reasons.push('Kit de fundação incompleto');
 
-  return { valid: space && terrainOk && access && kit, space, terrain: terrainOk, access, kit, reasons };
+  return { valid: space && terrainOk && access && discovered && kit, space, terrain: terrainOk, access, discovered, kit, reasons };
 }

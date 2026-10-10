@@ -5,7 +5,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GameEngine, GameState, PlayerResources, Unit, Building, ResourceNode, MAP_SIZE, UnitType, isBoatUnit } from './game/engine';
-import { createVisionGrid, expireVision, revealVision, visionRadiusFor } from './game/visibility';
+import { createVisionGrid, expireVision, isExploredAt, revealVision, visionRadiusFor } from './game/visibility';
 import { MultiplayerManager, ChatMessage } from './game/multiplayer';
 import { Minimap } from './components/Minimap';
 import { TechPanel } from './components/TechPanel';
@@ -677,7 +677,7 @@ export default function App() {
     createStartingForce(slot, spawn, uuidv4);
 
   // Terreno usado para validar sitios de sede (mesma regra no preview e no host)
-  const capitalTerrainFor = (current: GameState): CapitalSiteTerrain => {
+  const capitalTerrainFor = (current: GameState, useFog = true): CapitalSiteTerrain => {
     const map = proceduralMapRef.current;
     return {
       mapSize: MAP_SIZE,
@@ -687,14 +687,15 @@ export default function App() {
       isCliffAt: map?.isCliffAt,
       getHeightAt: map?.getHeightAt,
       isImpassableAt: map?.isImpassableAt,
+      isDiscovered: useFog ? (x, z) => isExploredAt(visionGridRef.current, Math.round(x), Math.round(z)) : undefined,
     };
   };
 
   // Sitios candidatos de sede para a carroca do jogador (>= 3 quando o terreno permite)
-  const capitalSitesFor = (current: GameState, wagon: Unit, radius = 30) =>
+  const capitalSitesFor = (current: GameState, wagon: Unit, radius = 30, useFog = true) =>
     findCapitalSites(
       wagon.position,
-      (x, z) => evaluateCapitalSite({ x, z }, capitalTerrainFor(current), { from: wagon.position, kit: current.foundationKits?.[wagon.owner] }).valid,
+      (x, z) => evaluateCapitalSite({ x, z }, capitalTerrainFor(current, useFog), { from: wagon.position, kit: current.foundationKits?.[wagon.owner] }).valid,
       { maxRadius: radius, minSpacing: 4 }
     );
 
@@ -702,12 +703,12 @@ export default function App() {
   const autoFoundCapital = (current: GameState, slot: PlayerSlot): GameState => {
     const wagon = current.units.find((unit) => unit.owner === slot && unit.type === 'wagon');
     if (!wagon) return current;
-    const site = capitalSitesFor(current, wagon, 30)[0];
+    const site = capitalSitesFor(current, wagon, 30, false)[0];
     if (!site) return current;
     const result = foundCapital(
       current,
       { owner: slot, wagonId: wagon.id, position: site },
-      (x, z) => evaluateCapitalSite({ x, z }, capitalTerrainFor(current), { from: wagon.position }).valid,
+      (x, z) => evaluateCapitalSite({ x, z }, capitalTerrainFor(current, false), { from: wagon.position }).valid,
       uuidv4
     );
     return result.ok ? result.state : current;
@@ -1007,7 +1008,7 @@ export default function App() {
         const result = foundCapital(
           prev,
           { owner: commandOwner, wagonId: cmd.wagonId, position: cmd.position },
-          (x, z) => evaluateCapitalSite({ x, z }, capitalTerrainFor(prev), { from: wagon?.position }).valid,
+          (x, z) => evaluateCapitalSite({ x, z }, capitalTerrainFor(prev, commandOwner === playerSlot), { from: wagon?.position }).valid,
           uuidv4
         );
         return result.ok ? result.state : prev;

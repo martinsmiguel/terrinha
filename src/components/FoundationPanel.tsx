@@ -20,10 +20,11 @@ interface FoundationPanelProps {
   onConfirm(x: number, z: number): void;
 }
 
-const CHECKS: { key: 'space' | 'terrain' | 'access' | 'kit'; label: string }[] = [
+const CHECKS: { key: 'space' | 'terrain' | 'access' | 'discovered' | 'kit'; label: string }[] = [
   { key: 'space', label: 'Espaço livre' },
   { key: 'terrain', label: 'Terreno firme' },
   { key: 'access', label: 'Acesso por terra' },
+  { key: 'discovered', label: 'Sítio explorado' },
   { key: 'kit', label: 'Kit completo' },
 ];
 
