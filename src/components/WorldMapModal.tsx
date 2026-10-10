@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ISLAND_ECONOMY, fertilityOf } from '../game/islandEconomy';
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Compass, Eye, EyeOff, Globe2, MapPin, X } from 'lucide-react';
 import type { GameState } from '../game/engine';
@@ -293,7 +294,12 @@ export function WorldMapModal({
                 }}
                 className="flex w-full items-center justify-between rounded-lg border border-transparent px-2 py-1.5 text-left hover:border-cyan-600/40 hover:bg-cyan-500/10"
               >
-                <span className="text-slate-200">{island.name}</span>
+                <span className="text-slate-200">
+                  {island.name}
+                  <span className="block text-[9px] text-slate-400">
+                    {ISLAND_ECONOMY[island.profile].role} · fertilidade {fertilityOf(island.profile, island.kind).toFixed(1).replace('.', ',')}
+                  </span>
+                </span>
                 <span className="ml-2 shrink-0 font-mono text-[9px] text-slate-400">
                   {(() => {
                     // Mostra o destino realmente explorado: o centro só aparece quando ele já foi descoberto.
