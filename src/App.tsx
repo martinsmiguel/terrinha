@@ -5,7 +5,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GameEngine, GameState, PlayerResources, Unit, Building, ResourceNode, MAP_SIZE, UnitType, isBoatUnit } from './game/engine';
-import { createVisionGrid, expireVision, isExploredAt, revealVision, visionRadiusFor } from './game/visibility';
+import { createVisionGrid, expireVision, isExploredAt, revealVision } from './game/visibility';
 import { MultiplayerManager, ChatMessage } from './game/multiplayer';
 import { Minimap } from './components/Minimap';
 import { TechPanel } from './components/TechPanel';
@@ -19,6 +19,7 @@ import { EmpireCatalogModal } from './components/EmpireCatalogModal';
 import { Tutorial } from './components/Tutorial';
 import { FOUNDATION_KIT, createStartingForce, findCapitalSites, foundCapital, homeAnchor } from './game/foundation';
 import { evaluateCapitalSite, type CapitalSiteTerrain } from './game/capitalSite';
+import { updateOwnerVision, visionSourcesFor, type OwnerVision } from './game/visionAuthority';
 
 /** Marcador de que o tutorial de primeira partida ja foi exibido. */
 const TUTORIAL_SEEN_KEY = 'terrinha:tutorial-seen';
@@ -104,6 +105,8 @@ export default function App() {
   /** Dimensão escolhida no lobby (host e solo); a da sessão ativa fica em `worldSizeRef`. */
   const [worldSizeSetting, setWorldSizeSetting] = useState<number>(MAP_SIZE);
   const worldSizeRef = useRef<number>(MAP_SIZE);
+  /** Visão e exploração por dono, mantidas só no host (autoridade); o cliente apenas desenha a própria névoa. */
+  const hostVisionRef = useRef<OwnerVision | undefined>(undefined);
   /** A câmera já foi levada à base do jogador local nesta sessão. */
   const cameraCenteredRef = useRef(false);
   const playerSlotRef = useRef<PlayerSlot>('player1');
@@ -846,6 +849,7 @@ export default function App() {
       });
     }
     setGameState(initial);
+    hostVisionRef.current = updateOwnerVision(undefined, initial, slots, worldSizeSetting);
 
     // Num mundo grande o centro é mar aberto: a câmera começa na chegada do jogador local.
     const arrival = spawnForSlot(playerSlot);
@@ -888,9 +892,7 @@ export default function App() {
   // Nevoa de guerra: expira a visao do tick anterior e revela a visao atual
   // das unidades/edificios do jogador local (raios iguais aos do Minimap)
   useEffect(() => {
-    const sources = [...gameState.units, ...gameState.buildings]
-      .filter((entity) => entity.owner === playerSlot)
-      .map((entity) => ({ x: entity.position.x, z: entity.position.z, radius: visionRadiusFor(entity, gameState.ruleSettings) }));
+    const sources = visionSourcesFor(gameState, playerSlot);
     const grid = revealVision(expireVision(visionGridRef.current), sources);
     visionGridRef.current = grid;
     engineRef.current?.setFogGrid(grid);
@@ -990,12 +992,14 @@ export default function App() {
             : undefined,
           pathCache: unitPathsRef.current,
           activeSlots: activeSlotsRef.current,
+          vision: hostVisionRef.current,
           gatherRadiusLimit: gatherRadiusLimitRef.current,
           sustainableForestryEnabled: isColonySustainableForestryRef.current,
           buildingDefinitions,
           random: Math.random,
           createId: uuidv4,
         });
+        hostVisionRef.current = updateOwnerVision(hostVisionRef.current, result.state, activeSlotsRef.current, worldSizeRef.current);
 
         result.effects.forEach((effect) => {
           if (effect.type === 'hit') {
@@ -1028,7 +1032,7 @@ export default function App() {
   const handleIncomingCommand = (cmd: unknown) => {
     if (!isValidNetworkCommand(cmd)) return;
     const commandOwner = cmd.playerSlot === undefined ? playerSlot : isPlayerSlot(cmd.playerSlot) ? cmd.playerSlot : null;
-    if (!commandOwner || !isAuthorizedPlayerCommand(gameStateRef.current, cmd, commandOwner)) return;
+    if (!commandOwner || !isAuthorizedPlayerCommand(gameStateRef.current, cmd, commandOwner, hostVisionRef.current)) return;
 
     if (cmd.type === 'found_capital') {
       setGameState((prev) => {

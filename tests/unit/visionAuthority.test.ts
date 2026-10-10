@@ -38,6 +38,16 @@ describe('visão autoritativa por dono', () => {
     expect(isVisibleTo(vision, 'player1', 100, 100)).toBe(true);
   });
 
+  it('barcos revelam o mar como as demais unidades, e edifícios revelam pelo raio do tipo', () => {
+    const ship = unit('player1', 30, 30, { type: 'warship', id: 'ship' });
+    const vision = updateOwnerVision(undefined, { units: [ship], buildings: [] }, ['player1'], 60);
+    expect(isVisibleTo(vision, 'player1', 36, 30)).toBe(true);
+    expect(isVisibleTo(vision, 'player1', 45, 30)).toBe(false);
+    const withTower = updateOwnerVision(undefined, { units: [], buildings: [{ ...building('player1', 20, 20), type: 'town_center' }] }, ['player1'], 60);
+    expect(isVisibleTo(withTower, 'player1', 34, 20)).toBe(true);
+    expect(isVisibleTo(withTower, 'player1', 40, 20)).toBe(false);
+  });
+
   describe('canTarget', () => {
     const vision = updateOwnerVision(undefined, { units: [unit('player1', 10, 10)], buildings: [] }, ['player1'], 60);
     const enemy = (x: number, z: number) => ({ owner: 'player2', position: { x, z } });
