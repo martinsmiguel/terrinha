@@ -19,7 +19,7 @@ interface MinimapProps {
   playerSlot: string;
   selectedEntityId: string | null;
   /**
-   * Grid de exploracao do jogador local (`x * MAP_SIZE + z`), a mesma fonte de
+   * Grid de exploracao do jogador local (`x * mapSize + z`), a mesma fonte de
    * verdade usada pela nevoa da cena 3D. Sem ele o minimapa nao inventa visao.
    */
   visibility?: Uint8Array;
@@ -62,9 +62,12 @@ export const Minimap: React.FC<MinimapProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Dimensão do mundo da sessão (60 no padrão).
+  const mapSize = gameState.mapSize ?? MAP_SIZE;
+
   // Grid vazio estavel usado apenas enquanto o App ainda nao publicou a nevoa.
-  const emptyVisionRef = useRef<Uint8Array>(new Uint8Array(MAP_SIZE * MAP_SIZE));
-  const visionGrid = visibility ?? emptyVisionRef.current;
+  const emptyVision = useMemo(() => new Uint8Array(mapSize * mapSize), [mapSize]);
+  const visionGrid = visibility ?? emptyVision;
 
   const [localCollapsed, setLocalCollapsed] = useState(false);
   const isMinimapCollapsed = isCollapsed !== undefined ? isCollapsed : localCollapsed;
@@ -83,15 +86,15 @@ export const Minimap: React.FC<MinimapProps> = ({
   const SIZE = MINIMAP_PIXEL_SIZE;
 
   const archipelago = useMemo(
-    () => computeArchipelago(MAP_SIZE, gameState.mapSeed ?? 0),
-    [gameState.mapSeed]
+    () => computeArchipelago(mapSize, gameState.mapSeed ?? 0),
+    [mapSize, gameState.mapSeed]
   );
 
   // Convert canvas pixel (cx, cy) to world coords (wx, wz)
-  const canvasToWorld = (cx: number, cy: number) => minimapClickTarget(cx, cy, MAP_SIZE, SIZE);
+  const canvasToWorld = (cx: number, cy: number) => minimapClickTarget(cx, cy, mapSize, SIZE);
 
   // Convert world coords (wx, wz) to canvas pixel (cx, cy)
-  const worldToCanvas = (wx: number, wz: number) => worldToMapPixel(wx, wz, MAP_SIZE, SIZE);
+  const worldToCanvas = (wx: number, wz: number) => worldToMapPixel(wx, wz, mapSize, SIZE);
 
   const isKnown = (x: number, z: number) => revealAll || visionAt(visionGrid, x, z) !== 0;
 
@@ -114,7 +117,7 @@ export const Minimap: React.FC<MinimapProps> = ({
 
     // Arquipelago (layout puro compartilhado com o gerador: semente do host)
     const layout = archipelago;
-    const scale = SIZE / MAP_SIZE;
+    const scale = SIZE / mapSize;
     const PROFILE_FILL: Record<IslandProfile, string> = {
       floresta: '#3b6f25',
       arida: '#b0a06a',
@@ -185,8 +188,8 @@ export const Minimap: React.FC<MinimapProps> = ({
 
     // 2. Draw Resource Nodes
     gameState.resourceNodes.forEach((res) => {
-      const gx = Math.min(MAP_SIZE - 1, Math.max(0, Math.floor(res.position.x)));
-      const gz = Math.min(MAP_SIZE - 1, Math.max(0, Math.floor(res.position.z)));
+      const gx = Math.min(mapSize - 1, Math.max(0, Math.floor(res.position.x)));
+      const gz = Math.min(mapSize - 1, Math.max(0, Math.floor(res.position.z)));
       const isExplored = isKnown(gx, gz);
 
       if (!isExplored) return;
@@ -230,8 +233,8 @@ export const Minimap: React.FC<MinimapProps> = ({
 
     // 3. Draw Buildings
     gameState.buildings.forEach((b) => {
-      const gx = Math.min(MAP_SIZE - 1, Math.max(0, Math.floor(b.position.x)));
-      const gz = Math.min(MAP_SIZE - 1, Math.max(0, Math.floor(b.position.z)));
+      const gx = Math.min(mapSize - 1, Math.max(0, Math.floor(b.position.x)));
+      const gz = Math.min(mapSize - 1, Math.max(0, Math.floor(b.position.z)));
       const isExplored = isKnown(gx, gz);
 
       if (!isExplored && b.owner !== playerSlot) return;
@@ -286,8 +289,8 @@ export const Minimap: React.FC<MinimapProps> = ({
       const isFriendly = u.owner === playerSlot;
       const isVisible = isFriendly || revealAll || visionAt(
         visionGrid,
-        Math.max(0, Math.min(MAP_SIZE - 1, Math.floor(u.position.x))),
-        Math.max(0, Math.min(MAP_SIZE - 1, Math.floor(u.position.z)))
+        Math.max(0, Math.min(mapSize - 1, Math.floor(u.position.x))),
+        Math.max(0, Math.min(mapSize - 1, Math.floor(u.position.z)))
       ) === VISION_VISIBLE;
 
       if (!isVisible) return;
@@ -346,18 +349,20 @@ export const Minimap: React.FC<MinimapProps> = ({
       const fogCtx = fogCanvas.getContext('2d');
 
       if (fogCtx) {
-        const cellW = SIZE / MAP_SIZE;
-        const cellH = SIZE / MAP_SIZE;
+        // Em mundos grandes a névoa é desenhada por blocos (no máximo ~100 por eixo).
+        const stride = Math.max(1, Math.ceil(mapSize / 100));
+        const cellW = (SIZE / mapSize) * stride;
+        const cellH = (SIZE / mapSize) * stride;
 
-        for (let x = 0; x < MAP_SIZE; x++) {
-          for (let z = 0; z < MAP_SIZE; z++) {
-            const state = visionAt(visionGrid, x, z);
+        for (let x = 0; x < mapSize; x += stride) {
+          for (let z = 0; z < mapSize; z += stride) {
+            const state = visionAt(visionGrid, Math.min(mapSize - 1, x + Math.floor(stride / 2)), Math.min(mapSize - 1, z + Math.floor(stride / 2)));
             if (state === VISION_VISIBLE) continue; // Sob visao atual: sem nevoa
             // Nunca visto: veu quase opaco. Ja explorado: nevoa leve.
             fogCtx.fillStyle = state === VISION_EXPLORED
               ? 'rgba(20, 28, 40, 0.52)'
               : 'rgba(7, 10, 15, 0.94)';
-            fogCtx.fillRect(x * cellW, z * cellH, cellW + 0.5, cellH + 0.5);
+            fogCtx.fillRect((x / stride) * cellW, (z / stride) * cellH, cellW + 0.5, cellH + 0.5);
           }
         }
 
@@ -372,7 +377,7 @@ export const Minimap: React.FC<MinimapProps> = ({
       workZones.forEach((z) => {
         if (z.radius >= 999) return;
         const pt = worldToCanvas(z.x, z.z);
-        const r = (z.radius / MAP_SIZE) * SIZE;
+        const r = (z.radius / mapSize) * SIZE;
 
         ctx.strokeStyle = z.isHighlighted ? '#10b981' : '#34d399';
         ctx.lineWidth = z.isHighlighted ? 2.0 : 1.2;

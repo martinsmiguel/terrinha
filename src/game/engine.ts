@@ -215,6 +215,7 @@ export class GameEngine {
   setFogGrid(grid: Uint8Array) {
     const levels = GameEngine.FOG_LEVELS;
     const cells = this.worldSize * this.worldSize;
+    if (grid.length !== cells) return; // grade de outra dimensão (troca de sessão em andamento)
     for (let i = 0; i < cells; i++) {
       const level = levels[grid[i]] ?? 255;
       const offset = i * 4;

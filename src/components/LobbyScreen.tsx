@@ -1,3 +1,4 @@
+import { WORLD_SIZE_OPTIONS } from '../game/worldConfig';
 import type { Dispatch, SetStateAction } from 'react';
 import { Check, Copy, Play, Shield, Sparkles, Users, Wifi } from 'lucide-react';
 import { FACTION_COLORS } from '../game/factions';
@@ -19,12 +20,15 @@ interface LobbyScreenProps {
   lobbyError: string | null;
   matchSize: 2 | 3 | 4;
   setMatchSize: Dispatch<SetStateAction<2 | 3 | 4>>;
+  /** Dimensão do mundo escolhida pelo host (ou no treino solo). */
+  worldSize: number;
+  setWorldSize: Dispatch<SetStateAction<number>>;
   onStartGame(role: GameRole): void;
 }
 
 export function LobbyScreen({
   lanIps, copiedIp, copyLanUrl, playerName, setPlayerName, roomId, setRoomId,
-  playerSlot, setPlayerSlot, lobbyError, matchSize, setMatchSize, onStartGame,
+  playerSlot, setPlayerSlot, lobbyError, matchSize, setMatchSize, worldSize, setWorldSize, onStartGame,
 }: LobbyScreenProps) {
   return (
 
@@ -170,6 +174,36 @@ export function LobbyScreen({
                 {matchSize === 2
                   ? 'Você contra uma colônia rival.'
                   : `${matchSize - 1} colônias rivais controladas pela IA.`}
+              </p>
+            </div>
+
+            <div className="pt-1">
+              <span id="world-size-label" className="block text-xs font-medium text-slate-400 mb-1.5">
+                Tamanho do mundo (vale para você como host ou no treino solo)
+              </span>
+              <div role="group" aria-labelledby="world-size-label" className="grid grid-cols-3 gap-2">
+                {WORLD_SIZE_OPTIONS.map((option) => (
+                  <button
+                    key={option.size}
+                    type="button"
+                    aria-pressed={worldSize === option.size}
+                    onClick={() => {
+                      setWorldSize(option.size);
+                      soundManager.playClickSound();
+                    }}
+                    className={`py-2 rounded-xl border text-xs font-semibold transition-all ${
+                      worldSize === option.size
+                        ? 'bg-amber-500/15 border-amber-500/60 text-amber-300 ring-1 ring-amber-500/30'
+                        : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">
+                {WORLD_SIZE_OPTIONS.find((option) => option.size === worldSize)?.note}
+                {worldSize !== 60 ? ' Tamanho experimental: o desempenho não é garantido.' : ''}
               </p>
             </div>
 

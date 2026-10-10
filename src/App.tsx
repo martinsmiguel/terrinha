@@ -101,6 +101,9 @@ export default function App() {
   const activeSlotsRef = useRef<PlayerSlot[]>(['player1', 'player2']);
   activeSlotsRef.current = activeSlots;
   const [matchSize, setMatchSize] = useState<2 | 3 | 4>(2);
+  /** Dimensão escolhida no lobby (host e solo); a da sessão ativa fica em `worldSizeRef`. */
+  const [worldSizeSetting, setWorldSizeSetting] = useState<number>(MAP_SIZE);
+  const worldSizeRef = useRef<number>(MAP_SIZE);
   const playerSlotRef = useRef<PlayerSlot>('player1');
   playerSlotRef.current = playerSlot;
 
@@ -577,6 +580,7 @@ export default function App() {
     if (role !== 'single') {
       const multi = new MultiplayerManager(roomId, role === 'host', playerName, playerSlot);
       multiRef.current = multi;
+      multi.getMapSize = () => worldSizeRef.current;
 
       multi.onJoinError = (message) => {
         setLobbyError(message);
@@ -622,8 +626,9 @@ export default function App() {
         if (role === 'client') {
           // Mesma semente do host: cliente e host veem o mesmo arquipelago.
           const hostSeed = remoteState.mapSeed;
-          if (hostSeed !== undefined && proceduralMapRef.current?.seed !== hostSeed) {
-            applyTerrainSeed(hostSeed);
+          const hostSize = remoteState.mapSize ?? MAP_SIZE;
+          if (hostSeed !== undefined && (proceduralMapRef.current?.seed !== hostSeed || worldSizeRef.current !== hostSize)) {
+            applyTerrainSeed(hostSeed, hostSize);
           }
           const myUnits = remoteState.units.filter((u: Unit) => u.owner === playerSlot);
           if (prevMyUnitsCountRef.current !== null && myUnits.length > prevMyUnitsCountRef.current) {
@@ -680,7 +685,7 @@ export default function App() {
   const capitalTerrainFor = (current: GameState, useFog = true): CapitalSiteTerrain => {
     const map = proceduralMapRef.current;
     return {
-      mapSize: MAP_SIZE,
+      mapSize: worldSizeRef.current,
       buildings: current.buildings,
       nodes: current.resourceNodes,
       isWaterAt: map?.isWaterAt,
@@ -752,9 +757,18 @@ export default function App() {
     triggerNotification(`${FACTION_COLORS[slot]?.name ?? slot} chegou com a carroça de fundação!`, 'success');
   };
 
+  // Ajusta motor, névoa e referência à dimensão do mundo da sessão (host decide; convidado recebe).
+  const applyWorldSize = (size: number) => {
+    if (worldSizeRef.current === size && visionGridRef.current.length === size * size) return;
+    worldSizeRef.current = size;
+    engineRef.current?.setWorldSize(size);
+    visionGridRef.current = createVisionGrid({ size });
+  };
+
   // Initial map setup with Procedural Archipelago, Town Centers, Resources & Villagers
-  const applyTerrainSeed = (seed: number) => {
-    const procMap = generateProceduralTerrain(MAP_SIZE, seed);
+  const applyTerrainSeed = (seed: number, size: number = worldSizeRef.current) => {
+    applyWorldSize(size);
+    const procMap = generateProceduralTerrain(size, seed);
     proceduralMapRef.current = procMap;
     if (engineRef.current) {
       engineRef.current.setProceduralTerrainMesh(
@@ -768,7 +782,8 @@ export default function App() {
   };
 
   const setupInitialMap = () => {
-    const procMap = generateProceduralTerrain(MAP_SIZE);
+    applyWorldSize(worldSizeSetting);
+    const procMap = generateProceduralTerrain(worldSizeSetting);
     proceduralMapRef.current = procMap;
 
     if (engineRef.current) {
@@ -815,6 +830,7 @@ export default function App() {
       playerResources,
       techs,
       mapSeed: procMap.seed,
+      mapSize: worldSizeSetting,
       foundationKits,
     };
     if (role === 'single') {
@@ -1023,7 +1039,7 @@ export default function App() {
         cmd.position.z,
         gameStateRef.current.buildings,
         gameStateRef.current.resourceNodes,
-        MAP_SIZE,
+        worldSizeRef.current,
         proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
@@ -1168,7 +1184,7 @@ export default function App() {
         prev, newBuilding, def.cost, cmd.builderIds ?? [],
         (current) => checkBuildingPlacementValid(
           cmd.buildingType, cmd.position.x, cmd.position.z,
-          current.buildings, current.resourceNodes, MAP_SIZE,
+          current.buildings, current.resourceNodes, worldSizeRef.current,
           proceduralMapRef.current?.isWaterAt,
           proceduralMapRef.current?.isCliffAt,
           proceduralMapRef.current?.getHeightAt,
@@ -1474,7 +1490,7 @@ export default function App() {
 
     if (buildMode) {
       const ghost = createBuildingGhost(buildMode);
-      ghost.position.set(MAP_SIZE / 2, 0, MAP_SIZE / 2);
+      ghost.position.set(worldSizeRef.current / 2, 0, worldSizeRef.current / 2);
       scene.add(ghost);
       ghostBuildingMesh.current = ghost;
     }
@@ -1511,7 +1527,7 @@ export default function App() {
         snappedZ,
         gameStateRef.current.buildings,
         gameStateRef.current.resourceNodes,
-        MAP_SIZE,
+        worldSizeRef.current,
         proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
@@ -1754,7 +1770,7 @@ export default function App() {
             snappedZ,
             gameStateRef.current.buildings,
             gameStateRef.current.resourceNodes,
-            MAP_SIZE,
+            worldSizeRef.current,
             proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
             proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
             proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
@@ -1935,8 +1951,8 @@ export default function App() {
         finalZ = targetZ + perpZ * colOffset + fwdZ * rowOffset;
       }
 
-      const clampedX = Math.max(2, Math.min(MAP_SIZE - 2, finalX));
-      const clampedZ = Math.max(2, Math.min(MAP_SIZE - 2, finalZ));
+      const clampedX = Math.max(2, Math.min(worldSizeRef.current - 2, finalX));
+      const clampedZ = Math.max(2, Math.min(worldSizeRef.current - 2, finalZ));
 
       // Visual ground waypoint pip for each unit's slot in the formation at correct elevation
       const waypointY = proceduralMapRef.current ? proceduralMapRef.current.getHeightAt(clampedX, clampedZ) : 0;
@@ -2418,8 +2434,8 @@ export default function App() {
   const handleJumpToResource = (type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school' | 'stone') => {
     if (!engineRef.current) return;
     const home = homeAnchor(playerSlot, gameState.buildings, gameState.units);
-    const refX = home ? home.x : MAP_SIZE / 2;
-    const refZ = home ? home.z : MAP_SIZE / 2;
+    const refX = home ? home.x : worldSizeRef.current / 2;
+    const refZ = home ? home.z : worldSizeRef.current / 2;
 
     const available = gameState.resourceNodes.filter((n) => n.type === type && n.remaining > 0);
     if (available.length === 0) {
@@ -2665,7 +2681,7 @@ export default function App() {
     if (!isHudPreviewMode) return;
     type Canto = { x: number; z: number };
     const ponte = {
-      mapSize: MAP_SIZE,
+      mapSize: worldSizeRef.current,
       map: () => proceduralMapRef.current,
       islands: () => proceduralMapRef.current?.islands ?? [],
       resources: () =>
@@ -2732,6 +2748,8 @@ export default function App() {
         lobbyError={lobbyError}
         matchSize={matchSize}
         setMatchSize={setMatchSize}
+        worldSize={worldSizeSetting}
+        setWorldSize={setWorldSizeSetting}
         onStartGame={(nextRole) => {
           setLobbyError(null);
           setSessionEndedMessage(null);
