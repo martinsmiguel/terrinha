@@ -1,6 +1,7 @@
 import type { Building, GameState, Unit } from './model';
 import { isBoatUnit } from './model';
 import { canTarget, type OwnerVision } from './visionAuthority';
+import { launchNaval, navalBlocker, overseasTarget, stepNaval, type NavalEnv } from './botNaval';
 
 export type BotProfile = 'peaceful' | 'defensive' | 'raids';
 export const DEFAULT_BOT_PROFILE: BotProfile = 'defensive';
@@ -17,12 +18,27 @@ export interface BotClock {
   capitalAt?: number;
   nextRaidAt?: number;
   raid?: { ids: string[]; startedAt: number; startCount: number; targetId: string };
+  /** Incursão por mar em andamento (cais, barco, embarque, travessia, pouso) e a contagem de lançadas, perdidas e abortadas. */
+  naval?: NavalRaid;
+  navalStats?: { launched: number; lost: number; aborted: number };
   attempts: number;
+}
+
+export interface NavalRaid {
+  phase: 'embark' | 'sail' | 'land';
+  boatId: string;
+  ids: string[];
+  targetId: string;
+  landing: { x: number; z: number };
+  startedAt: number;
+  phaseAt: number;
 }
 
 export type BotCommand =
   | { type: 'attack'; unitId: string; targetId: string }
-  | { type: 'move'; unitId: string; target: { x: number; z: number } };
+  | { type: 'move'; unitId: string; target: { x: number; z: number } }
+  | { type: 'embark'; unitIds: string[]; boatId: string }
+  | { type: 'disembark'; boatId: string };
 
 export interface BotPlan { commands: BotCommand[]; clock: BotClock; notes: string[] }
 
@@ -44,7 +60,8 @@ export const attemptGap = (slot: string, attempt: number): number => {
  */
 export function planBot(
   state: Pick<GameState, 'units' | 'buildings'>, slot: string, profile: BotProfile, previous: BotClock | undefined,
-  elapsed: number, vision: OwnerVision | undefined, canReach: (unit: Unit, goal: { x: number; z: number }) => boolean = () => true
+  elapsed: number, vision: OwnerVision | undefined, canReach: (unit: Unit, goal: { x: number; z: number }) => boolean = () => true,
+  naval?: NavalEnv
 ): BotPlan {
   const clock: BotClock = { attempts: 0, ...previous };
   const notes: string[] = [];
@@ -54,6 +71,13 @@ export function planBot(
   if (clock.capitalAt === undefined) clock.capitalAt = elapsed;
   const army = state.units.filter((u) => u.owner === slot && isMilitary(u));
   const enemyUnits = state.units.filter((u) => u.owner !== slot && u.health > 0 && !isBoatUnit(u.type) && canTarget(vision, slot, u, 'visible'));
+
+  // Incursão por mar em andamento: cada fase tem prazo e motivo de aborto; enquanto ela dura, o plano terrestre espera.
+  if (clock.naval) {
+    const dock = state.buildings.find((b) => b.owner === slot && b.type === 'dock' && b.health > 0);
+    const step = stepNaval(slot, clock, elapsed, state.units, state.buildings, dock?.position);
+    return { commands: step.commands, clock: step.clock, notes: step.notes };
+  }
 
   // Incursão em andamento: retirada com 35% de perdas ou fim quando o grupo acabou.
   if (clock.raid) {
@@ -92,11 +116,23 @@ export function planBot(
   clock.nextRaidAt = elapsed + attemptGap(slot, clock.attempts);
   const free = army.filter((u) => u.state === 'idle' && !raiding.has(u.id));
   if (free.length < BOT.groupMin) { notes.push('incursão adiada: sem tropas suficientes'); return { commands, clock, notes }; }
+  const reachableByLand = (goal: { x: number; z: number }) => free.slice(0, BOT.groupMax).every((u) => canReach(u, goal));
   const targets = state.buildings.filter((b) => b.owner !== slot && b.health > 0 && canTarget(vision, slot, b, 'explored') && dist(b.position, home) <= BOT.raidReach)
     .sort((a, b) => dist(a.position, home) - dist(b.position, home));
   const group = free.slice(0, BOT.groupMax);
   const target = targets.find((b) => group.every((u) => canReach(u, b.position)));
-  if (!target) { notes.push('incursão adiada: sem alvo conhecido e alcançável'); return { commands, clock, notes }; }
+  if (!target) {
+    // Nada alcançável por terra: outra ilha só por cais, barco, embarque, travessia e desembarque.
+    const overseas = naval ? overseasTarget(slot, state.buildings, vision, home, reachableByLand) : undefined;
+    if (naval && overseas) {
+      const blocker = navalBlocker(slot, state.units, state.buildings, overseas, free, naval);
+      if (blocker.reason || !blocker.boat || !blocker.landing) { notes.push(`incursão naval adiada: ${blocker.reason}`); return { commands, clock, notes }; }
+      const launched = launchNaval(clock, elapsed, free, blocker.boat, overseas, blocker.landing);
+      return { commands: launched.commands, clock: launched.clock, notes: launched.notes };
+    }
+    notes.push('incursão adiada: sem alvo conhecido e alcançável');
+    return { commands, clock, notes };
+  }
   group.forEach((unit) => commands.push({ type: 'attack', unitId: unit.id, targetId: target.id }));
   clock.raid = { ids: group.map((u) => u.id), startedAt: elapsed, startCount: group.length, targetId: target.id };
   notes.push(`incursão iniciada com ${group.length} contra ${target.type}`);

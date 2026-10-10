@@ -1,6 +1,8 @@
 import { healUnitsInTerritory } from './colonies';
 import { cargoTotal, disembarkStep } from './colonialTransport';
 import { DEFAULT_BOT_PROFILE, planBot, type BotClocks } from './bots';
+import { overseasTarget } from './botNaval';
+import { hasLandNearDock, hasOceanNearDock } from './dockPlacement';
 import { isAuthorizedPlayerCommand, type PlayerSlot } from './networkCommands';
 import { bridgeVersion, completedBridges, relocateFromDestroyed, withBridges } from './bridges';
 import { buildFlowField, followFlowField, type FlowField } from './movement/flowField';
@@ -12,7 +14,7 @@ import { isExploredBy } from './visionAuthority';
 import { stepRoute } from './tradeRoutes';
 import { HOME, productionPaused, reconcileDepots, refineAt, type LocalityResolver } from './depots';
 import { isBoatUnit, worldSizeOf } from './model';
-import { boardArrivedPassengers } from './navalTransport';
+import { applyEmbarkOrder, boardArrivedPassengers } from './navalTransport';
 import type { BuildingType, GameState, Unit, UnitType } from './model';
 import { applyCost, canAfford, refinePlanks, UNIT_COSTS } from './economy';
 import { findDockOceanSpawnCell } from './dockPlacement';
@@ -854,6 +856,43 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         trainAt(aiBarracks, militaryCount % 3 === 2 ? 'cavalry' : 'soldier');
       }
 
+      // Preparo naval (só no perfil Incursões, com quartel pronto e alvo conhecido do outro lado): serraria (tábuas), cais e transporte.
+      if ((state.botProfile ?? DEFAULT_BOT_PROFILE) === 'raids' && aiBarracks?.isComplete && pMap && Math.round(((state.elapsed ?? 0) + TICK_SECONDS) * 20) % 40 === 0) {
+        const probe = { ...aiUnits[0], type: 'soldier' as const, position: aiTc.position } as Unit;
+        const overseas = overseasTarget(aiSlot, updatedBuildings, context.vision, aiTc.position, (goal) => {
+          const path = findPath(probe.position, goal, blockedFor('soldier', pMap), { mapSize, maxExpanded: 800, weight: weightFor('soldier', pMap) });
+          return path.length > 0 && Math.hypot(path[path.length - 1].x - goal.x, path[path.length - 1].z - goal.z) <= 1.5;
+        });
+        if (overseas) {
+          const sawmill = updatedBuildings.find((b) => b.owner === aiSlot && b.type === 'sawmill' && b.health > 0);
+          const dock = updatedBuildings.find((b) => b.owner === aiSlot && b.type === 'dock' && b.health > 0);
+          const found = (type: 'sawmill' | 'dock', cost: { wood: number }, spot: { x: number; z: number } | undefined) => {
+            const res = updatedResources[aiSlot];
+            if (!res || !spot || !canAfford(res, cost)) return;
+            updatedResources[aiSlot] = applyCost(res, cost);
+            const id = context.createId();
+            updatedBuildings.push({ id, type, owner: aiSlot, position: spot, health: 80, maxHealth: 700, isComplete: false, buildProgress: 0, trainingQueue: [] });
+            const builder = aiUnits.find((candidate) => candidate.type === 'villager' && candidate.state === 'idle');
+            if (builder) { builder.state = 'building'; builder.targetEntityId = id; builder.targetPosition = null; }
+          };
+          const free = (p: { x: number; z: number }) => !updatedBuildings.some((b) => Math.hypot(b.position.x - p.x, b.position.z - p.z) < 5);
+          if (!sawmill) {
+            found('sawmill', { wood: 110 }, [[-7, 4], [7, -4], [4, 7], [-4, -7]].map(([dx, dz]) => ({ x: aiTc.position.x + dx, z: aiTc.position.z + dz })).find((p) => (!pMap.canStandAt || pMap.canStandAt('human', p.x, p.z)) && free(p)));
+          } else if (!dock) {
+            let coast: { x: number; z: number } | undefined;
+            for (let r = 6; r <= 20 && !coast; r += 2) {
+              for (let i = 0; i < 16 && !coast; i += 1) {
+                const p = { x: aiTc.position.x + Math.cos((i / 16) * Math.PI * 2) * r, z: aiTc.position.z + Math.sin((i / 16) * Math.PI * 2) * r };
+                if (hasOceanNearDock(pMap.isOceanAt.bind(pMap), p.x, p.z) && hasLandNearDock(pMap.isWaterAt.bind(pMap), p.x, p.z) && (!pMap.canStandAt || pMap.canStandAt('human', p.x, p.z)) && free(p)) coast = p;
+              }
+            }
+            found('dock', { wood: 140 }, coast);
+          } else if (dock.isComplete && dock.trainingQueue.length === 0 && !updatedUnits.some((u) => u.owner === aiSlot && u.type === 'colonial_transport' && u.health > 0)) {
+            trainAt(dock, 'colonial_transport');
+          }
+        }
+      }
+
       aiUnits.forEach((aiUnit) => {
         if (aiUnit.state !== 'idle') return;
 
@@ -884,16 +923,33 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     const profile = state.botProfile ?? DEFAULT_BOT_PROFILE;
     const botElapsed = (state.elapsed ?? 0) + TICK_SECONDS;
     const clocks: BotClocks = { ...state.botClocks };
+    // Alcançável = a rota chega ao destino. Rota parcial (orçamento esgotado rumo ao ponto mais próximo) NÃO é chegada.
+    const arrives = (path: { x: number; z: number }[], goal: { x: number; z: number }) =>
+      path.length > 0 && Math.hypot(path[path.length - 1].x - goal.x, path[path.length - 1].z - goal.z) <= 1.5;
     const reach = (unit: Unit, goal: { x: number; z: number }) =>
-      !pMap || findPath(unit.position, goal, blockedFor(unit.type, pMap), { mapSize, maxExpanded: 800, weight: weightFor(unit.type, pMap) }).length > 0;
+      !pMap || arrives(findPath(unit.position, goal, blockedFor(unit.type, pMap), { mapSize, maxExpanded: 800, weight: weightFor(unit.type, pMap) }), goal);
     for (const aiSlot of aiSlots) {
-      const plan = planBot({ units: updatedUnits, buildings: updatedBuildings }, aiSlot, profile, clocks[aiSlot], botElapsed, context.vision, reach);
+      const navalEnv = pMap && context.nearestOceanCell
+        ? { seaApproach: (x: number, z: number) => { const cell = context.nearestOceanCell!(x, z, 10); return pMap.isOceanAt(cell.x, cell.z) ? cell : null; } }
+        : undefined;
+      const plan = planBot({ units: updatedUnits, buildings: updatedBuildings }, aiSlot, profile, clocks[aiSlot], botElapsed, context.vision, reach, navalEnv);
       clocks[aiSlot] = plan.clock;
       for (const command of plan.commands) {
         const snapshot = { ...state, units: updatedUnits, buildings: updatedBuildings, playerResources: updatedResources };
         const terrain = pMap?.canStandAt ? { canStandAt: pMap.canStandAt.bind(pMap) } : undefined;
         const allowed = Boolean(isAuthorizedPlayerCommand(snapshot, command, aiSlot as PlayerSlot, context.vision, terrain));
         if (!allowed) continue;
+        if (command.type === 'embark') {
+          // Mesma regra do jogador: o grupo vai até o barco e embarca (validado por distância, posse e capacidade).
+          const embarked = applyEmbarkOrder({ ...state, units: updatedUnits, buildings: updatedBuildings }, command.unitIds, command.boatId);
+          updatedUnits = embarked.state.units;
+          continue;
+        }
+        if (command.type === 'disembark') {
+          const boat = updatedUnits.find((candidate) => candidate.id === command.boatId);
+          if (boat) boat.disembarkCooldown = 0;
+          continue;
+        }
         const unit = updatedUnits.find((candidate) => candidate.id === command.unitId);
         if (!unit) continue;
         if (command.type === 'attack') { unit.targetEntityId = command.targetId; unit.targetPosition = null; unit.state = 'attacking'; }
