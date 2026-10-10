@@ -146,7 +146,7 @@ describe('arquipélago em mapa procedural real: movimento em massa', () => {
 
 describe('passo da simulação por tamanho de mundo (120 unidades na ilha natal do jogador 1)', () => {
   const rows: Record<string, unknown>[] = [];
-  it.each([60, 192, 384, 768])('mundo %i: mede o passo com a dimensão da sessão', (size) => {
+  it.each([60, 192, 280, 384, 768])('mundo %i: mede o passo com a dimensão da sessão', (size) => {
     const map = generateProceduralTerrain(size, 4242);
     const home = landComponents(map).find((cells) => cells.some((c) => Math.hypot(c.x - map.player1Spawn.x, c.z - map.player1Spawn.z) < 2))!;
     const units = Array.from({ length: 120 }, (_, i) => {

@@ -230,7 +230,7 @@ export function LobbyScreen({
               </div>
               <p className="text-[10px] text-slate-400 mt-1">
                 {WORLD_SIZE_OPTIONS.find((option) => option.size === worldSize)?.note}
-                {worldSize !== 60 ? ' Tamanho experimental: o desempenho não é garantido.' : ''}
+                {WORLD_SIZE_OPTIONS.find((option) => option.size === worldSize)?.status === 'experimental' ? ' Tamanho experimental: o desempenho não é garantido.' : ''}
               </p>
             </div>
 
