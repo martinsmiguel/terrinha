@@ -56,6 +56,8 @@ export interface Unit {
   kit?: boolean;
   /** Segundos até o próximo passageiro poder desembarcar; ausente = sem desembarque em curso. */
   disembarkCooldown?: number;
+  /** Rota comercial automática do barco mercante (ver tradeRoutes). */
+  route?: import('./tradeRoutes').TradeRoute;
 }
 
 export interface Building {

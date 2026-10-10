@@ -8,6 +8,7 @@ import { canTarget, type OwnerVision } from './visionAuthority';
 import { bodyOf, type BodyId } from './bodyModel';
 import { outpostSpacingReason } from './colonies';
 import { previewKit, previewLoad } from './colonialTransport';
+import { redirectRoute, routeProblems, type RouteLeg, type RoutePort } from './tradeRoutes';
 import { HOME, canPayAt, depotsIn, type LocalityResolver } from './depots';
 import { UNIT_COSTS, tradeResource, type MarketResourceType } from './economy';
 
@@ -80,6 +81,9 @@ export type NetworkCommand = CommandMetadata & (
   | { type: 'disembark'; boatId: string }
   | { type: 'load_cargo'; boatId: string; cargo: Partial<Record<'wood' | 'food' | 'gold' | 'stone' | 'planks', number>> }
   | { type: 'load_kit'; boatId: string }
+  | { type: 'set_route'; boatId: string; a: RoutePort; b: RoutePort; outbound: RouteLeg; back: RouteLeg | null; partial?: boolean }
+  | { type: 'cancel_route'; boatId: string }
+  | { type: 'redirect_route'; boatId: string; end: 'a' | 'b'; port: RoutePort }
   | { type: 'trade'; resource: MarketResourceType; action: 'buy' | 'sell'; amount: number }
   | { type: 'found_capital'; wagonId: string; position: Position }
 );
@@ -149,6 +153,11 @@ export function roomJoinError(request: JoinRoomRequest, members: RoomMember[]): 
 /** Valida a forma do comando; as posições devem caber no mundo da sessão (padrão 60). */
 export function isValidNetworkCommand(value: unknown, mapSize: number = MAP_LIMIT): value is NetworkCommand {
   const isPosition = (candidate: unknown): candidate is Position => isPositionWithin(candidate, mapSize);
+  const isRoutePort = (candidate: unknown): boolean =>
+    isRecord(candidate) && hasOnlyKeys(candidate, ['buildingId', 'berth']) && isId(candidate.buildingId) && isPosition(candidate.berth);
+  const isRouteLeg = (candidate: unknown): boolean =>
+    isRecord(candidate) && hasOnlyKeys(candidate, ['resource', 'amount']) && (RESOURCE_KEYS as readonly string[]).includes(candidate.resource as string)
+    && typeof candidate.amount === 'number' && Number.isInteger(candidate.amount) && candidate.amount >= 1 && candidate.amount <= 1000;
   const isOptionalPosition = (candidate: unknown): boolean => candidate === undefined || isPosition(candidate);
   if (!isRecord(value) || typeof value.type !== 'string') return false;
   if ((value.playerSlot !== undefined && !isPlayerSlot(value.playerSlot)) || (value.senderId !== undefined && !isId(value.senderId))) {
@@ -211,6 +220,13 @@ export function isValidNetworkCommand(value: unknown, mapSize: number = MAP_LIMI
         && Object.entries(value.cargo).every(([key, amount]) => (RESOURCE_KEYS as readonly string[]).includes(key) && typeof amount === 'number' && Number.isInteger(amount) && amount >= 0 && amount <= 1000);
     case 'load_kit':
       return allowedKeys('boatId') && isId(value.boatId);
+    case 'set_route':
+      return allowedKeys('boatId', 'a', 'b', 'outbound', 'back', 'partial') && isId(value.boatId) && isRoutePort(value.a) && isRoutePort(value.b)
+        && isRouteLeg(value.outbound) && (value.back === null || isRouteLeg(value.back)) && (value.partial === undefined || typeof value.partial === 'boolean');
+    case 'cancel_route':
+      return allowedKeys('boatId') && isId(value.boatId);
+    case 'redirect_route':
+      return allowedKeys('boatId', 'end', 'port') && isId(value.boatId) && (value.end === 'a' || value.end === 'b') && isRoutePort(value.port);
     case 'found_capital':
       return allowedKeys('wagonId', 'position') && isId(value.wagonId) && isPosition(value.position);
     case 'trade':
@@ -395,6 +411,18 @@ export function isAuthorizedPlayerCommand(
       return (value.type === 'load_kit'
         ? previewKit(state, boat.id, locality, terrain.localityOf)
         : previewLoad(state, boat.id, locality, value.cargo, terrain.localityOf)).ok;
+    }
+    case 'set_route': {
+      const boat = ownsUnit(state, value.boatId, owner);
+      return Boolean(boat) && routeProblems(state, value.boatId, value).length === 0;
+    }
+    case 'cancel_route': {
+      const boat = ownsUnit(state, value.boatId, owner);
+      return Boolean(boat?.route);
+    }
+    case 'redirect_route': {
+      const boat = ownsUnit(state, value.boatId, owner);
+      return Boolean(boat?.route) && redirectRoute(state, value.boatId, value.end, value.port).problems.length === 0;
     }
     case 'disembark': {
       const boat = ownsUnit(state, value.boatId, owner);

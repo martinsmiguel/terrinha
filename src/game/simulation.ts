@@ -1,5 +1,6 @@
 import { healUnitsInTerritory } from './colonies';
 import { disembarkStep } from './colonialTransport';
+import { stepRoute } from './tradeRoutes';
 import { HOME, productionPaused, reconcileDepots, refineAt, type LocalityResolver } from './depots';
 import { isBoatUnit, worldSizeOf } from './model';
 import { boardArrivedPassengers } from './navalTransport';
@@ -209,6 +210,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     }
     return advanced;
   });
+  let localStocksFromRoutes: GameState['localStocks'] | undefined;
   let updatedResources: GameState['playerResources'] = Object.fromEntries(
     Object.entries(state.playerResources).map(([slot, resources]) => [slot, { ...resources }])
   );
@@ -734,11 +736,6 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     ).length;
     if (completedMarkets > 0) res.gold = (res.gold || 0) + completedMarkets * 0.05;
 
-    const activeTradeBoats = updatedUnits.filter(
-      (candidate) => candidate.owner === slot && candidate.type === 'trade_boat' && candidate.health > 0
-    ).length;
-    if (activeTradeBoats > 0) res.gold = (res.gold || 0) + activeTradeBoats * 0.15;
-
     const completedSawmills = updatedBuildings.filter(
       (building) => building.owner === slot && building.type === 'sawmill' && building.isComplete && building.health > 0
         && (!pMap?.localityOf || pMap.localityOf(slot, building.position) === HOME)
@@ -874,6 +871,24 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     }
   }
 
+  // Rotas comerciais automáticas: cada mercante com rota avança a própria máquina de estados (1 s de carga/descarga).
+  if (pMap?.localityOf) {
+    let routed: GameState = { ...state, units: updatedUnits, buildings: updatedBuildings, playerResources: updatedResources };
+    const reach = (from: { x: number; z: number }, to: { x: number; z: number }) =>
+      findPath(from, to, blockedFor('trade_boat', pMap), { mapSize, maxExpanded: 2400, weight: weightFor('trade_boat', pMap) }).length > 0;
+    for (const boat of updatedUnits.filter((unit) => unit.route && unit.health > 0)) {
+      const before = boat.route!;
+      routed = stepRoute(routed, boat.id, TICK_SECONDS, pMap.localityOf, reach);
+      const after = routed.units.find((unit) => unit.id === boat.id)?.route;
+      if (after?.status === 'blocked' && before.status !== 'blocked' && boat.owner === playerSlot) {
+        effects.push({ type: 'notification', message: `Rota bloqueada: ${after.reason}`, level: 'warning' });
+      }
+    }
+    updatedUnits = routed.units;
+    updatedResources = routed.playerResources;
+    if (routed.localStocks) localStocksFromRoutes = routed.localStocks;
+  }
+
   // Desembarque em curso: um passageiro por intervalo, só em terreno válido; sem terreno, mantém passageiros e carga.
   if (pMap) {
     for (const boat of updatedUnits.filter((unit) => unit.disembarkCooldown !== undefined && (unit.passengers?.length ?? 0) > 0 && unit.health > 0)) {
@@ -901,11 +916,11 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
   }
 
   // Última construção de posto destruída: o estoque local da ilha se perde (pausa de produção segue de productionPaused).
-  let updatedLocalStocks = state.localStocks;
-  if (pMap?.localityOf && state.localStocks) {
-    let local = { ...state, buildings: updatedBuildings, playerResources: updatedResources };
+  let updatedLocalStocks = localStocksFromRoutes ?? state.localStocks;
+  if (pMap?.localityOf && updatedLocalStocks) {
+    let local = { ...state, localStocks: updatedLocalStocks, buildings: updatedBuildings, playerResources: updatedResources };
     // Serralheria colonial refina o estoque da própria ilha, e só com posto concluído (produção local).
-    for (const [owner, byLocality] of Object.entries(state.localStocks)) {
+    for (const [owner, byLocality] of Object.entries(updatedLocalStocks)) {
       for (const locality of Object.keys(byLocality)) {
         const sawmills = updatedBuildings.filter((building) =>
           building.owner === owner && building.type === 'sawmill' && building.isComplete && building.health > 0
