@@ -115,6 +115,8 @@ export interface GameState {
   mapSize?: number;
   /** Kit de fundacao reservado por jogador ate a capital ser fundada (separado do suprimento). */
   foundationKits?: Record<string, { wood: number; stone: number }>;
+  /** Tempestade em aviso ou ativa (estado do host, sincronizado por snapshot). */
+  storm?: import('./storms').Storm;
   /** Plantas e monumentos das ilhas (estado do host). */
   relics?: import('./mysticism').Relic[];
   /** Efeitos temporários por dono (bênção da planta). */

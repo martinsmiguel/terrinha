@@ -1,5 +1,6 @@
 import { healUnitsInTerritory } from './colonies';
 import { cargoTotal, disembarkStep } from './colonialTransport';
+import { applyStormDamage, stormAt, stormPhase } from './storms';
 import { BLESSING_FARM, BRISA_SPEED, hasTalent } from './talents';
 import { creditAll, type XpEvent } from './mastery';
 import { blessingMultiplier, seasonFarmFactor, seasonOf, tickBuffs } from './mysticism';
@@ -923,6 +924,21 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     }
   }
 
+  // Tempestade: o relógio da partida decide (determinístico pela semente); só barcos vivos no raio, só na fase ativa, 2 HP/s.
+  const elapsed = (state.elapsed ?? 0) + TICK_SECONDS;
+  // Mantém a tempestade vigente (sincronizada) até acabar; só então o relógio e a semente decidem a próxima.
+  const stormNow = state.storm && stormPhase(state.storm, elapsed)
+    ? state.storm
+    : pMap ? stormAt(elapsed, state.mapSeed ?? 0, mapSize, (x, z) => pMap.isOceanAt(x, z)) : undefined;
+  if (stormNow && stormPhase(stormNow, elapsed) === 'active') {
+    const hit = applyStormDamage(updatedUnits, stormNow, elapsed, TICK_SECONDS);
+    updatedUnits = hit.units;
+    hit.sunk.forEach((id) => {
+      const boat = updatedUnits.find((unit) => unit.id === id);
+      if (boat) effects.push({ type: 'boat-sinking', x: boat.position.x, z: boat.position.z });
+    });
+  }
+
   // Cura terrestre dentro do território de postos próprios concluídos (efeito some com o posto).
   updatedUnits = [...healUnitsInTerritory(updatedUnits, updatedBuildings)];
 
@@ -962,7 +978,8 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     state: {
       ...state,
       ...(updatedLocalStocks ? { localStocks: updatedLocalStocks } : {}),
-      elapsed: (state.elapsed ?? 0) + TICK_SECONDS,
+      elapsed,
+      ...(stormNow ? { storm: stormNow } : {}),
       ...(state.buffs ? { buffs: tickBuffs(state.buffs, TICK_SECONDS) } : {}),
       ...(xpEvents.length > 0 || state.mastery ? { mastery: creditAll(state.mastery, xpEvents) } : {}),
       units: updatedUnits,
