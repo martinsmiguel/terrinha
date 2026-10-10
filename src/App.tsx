@@ -3,6 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { CommandPalette } from './components/CommandPalette';
+import { focusLocality, type PaletteEntry, type PaletteLocality } from './game/commandPalette';
+import { computeArchipelago } from './game/archipelago';
+import { isIslandDiscovered, resolveNavigationTarget } from './game/worldMap';
+import { ISLAND_ECONOMY } from './game/islandEconomy';
 import { useHudConfig } from './hooks/useHudConfig';
 import { COMPOSITION_LABEL, nextComposition, readHud } from './game/hudConfig';
 import { HudContextPanel } from './components/HudContextPanel';
@@ -167,6 +172,8 @@ export default function App() {
   // Work Zone Visual Overlay & Management Modal
   const [isWorkZoneModalOpen, setIsWorkZoneModalOpen] = useState(false);
   const [isTechPanelOpen, setIsTechPanelOpen] = useState(false);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [focusedIsland, setFocusedIsland] = useState<number | null>(null);
   const [showWorkZones3D, setShowWorkZones3D] = useState(true);
   const [isStrictZoneLeash, setIsStrictZoneLeash] = useState(true);
   const isStrictZoneLeashRef = useRef(true);
@@ -208,6 +215,35 @@ export default function App() {
       );
       return next;
     });
+  };
+
+  /** Localidades já descobertas, do estado conhecido (grade de exploração + layout da semente). */
+  const paletteQuery = () => ({ mapSize: worldSizeRef.current, visibility: visionGridRef.current });
+  const paletteIslands = () => computeArchipelago(worldSizeRef.current, gameState.mapSeed ?? proceduralMapRef.current?.seed ?? 0).islands;
+  const discoveredLocalities = (): PaletteLocality[] =>
+    paletteIslands().filter((island) => isIslandDiscovered(island, paletteQuery())).map((island) => ({ index: island.index, name: island.name, role: ISLAND_ECONOMY[island.profile].role }));
+
+  const runPaletteEntry = (entry: PaletteEntry, centralize: boolean) => {
+    setIsPaletteOpen(false);
+    if (entry.run.kind === 'hotkey') {
+      const key = entry.run.key;
+      // Mesma via do teclado: o atalho exibido é o que executa. Fecha a busca antes, para não agir atrás do overlay.
+      window.setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })), 0);
+    } else if (entry.run.kind === 'tech') {
+      setIsTechPanelOpen(true);
+    } else {
+      const index = entry.run.index;
+      const island = paletteIslands().find((candidate) => candidate.index === index);
+      if (!island) return;
+      if (!centralize) {
+        setFocusedIsland((current) => focusLocality(current, index));
+        triggerNotification(`Localidade em foco: ${island.name}. Abra o mapa-múndi para vê-la destacada.`, 'info');
+        return;
+      }
+      const result = resolveNavigationTarget({ kind: 'island', island }, paletteQuery());
+      if (result.ok) engineRef.current?.setCameraTarget(result.target.x, result.target.z);
+      else triggerNotification(result.message, 'warning');
+    }
   };
 
   const toggleHudMode = () => {
@@ -1432,6 +1468,7 @@ export default function App() {
   if (isEmpireCatalogOpen) openOverlays.add('empire-catalog');
   if (showControlsModal) openOverlays.add('controls');
   if (showTutorial) openOverlays.add('tutorial');
+  if (isPaletteOpen) openOverlays.add('palette');
   overlayOrderRef.current = syncOverlayOrder(overlayOrderRef.current, openOverlays);
   const overlayOrder = overlayOrderRef.current;
 
@@ -1466,6 +1503,7 @@ export default function App() {
           else if (action.overlay === 'work-zone') setIsWorkZoneModalOpen(false);
           else if (action.overlay === 'empire-catalog') setIsEmpireCatalogOpen(false);
           else if (action.overlay === 'controls') setShowControlsModal(false);
+          else if (action.overlay === 'palette') setIsPaletteOpen(false);
           else closeTutorial();
           break;
         case 'cancel':
@@ -1502,6 +1540,11 @@ export default function App() {
         case 'toggle-work-zones':
           soundManager.playClickSound();
           setIsWorkZoneModalOpen((prev) => !prev);
+          break;
+        case 'open-palette':
+          e.preventDefault();
+          soundManager.playClickSound();
+          setIsPaletteOpen(true);
           break;
         case 'cycle-hud-composition': {
           const next = nextComposition(hud.config.composition);
@@ -3147,6 +3190,14 @@ export default function App() {
         onMouseEnter={() => { if (!isHudPreviewMode) setIsHoverPeeking(true); }}
       />
 
+      {isPaletteOpen && (
+        <CommandPalette
+          discovered={discoveredLocalities()}
+          onClose={() => setIsPaletteOpen(false)}
+          onRun={runPaletteEntry}
+        />
+      )}
+
       {!isHudPreviewMode && (
         <HudContextPanel
           config={hud.config}
@@ -3297,6 +3348,7 @@ export default function App() {
             onWorldMapOpenChange={setIsWorldMapOpen}
             developerToolsEnabled={developerToolsEnabled}
             localityOf={proceduralMapRef.current?.localityOf}
+            focusedIsland={focusedIsland}
           />
         </div>
 

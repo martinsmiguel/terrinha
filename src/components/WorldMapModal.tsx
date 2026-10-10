@@ -43,6 +43,8 @@ interface WorldMapModalProps {
   onNavigate: (target: { x: number; z: number }) => void;
   /** Resolve a localidade (metrópole ou ilha colonial) de uma posição para o jogador local. */
   localityOf?: (owner: string, position: { x: number; z: number }) => string;
+  /** Índice da única localidade em foco (destacada no mapa); a câmera não se move por causa dele. */
+  focusedIsland?: number | null;
   /** Mantem a camera parada enquanto o mapa cobre a tela. */
   onPointerOverChange?: (isOver: boolean) => void;
 }
@@ -57,6 +59,7 @@ export function WorldMapModal({
   onToggleRevealAll,
   onNavigate,
   localityOf,
+  focusedIsland = null,
   onPointerOverChange,
 }: WorldMapModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -153,6 +156,17 @@ export function WorldMapModal({
       }
     }
 
+    // Foco: exatamente um marcador destacado, e só se a ilha já foi descoberta.
+    const focused = focusedIsland === null ? null : discoveredIslands.find((island) => island.index === focusedIsland);
+    if (focused) {
+      const center = worldToMapPixel(focused.center.x, focused.center.z, mapSize, WORLD_MAP_PIXEL_SIZE);
+      context.beginPath();
+      context.arc(center.x, center.y, (focused.baseRadius * WORLD_MAP_PIXEL_SIZE) / mapSize + 6, 0, Math.PI * 2);
+      context.strokeStyle = '#fbbf24';
+      context.lineWidth = 3;
+      context.stroke();
+    }
+
     // Rotulos apenas das ilhas ja descobertas.
     discoveredIslands.forEach((island) => {
       const anchor = worldToMapPixel(island.center.x, island.center.z + island.baseRadius + 2 * (mapSize / MAP_SIZE), mapSize, WORLD_MAP_PIXEL_SIZE);
@@ -202,7 +216,7 @@ export function WorldMapModal({
       context.arc(point.x, point.y, unit.owner === playerSlot ? 3 : 2.5, 0, Math.PI * 2);
       context.fill();
     });
-  }, [discoveredIslands, gameState, layout, playerSlot, query, revealAll]);
+  }, [discoveredIslands, focusedIsland, gameState, layout, playerSlot, query, revealAll]);
 
   const handleMapClick = (event: MouseEvent<HTMLCanvasElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();

@@ -51,8 +51,8 @@ describe('registro de atalhos', () => {
 
 describe('modificadores e controles nativos', () => {
   it.each(['ctrlKey', 'metaKey', 'altKey'] as const)('%s não dispara comandos de jogo por coincidência de letra', (modifier) => {
-    // Ctrl/Cmd+Z é o desfazer do HUD (testado abaixo); com Alt, o Z segue sem ação.
-    for (const key of ['c', 'l', 'h', 'm', 'k', 'i', 'j', '1', '2', '3', ' ', ...(modifier === 'altKey' ? ['z'] : [])]) {
+    // Ctrl/Cmd+Z e Ctrl/Cmd+K são desfazer e busca (testados à parte); com Alt, seguem sem ação.
+    for (const key of ['c', 'l', 'h', 'm', 'i', 'j', '1', '2', '3', ' ', ...(modifier === 'altKey' ? ['z', 'k'] : [])]) {
       expect(resolveHotkey(press(key, { [modifier]: true }), idle)).toBeNull();
     }
     expect(resolveHotkey(press('q', { [modifier]: true }), { ...idle, hasVillagerSelected: true })).toBeNull();
