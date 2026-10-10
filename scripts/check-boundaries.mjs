@@ -7,7 +7,7 @@ import vm from 'node:vm';
 const rulesDir = path.resolve(process.argv[2] ?? 'src/game');
 const roots = process.argv[3] ? [process.argv[3]] : [
   'model', 'simulation', 'navalTransport', 'networkCommands', 'buildingCatalog',
-  'economy', 'tech', 'population', 'victory', 'visibility', 'foundation', 'capitalSite', 'worldProofs', 'visionAuthority', 'islandEconomy', 'bodyModel', 'colonies', 'depots', 'colonialTransport', 'tradeRoutes', 'hudConfig', 'commandPalette', 'snapshotFilter', 'snapshotDelta', 'mastery', 'talents', 'mysticism', 'flows', 'waves', 'storms', 'bridges',
+  'economy', 'tech', 'population', 'victory', 'visibility', 'foundation', 'capitalSite', 'worldProofs', 'visionAuthority', 'islandEconomy', 'bodyModel', 'colonies', 'depots', 'colonialTransport', 'tradeRoutes', 'hudConfig', 'commandPalette', 'snapshotFilter', 'snapshotDelta', 'mastery', 'talents', 'mysticism', 'flows', 'waves', 'storms', 'bridges', 'bots',
 ];
 const visited = new Set();
 function visit(file, chain) {

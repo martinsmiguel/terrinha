@@ -328,6 +328,7 @@ describe('simulation performance', () => {
       const run = (state: GameState) => tickGameState(state, context({ mode: 'single', ...slots })).state.buildings.find((b) => b.id === 'tc-ai')!;
       expect(run(ai(false)).trainingQueue).toHaveLength(0);
       expect(run(ai(true)).trainingQueue.length).toBeGreaterThan(0);
+      expect(run(ai(true)).trainingQueue.every((item) => item.unitType === 'villager')).toBe(true); // F03: sem militar no Centro
     });
   });
 
@@ -430,9 +431,10 @@ describe('simulation performance', () => {
       const soldiers = [1, 2, 3].map((n) => createUnit({ id: `ai-${n}`, owner: 'player2', type: 'soldier', position: { x: 30 + n, z: 30 } }));
       const humanTc = createBuilding({ id: 'tc-1', owner: 'player1', position: { x: 45, z: 30 } });
       const aiTc = createBuilding({ id: 'tc-2', owner: 'player2', position: { x: 31, z: 31 } });
-      const state = createState({ units: soldiers, buildings: [humanTc, aiTc], playerResources: { player1: playerResources(), player2: playerResources() } });
+      // Perfil Incursões, depois da graça de 300 s a partir da capital concluída.
+      const state = createState({ units: soldiers, buildings: [humanTc, aiTc], playerResources: { player1: playerResources(), player2: playerResources() }, botProfile: 'raids', elapsed: 400, botClocks: { player2: { capitalAt: 0, attempts: 0 } } });
       const marching = (vision: ReturnType<typeof visionFor>) =>
-        tickGameState(state, context({ mode: 'single', activeSlots: owners, vision })).state.units.filter((u) => u.owner === 'player2' && u.targetPosition).length;
+        tickGameState(state, context({ mode: 'single', activeSlots: owners, vision })).state.units.filter((u) => u.owner === 'player2' && (u.targetPosition || u.targetEntityId)).length;
 
       const unexplored = visionFor(state);
       unexplored.player2.fill(0);

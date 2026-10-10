@@ -1,5 +1,7 @@
 import { healUnitsInTerritory } from './colonies';
 import { cargoTotal, disembarkStep } from './colonialTransport';
+import { DEFAULT_BOT_PROFILE, planBot, type BotClocks } from './bots';
+import { isAuthorizedPlayerCommand, type PlayerSlot } from './networkCommands';
 import { bridgeVersion, completedBridges, relocateFromDestroyed, withBridges } from './bridges';
 import { buildFlowField, followFlowField, type FlowField } from './movement/flowField';
 import { applyStormDamage, stormAt, stormPhase } from './storms';
@@ -20,6 +22,7 @@ import { stepToward } from './movement/step';
 import { applyPopDelta, countDeathsByOwner } from './population';
 import { advanceResearch, gatherMultiplier, TECH_DEFS, unitDamageMultiplier } from './tech';
 import type { TechState } from './tech';
+import type { Building } from './model';
 import { evaluateMatch } from './victory';
 import { advanceFoundation, clearEliminatedOrders, lifePhase } from './foundation';
 import { canTarget, type OwnerVision } from './visionAuthority';
@@ -807,6 +810,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     }
   });
 
+  let botClocksOut: BotClocks | undefined;
   if (context.mode === 'single') {
     const aiSlots = activeSlots.filter((slot) => slot !== playerSlot);
 
@@ -816,14 +820,38 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       const aiRes = updatedResources[aiSlot];
       if (!aiRes || !aiTc || !aiTc.isComplete) return;
 
-      if (aiTc.trainingQueue.length === 0 && aiUnits.length < 8) {
-        const cycle: UnitType[] = ['soldier', 'villager', 'soldier', 'cavalry'];
-        const trainType = cycle[aiUnits.length % cycle.length];
-        const cost = UNIT_COSTS[trainType];
-        if (canAfford(aiRes, cost)) {
-          updatedResources[aiSlot] = applyCost(aiRes, cost);
-          aiTc.trainingQueue.push({ unitType: trainType, progress: 0 });
+      // Economia e produção pelos mesmos comandos e regras do jogador: o Centro só treina aldeões (F03), tropas saem do quartel.
+      const aiBarracks = updatedBuildings.find((building) => building.owner === aiSlot && building.type === 'barracks' && building.health > 0);
+      const aiVillagers = aiUnits.filter((candidate) => candidate.type === 'villager').length;
+      const trainAt = (building: Building, unitType: UnitType) => {
+        const cost = UNIT_COSTS[unitType];
+        const snapshot = { ...state, units: updatedUnits, buildings: updatedBuildings, playerResources: updatedResources };
+        const res = updatedResources[aiSlot];
+        if (res && canAfford(res, cost) && isAuthorizedPlayerCommand(snapshot, { type: 'train', buildingId: building.id, unitType }, aiSlot as PlayerSlot)) {
+          updatedResources[aiSlot] = applyCost(res, cost);
+          building.trainingQueue.push({ unitType, progress: 0 });
         }
+      };
+      if (aiTc.trainingQueue.length === 0 && aiVillagers < 6) {
+        trainAt(aiTc, 'villager');
+      } else if (!aiBarracks && aiVillagers >= 3) {
+        // Quartel: mesma regra de custo; posição ao lado da capital em terreno pisável e livre.
+        const def = context.buildingDefinitions.barracks;
+        const cost = { wood: 120, gold: 30 };
+        const res = updatedResources[aiSlot];
+        const spot = [[7, 0], [-7, 0], [0, 7], [0, -7], [7, 7], [-7, -7]]
+          .map(([dx, dz]) => ({ x: aiTc.position.x + dx, z: aiTc.position.z + dz }))
+          .find((p) => (!pMap?.canStandAt || pMap.canStandAt('human', p.x, p.z)) && !updatedBuildings.some((b) => Math.hypot(b.position.x - p.x, b.position.z - p.z) < 5));
+        const builder = aiUnits.find((candidate) => candidate.type === 'villager' && candidate.state === 'idle');
+        if (res && spot && def && canAfford(res, cost)) {
+          updatedResources[aiSlot] = applyCost(res, cost);
+          const id = context.createId();
+          updatedBuildings.push({ id, type: 'barracks', owner: aiSlot, position: spot, health: 80, maxHealth: 800, isComplete: false, buildProgress: 0, trainingQueue: [] });
+          if (builder) { builder.state = 'building'; builder.targetEntityId = id; builder.targetPosition = null; }
+        }
+      } else if (aiBarracks && aiBarracks.isComplete && aiBarracks.trainingQueue.length === 0 && aiUnits.filter((u) => u.type === 'soldier' || u.type === 'cavalry').length < 8) {
+        const militaryCount = aiUnits.filter((u) => u.type === 'soldier' || u.type === 'cavalry').length;
+        trainAt(aiBarracks, militaryCount % 3 === 2 ? 'cavalry' : 'soldier');
       }
 
       aiUnits.forEach((aiUnit) => {
@@ -848,35 +876,31 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
           return;
         }
 
-        const soldiers = aiUnits.filter((candidate) => candidate.type === 'soldier').length;
-        const cavalry = aiUnits.filter((candidate) => candidate.type === 'cavalry').length;
-        const shouldMarch =
-          (aiUnit.type === 'soldier' && soldiers >= 3) ||
-          (aiUnit.type === 'cavalry' && (cavalry >= 2 || soldiers >= 3));
-        if (shouldMarch) {
-          const humanTc = updatedBuildings.find(
-            (building) => building.owner === playerSlot && building.type === 'town_center'
-          );
-          // A IA só marcha contra o que já descobriu.
-          if (humanTc && canTarget(context.vision, aiSlot, humanTc, 'explored')) {
-            const goal = { x: humanTc.position.x + 2, z: humanTc.position.z + 2 };
-            const distanceToHuman = Math.hypot(goal.x - aiUnit.position.x, goal.z - aiUnit.position.z);
-            if (distanceToHuman > 26) return;
-            const pathExists =
-              !pMap ||
-              // A IA consulta a mesma superfície dos corpos que o jogador: o vau e o custo do raso valem para ela também.
-              findPath(aiUnit.position, goal, blockedFor(aiUnit.type, pMap), {
-                mapSize,
-                maxExpanded: 800,
-                weight: weightFor(aiUnit.type, pMap),
-              }).length > 0;
-            if (pathExists) {
-              aiUnit.targetPosition = goal;
-            }
-          }
-        }
+        // Tropas: o plano do perfil (Pacífico/Defensivo/Incursões) decide, depois deste laço, pelos mesmos comandos dos jogadores.
       });
     });
+
+    // Perfis de bot: o plano gera comandos de jogador e cada um passa pela autorização do host (alvo conhecido, posse, terreno).
+    const profile = state.botProfile ?? DEFAULT_BOT_PROFILE;
+    const botElapsed = (state.elapsed ?? 0) + TICK_SECONDS;
+    const clocks: BotClocks = { ...state.botClocks };
+    const reach = (unit: Unit, goal: { x: number; z: number }) =>
+      !pMap || findPath(unit.position, goal, blockedFor(unit.type, pMap), { mapSize, maxExpanded: 800, weight: weightFor(unit.type, pMap) }).length > 0;
+    for (const aiSlot of aiSlots) {
+      const plan = planBot({ units: updatedUnits, buildings: updatedBuildings }, aiSlot, profile, clocks[aiSlot], botElapsed, context.vision, reach);
+      clocks[aiSlot] = plan.clock;
+      for (const command of plan.commands) {
+        const snapshot = { ...state, units: updatedUnits, buildings: updatedBuildings, playerResources: updatedResources };
+        const terrain = pMap?.canStandAt ? { canStandAt: pMap.canStandAt.bind(pMap) } : undefined;
+        const allowed = Boolean(isAuthorizedPlayerCommand(snapshot, command, aiSlot as PlayerSlot, context.vision, terrain));
+        if (!allowed) continue;
+        const unit = updatedUnits.find((candidate) => candidate.id === command.unitId);
+        if (!unit) continue;
+        if (command.type === 'attack') { unit.targetEntityId = command.targetId; unit.targetPosition = null; unit.state = 'attacking'; }
+        else { unit.targetPosition = { ...command.target }; unit.targetEntityId = null; unit.state = 'moving'; }
+      }
+    }
+    botClocksOut = clocks;
   }
 
   Object.keys(updatedTechs).forEach((slot) => {
@@ -1031,6 +1055,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       ...state,
       ...(updatedLocalStocks ? { localStocks: updatedLocalStocks } : {}),
       elapsed,
+      ...(botClocksOut ? { botClocks: botClocksOut } : {}),
       ...(stormNow ? { storm: stormNow } : {}),
       ...(state.buffs ? { buffs: tickBuffs(state.buffs, TICK_SECONDS) } : {}),
       ...(xpEvents.length > 0 || state.mastery ? { mastery: creditAll(state.mastery, xpEvents) } : {}),

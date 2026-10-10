@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { DEFAULT_BOT_PROFILE, type BotProfile } from './game/bots';
 import { creditAll, exploredSectorKeys } from './game/mastery';
 import { filterSnapshotFor } from './game/snapshotFilter';
 import { DeltaReceiver, DeltaSender, rulesRevisionOf } from './game/snapshotDelta';
@@ -130,6 +131,7 @@ export default function App() {
   const activeSlotsRef = useRef<PlayerSlot[]>(['player1', 'player2']);
   activeSlotsRef.current = activeSlots;
   const [matchSize, setMatchSize] = useState<2 | 3 | 4>(2);
+  const [botProfile, setBotProfile] = useState<BotProfile>(DEFAULT_BOT_PROFILE);
   /** Dimensão escolhida no lobby (host e solo); a da sessão ativa fica em `worldSizeRef`. */
   const [worldSizeSetting, setWorldSizeSetting] = useState<number>(MAP_SIZE);
   const worldSizeRef = useRef<number>(MAP_SIZE);
@@ -935,6 +937,7 @@ export default function App() {
       mapSize: worldSizeSetting,
       foundationKits,
       relics: generateRelics(procMap.islands),
+      botProfile,
       elapsed: 0,
     };
     if (role === 'single') {
@@ -3037,6 +3040,8 @@ export default function App() {
         setPlayerSlot={setPlayerSlot}
         lobbyError={lobbyError}
         matchSize={matchSize}
+        botProfile={botProfile}
+        setBotProfile={setBotProfile}
         setMatchSize={setMatchSize}
         worldSize={worldSizeSetting}
         setWorldSize={setWorldSizeSetting}
