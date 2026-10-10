@@ -5,6 +5,7 @@ import { applyCost, canAfford, refinePlanks, UNIT_COSTS } from './economy';
 import { findDockOceanSpawnCell } from './dockPlacement';
 import { findPath, nextWaypoint } from './movement/pathfinding';
 import { resolveSeparation } from './movement/separation';
+import { stepToward } from './movement/step';
 import { applyPopDelta, countDeathsByOwner } from './population';
 import { advanceResearch, gatherMultiplier, TECH_DEFS, unitDamageMultiplier } from './tech';
 import type { TechState } from './tech';
@@ -166,26 +167,9 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         return { ...unit, targetPosition: null, state: 'idle' as const };
       }
 
-      const nextX = unit.position.x + (hx / headingDist) * speed;
-      const nextZ = unit.position.z + (hz / headingDist) * speed;
-
-      if (pMap) {
-        if (boat) {
-          if (!pMap.isOceanAt(nextX, nextZ)) {
-            return { ...unit, targetPosition: null, state: 'idle' as const };
-          }
-        } else if (pMap.isImpassableAt(nextX, nextZ)) {
-          if (!pMap.isImpassableAt(nextX, unit.position.z)) {
-            return { ...unit, position: { x: nextX, z: unit.position.z }, state: 'moving' as const };
-          } else if (!pMap.isImpassableAt(unit.position.x, nextZ)) {
-            return { ...unit, position: { x: unit.position.x, z: nextZ }, state: 'moving' as const };
-          } else {
-            return { ...unit, targetPosition: null, state: 'idle' as const };
-          }
-        }
-      }
-
-      return { ...unit, position: { x: nextX, z: nextZ }, state: 'moving' as const };
+      const next = stepToward(unit.type, unit.position, heading, speed, pMap);
+      if (!next) return { ...unit, targetPosition: null, state: 'idle' as const };
+      return { ...unit, position: next, state: 'moving' as const };
     }
 
     return unit;
@@ -206,13 +190,9 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       const repairDistance = Math.sqrt(repairDx * repairDx + repairDz * repairDz);
 
       if (repairDistance > REPAIR_REACH) {
-        const step = 0.16;
-        const nextX = unit.position.x + (repairDx / repairDistance) * step;
-        const nextZ = unit.position.z + (repairDz / repairDistance) * step;
-        if (pMap && pMap.isImpassableAt(nextX, nextZ)) {
-          return { ...unit, state: 'idle' as const, targetEntityId: null };
-        }
-        return { ...unit, position: { x: nextX, z: nextZ }, state: 'repairing' as const };
+        const next = stepToward(unit.type, unit.position, building.position, unitAttribute(unit.type, 'movePerTick', ruleSettings), pMap);
+        if (!next) return { ...unit, state: 'idle' as const, targetEntityId: null };
+        return { ...unit, position: next, state: 'repairing' as const };
       }
 
       const ownerResources = updatedResources[unit.owner];
@@ -256,15 +236,17 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         const dist = Math.sqrt(dx * dx + dz * dz);
 
         if (dist > 1.8) {
-          const walkSpeed = 0.16;
-          return {
-            ...unit,
-            position: {
-              x: unit.position.x + (dx / dist) * walkSpeed,
-              z: unit.position.z + (dz / dist) * walkSpeed,
-            },
-            gatherShiftSecondsRemaining: nextShiftRemaining,
-          };
+          const next = stepToward(unit.type, unit.position, targetNode.position, unitAttribute(unit.type, 'movePerTick', ruleSettings), pMap);
+          if (!next) {
+            return {
+              ...unit,
+              state: 'idle' as const,
+              targetEntityId: null,
+              targetPosition: null,
+              gatherShiftSecondsRemaining: undefined,
+            };
+          }
+          return { ...unit, position: next, gatherShiftSecondsRemaining: nextShiftRemaining };
         }
 
         let gatherRate = 0.5;
@@ -402,14 +384,9 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         const attackRange = targetBuilding ? attributes.attackRangeBuilding : attributes.attackRangeUnit;
 
         if (dist > attackRange) {
-          const approachSpeed = unit.type === 'cavalry' ? 0.26 : unit.type === 'warship' ? 0.2 : 0.18;
-          return {
-            ...unit,
-            position: {
-              x: unit.position.x + (dx / dist) * approachSpeed,
-              z: unit.position.z + (dz / dist) * approachSpeed,
-            },
-          };
+          const next = stepToward(unit.type, unit.position, target.position, unitAttribute(unit.type, 'movePerTick', ruleSettings), pMap);
+          if (!next) return { ...unit, state: 'idle' as const, targetEntityId: null, targetPosition: null };
+          return { ...unit, position: next };
         }
 
         const cooldown = unit.attackCooldown ?? 0;
@@ -459,14 +436,9 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
 
         const buildRange = 2.4;
         if (dist > buildRange) {
-          const walkSpeed = 0.16;
-          return {
-            ...unit,
-            position: {
-              x: unit.position.x + (dx / dist) * walkSpeed,
-              z: unit.position.z + (dz / dist) * walkSpeed,
-            },
-          };
+          const next = stepToward(unit.type, unit.position, targetB.position, unitAttribute(unit.type, 'movePerTick', ruleSettings), pMap);
+          if (!next) return { ...unit, state: 'idle' as const, targetEntityId: null, targetPosition: null };
+          return { ...unit, position: next };
         }
 
         const bDef = context.buildingDefinitions[targetB.type];
