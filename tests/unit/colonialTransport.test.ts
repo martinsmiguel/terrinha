@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  COLONIAL_TRANSPORT, cargoCapacity, deliverCargo, disembarkStep, loadCargo, loadKit, sinkTransport,
+  COLONIAL_TRANSPORT, cargoCapacity, deliverCargo, disembarkStep, holdOf, loadCargo, loadKit, previewDisembark, previewKit, previewLoad, sinkTransport,
 } from '../../src/game/colonialTransport';
 import { HOME, stockAt, type LocalityResolver } from '../../src/game/depots';
 import { UNIT_COSTS } from '../../src/game/economy';
@@ -178,3 +178,69 @@ function ctx(overrides: Partial<SimulationContext> = {}): SimulationContext {
     buildingDefinitions: {}, random: () => 0.9, createId: () => 'id', ...overrides,
   };
 }
+
+describe('interface do porão: prévia, confirmação e dois donos', () => {
+  const twoOwners = (): GameState => ({
+    units: [boat(), boat({ id: 'boat2', owner: 'player2', position: { x: 24, z: 20 } })],
+    buildings: [dock(), { ...dock(), id: 'd2', owner: 'player2', position: { x: 26, z: 20 } }],
+    resourceNodes: [], mapSize: 192,
+    playerResources: { player1: { ...rich, wood: 300 }, player2: { ...rich, wood: 120 } },
+  });
+  const terrain = { canStandAt: () => true, localityOf };
+
+  it('o porão mostra o estado real e distingue transporte (200) de mercante (100/125)', () => {
+    expect(holdOf(boat())).toMatchObject({ kind: 'colonial', capacity: 200, passengerCapacity: 6, used: 0 });
+    expect(holdOf(boat({ type: 'trade_boat' }))).toMatchObject({ kind: 'merchant', capacity: 100, passengerCapacity: 4 });
+    expect(holdOf(boat({ type: 'trade_boat' }), true).capacity).toBe(125);
+    expect(holdOf(boat({ kit: true, cargo: { wood: 10, food: 0, gold: 0, stone: 0, planks: 0 } }))).toMatchObject({ used: 210, kitOnBoard: true, cargo: 10 });
+  });
+
+  it('a prévia explica a recusa e não muta o estado', () => {
+    const state = twoOwners();
+    const before = JSON.stringify(state);
+    expect(previewLoad(state, 'boat', HOME, { wood: 50 }, localityOf)).toMatchObject({ ok: true, reasons: [], origin: HOME });
+    expect(previewLoad(state, 'boat', HOME, { wood: 900 }, localityOf).reasons.join(' ')).toMatch(/Porão cheio/);
+    expect(previewLoad(state, 'boat', HOME, { gold: 150, wood: 9000 }, localityOf).reasons.join(' ')).toMatch(/Falta .* de madeira no estoque de Metrópole/);
+    const far = { ...state, units: [boat({ position: { x: 80, z: 80 } }), state.units[1]] };
+    expect(previewLoad(far, 'boat', HOME, { wood: 10 }, localityOf).reasons.join(' ')).toMatch(/longe de um posto ou cais/);
+    expect(previewKit(world({ units: [boat({ type: 'trade_boat' })] }), 'boat', HOME, localityOf).reasons.join(' ')).toMatch(/Só o transporte colonial/);
+    expect(JSON.stringify(state)).toBe(before);
+  });
+
+  it('a prévia de desembarque explica praia bloqueada e preserva a carga', () => {
+    const state = world({ units: [boat({ cargo: { wood: 20, food: 0, gold: 0, stone: 0, planks: 0 }, passengers: [soldier('a')] })] });
+    expect(previewDisembark(state, 'boat', sea, '1')).toMatchObject({ ok: false, passengers: 1, cargo: true });
+    expect(previewDisembark(state, 'boat', sea, '1').reason).toMatch(/Praia bloqueada/);
+    expect(previewDisembark(state, 'boat', land, '1')).toMatchObject({ ok: true, destination: 'Colônia (ilha 1)' });
+    expect(previewDisembark(world(), 'boat', land, HOME)).toMatchObject({ ok: false });
+  });
+
+  it('o host revalida: autoriza só o dono, com saldo, capacidade e apoio; a prévia antiga não vale se o estoque mudou', () => {
+    const state = twoOwners();
+    const command = { type: 'load_cargo', boatId: 'boat', cargo: { wood: 150 } };
+    expect(isAuthorizedPlayerCommand(state, command, 'player1', undefined, terrain)).toBe(true);
+    expect(isAuthorizedPlayerCommand(state, command, 'player2', undefined, terrain)).toBe(false); // barco alheio
+    expect(isAuthorizedPlayerCommand(state, { ...command, cargo: { wood: 150, gold: 150 } }, 'player1', undefined, terrain)).toBe(false); // 500 > 200
+    expect(isAuthorizedPlayerCommand(state, { type: 'load_kit', boatId: 'boat' }, 'player1', undefined, terrain)).toBe(true);
+    const spent = { ...state, playerResources: { ...state.playerResources, player1: { ...rich, wood: 10 } } };
+    expect(isAuthorizedPlayerCommand(spent, command, 'player1', undefined, terrain)).toBe(false);
+    expect(loadCargo(spent, 'boat', HOME, { wood: 150 }, localityOf)).toBeNull();
+    expect(isAuthorizedPlayerCommand(state, { type: 'load_cargo', boatId: 'boat', cargo: { wood: -5 } }, 'player1', undefined, terrain)).toBe(false);
+    expect(isAuthorizedPlayerCommand(state, { type: 'load_cargo', boatId: 'boat', cargo: { ouro: 5 } }, 'player1', undefined, terrain)).toBe(false);
+  });
+
+  it('dois donos carregando na mesma doca conservam quantidade e origem, sem vazar entre estoques', () => {
+    let state = twoOwners();
+    const total = () => state.playerResources.player1.wood + state.playerResources.player2.wood
+      + (state.units.find((u) => u.id === 'boat')!.cargo?.wood ?? 0) + (state.units.find((u) => u.id === 'boat2')!.cargo?.wood ?? 0);
+    expect(total()).toBe(420);
+    state = loadCargo(state, 'boat', HOME, { wood: 200 }, localityOf)!;
+    state = loadCargo(state, 'boat2', HOME, { wood: 100 }, localityOf)!;
+    expect(total()).toBe(420);
+    expect(state.playerResources.player1.wood).toBe(100);
+    expect(state.playerResources.player2.wood).toBe(20);
+    expect(loadCargo(state, 'boat2', HOME, { wood: 100 }, localityOf)).toBeNull(); // saldo do dono 2 acabou
+    expect(loadCargo(state, 'boat', HOME, { wood: 1 }, localityOf)).toBeNull(); // porão do dono 1 cheio
+    expect(total()).toBe(420);
+  });
+});

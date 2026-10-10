@@ -7,6 +7,7 @@ import { FOUNDATION_KIT, lifePhase } from './foundation';
 import { canTarget, type OwnerVision } from './visionAuthority';
 import { bodyOf, type BodyId } from './bodyModel';
 import { outpostSpacingReason } from './colonies';
+import { previewKit, previewLoad } from './colonialTransport';
 import { HOME, canPayAt, depotsIn, type LocalityResolver } from './depots';
 import { UNIT_COSTS, tradeResource, type MarketResourceType } from './economy';
 
@@ -77,6 +78,8 @@ export type NetworkCommand = CommandMetadata & (
   | { type: 'remove_resource'; resourceId: string }
   | { type: 'embark'; unitIds: string[]; boatId: string }
   | { type: 'disembark'; boatId: string }
+  | { type: 'load_cargo'; boatId: string; cargo: Partial<Record<'wood' | 'food' | 'gold' | 'stone' | 'planks', number>> }
+  | { type: 'load_kit'; boatId: string }
   | { type: 'trade'; resource: MarketResourceType; action: 'buy' | 'sell'; amount: number }
   | { type: 'found_capital'; wagonId: string; position: Position }
 );
@@ -202,6 +205,11 @@ export function isValidNetworkCommand(value: unknown, mapSize: number = MAP_LIMI
     case 'embark':
       return allowedKeys('unitIds', 'boatId') && isStringList(value.unitIds) && new Set(value.unitIds).size === value.unitIds.length && isId(value.boatId);
     case 'disembark':
+      return allowedKeys('boatId') && isId(value.boatId);
+    case 'load_cargo':
+      return allowedKeys('boatId', 'cargo') && isId(value.boatId) && isRecord(value.cargo)
+        && Object.entries(value.cargo).every(([key, amount]) => (RESOURCE_KEYS as readonly string[]).includes(key) && typeof amount === 'number' && Number.isInteger(amount) && amount >= 0 && amount <= 1000);
+    case 'load_kit':
       return allowedKeys('boatId') && isId(value.boatId);
     case 'found_capital':
       return allowedKeys('wagonId', 'position') && isId(value.wagonId) && isPosition(value.position);
@@ -378,6 +386,15 @@ export function isAuthorizedPlayerCommand(
         const unit = ownsUnit(state, unitId, owner);
         return Boolean(unit) && !isBoatUnit((unit as Unit).type);
       });
+    }
+    case 'load_cargo':
+    case 'load_kit': {
+      const boat = ownsUnit(state, value.boatId, owner);
+      if (!boat || !isBoatUnit(boat.type) || !terrain?.localityOf) return false;
+      const locality = terrain.localityOf(owner, boat.position);
+      return (value.type === 'load_kit'
+        ? previewKit(state, boat.id, locality, terrain.localityOf)
+        : previewLoad(state, boat.id, locality, value.cargo, terrain.localityOf)).ok;
     }
     case 'disembark': {
       const boat = ownsUnit(state, value.boatId, owner);

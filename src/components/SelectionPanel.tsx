@@ -12,7 +12,7 @@ import type { MultiplayerManager } from '../game/multiplayer';
 import { soundManager } from '../game/audio';
 import { canAfford, describeCost, UNIT_COSTS } from '../game/economy';
 import { REPAIR_HP_PER_TICK, REPAIR_WOOD_PER_HP } from '../game/simulation';
-import { boatCapacity } from '../game/navalTransport';
+import { holdOf, localityLabel, type DisembarkPreview, type LoadPreview } from '../game/colonialTransport';
 import { FoundationPanel, type CapitalSiteOption } from './FoundationPanel';
 
 interface ActiveWorkZone {
@@ -82,6 +82,11 @@ interface SelectionPanelProps {
   handleRepairBuilding(unitId: string, buildingId: string): void;
   handleDemolishBuilding(buildingId: string): void;
   handleDisembark(boatId: string): void;
+  /** Prévia (sem mutar) do carregamento: com `cargo`, carga; sem ele, o kit. */
+  holdPreview(boat: Unit, cargo?: Partial<Record<'wood' | 'food' | 'gold' | 'stone' | 'planks', number>>): LoadPreview;
+  disembarkPreview(boat: Unit): DisembarkPreview;
+  /** Confirma o carregamento: com `cargo`, carga; sem ele, o kit. O host revalida. */
+  handleLoadCargo(boatId: string, cargo?: Partial<Record<'wood' | 'food' | 'gold' | 'stone' | 'planks', number>>): void;
   getCapitalSites(wagon: Unit): CapitalSiteOption[];
   focusPoint(x: number, z: number): void;
   triggerNotification(message: string, type?: 'info' | 'success' | 'warning'): void;
@@ -104,7 +109,7 @@ export function SelectionPanel(props: SelectionPanelProps) {
     handleSetGroveHarvestMode, handleToggleResourceHarvestMode, handleClearForestCluster,
     handleAssignVillagersToResource, handleAssignSelectedSquadToResource, handleRemoveResourceImmediately,
     renderVillagerBuildCatalog, nearestVillagerToSelectedBuilding, handleRepairBuilding,
-    handleDemolishBuilding, handleDisembark, getCapitalSites, focusPoint, triggerNotification, multiRef, onPointerEnterUI, onPointerLeaveUI,
+    handleDemolishBuilding, handleDisembark, holdPreview, disembarkPreview, handleLoadCargo, getCapitalSites, focusPoint, triggerNotification, multiRef, onPointerEnterUI, onPointerLeaveUI,
   } = props;
   return (
     <>
@@ -423,6 +428,8 @@ export function SelectionPanel(props: SelectionPanelProps) {
                           ? 'Barco Mercante'
                           : selectedUnit.type === 'warship'
                           ? 'Barco de Guerra'
+                          : selectedUnit.type === 'colonial_transport'
+                          ? 'Transporte Colonial'
                           : selectedUnit.type === 'wagon'
                           ? 'Carroça de Fundação'
                           : 'Aldeão Construtor'}
@@ -464,32 +471,91 @@ export function SelectionPanel(props: SelectionPanelProps) {
                   />
                 )}
 
-                {isBoatUnit(selectedUnit.type) && (
-                  <div className="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between gap-2 text-xs">
-                    <span className="text-slate-400">
-                      Passageiros:{' '}
-                      <span className="text-amber-300 font-bold">
-                        {selectedUnit.passengers?.length ?? 0}/{boatCapacity(selectedUnit.type)}
-                      </span>
-                    </span>
-                    {(selectedUnit.passengers?.length ?? 0) > 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleDisembark(selectedUnit.id);
-                        }}
-                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
-                        title="Colocar os passageiros em terra firme proxima"
-                      >
-                        <Anchor className="w-3.5 h-3.5" /> Desembarcar
-                      </button>
-                    ) : (
-                      <span className="text-[10px] text-slate-400">
-                        {boatCapacity(selectedUnit.type) === 0 ? 'Não transporta' : 'Selecione unidades e clique com o botão direito no barco'}
-                      </span>
-                    )}
-                  </div>
-                )}
+                {isBoatUnit(selectedUnit.type) && (() => {
+                  const hold = holdOf(selectedUnit);
+                  const mine = selectedUnit.owner === playerSlot;
+                  const unload = mine ? disembarkPreview(selectedUnit) : null;
+                  const kitPreview = mine && hold.kind === 'colonial' ? holdPreview(selectedUnit) : null;
+                  const amounts: { key: 'wood' | 'food' | 'gold' | 'stone'; label: string }[] = [
+                    { key: 'wood', label: 'madeira' }, { key: 'food', label: 'comida' }, { key: 'gold', label: 'ouro' }, { key: 'stone', label: 'pedra' },
+                  ];
+                  return (
+                    <div className="mt-3 pt-2.5 border-t border-slate-800 space-y-2 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-400">
+                          Passageiros: <span className="text-amber-300 font-bold">{hold.passengers}/{hold.passengerCapacity}</span>
+                        </span>
+                        {hold.capacity > 0 && (
+                          <span className="text-slate-400" title={hold.kind === 'colonial' ? 'Transporte colonial: porão de 200' : 'Mercante: porão de 100 (125 com talento)'}>
+                            Porão: <span className="text-amber-300 font-bold">{hold.used}/{hold.capacity}</span>
+                            {hold.kitOnBoard ? ' · kit a bordo' : ''}
+                          </span>
+                        )}
+                      </div>
+                      {hold.capacity > 0 && selectedUnit.cargo && hold.cargo > 0 && (
+                        <div className="text-[11px] text-slate-300">
+                          Carga: {Object.entries(selectedUnit.cargo).filter(([, value]) => value > 0).map(([key, value]) => `${value} ${key}`).join(' · ')}
+                        </div>
+                      )}
+                      {mine && hold.capacity > 0 && (
+                        <div className="space-y-1.5">
+                          <div className="flex flex-wrap gap-1.5">
+                            {amounts.map(({ key, label }) => {
+                              const preview: LoadPreview = holdPreview(selectedUnit, { [key]: 50 });
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  disabled={!preview.ok}
+                                  onClick={() => handleLoadCargo(selectedUnit.id, { [key]: 50 })}
+                                  title={preview.ok ? `Carregar 50 de ${label} de ${localityLabel(preview.origin)}` : preview.reasons.join(' ')}
+                                  className={`px-2 py-1 rounded-lg text-[11px] font-semibold ${preview.ok ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
+                                >
+                                  +50 {label}
+                                </button>
+                              );
+                            })}
+                            {kitPreview && (
+                              <button
+                                type="button"
+                                disabled={!kitPreview.ok}
+                                onClick={() => handleLoadCargo(selectedUnit.id)}
+                                title={kitPreview.ok ? `Embarcar o kit (150 madeira + 50 pedra) de ${localityLabel(kitPreview.origin)}` : kitPreview.reasons.join(' ')}
+                                className={`px-2 py-1 rounded-lg text-[11px] font-semibold ${kitPreview.ok ? 'bg-amber-600 hover:bg-amber-500 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
+                              >
+                                Embarcar kit
+                              </button>
+                            )}
+                          </div>
+                          {(() => {
+                            const hint = kitPreview && !kitPreview.ok ? kitPreview : holdPreview(selectedUnit, { wood: 50 });
+                            return hint.ok ? null : <div className="text-[10px] text-slate-400">Origem: {localityLabel(hint.origin)}. {hint.reasons[0]}</div>;
+                          })()}
+                        </div>
+                      )}
+                      {mine && unload && (hold.passengers > 0 || hold.cargo > 0 || hold.kitOnBoard) ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] text-slate-400">
+                            {unload.ok ? `Destino: ${unload.destination}` : unload.reason}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={!unload.ok}
+                            onClick={() => { handleDisembark(selectedUnit.id); }}
+                            className={`px-3 py-1.5 rounded-xl text-white text-xs font-bold flex items-center gap-1.5 transition-colors ${unload.ok ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-slate-700 text-slate-400 cursor-not-allowed'}`}
+                            title={unload.ok ? 'Desembarcar um por vez em terra firme próxima' : unload.reason}
+                          >
+                            <Anchor className="w-3.5 h-3.5" /> Desembarcar
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-slate-400">
+                          {hold.passengerCapacity === 0 ? 'Não transporta' : 'Selecione unidades e clique com o botão direito no barco'}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Tactical Formation Selector */}
                 <div className="mt-3 pt-2.5 border-t border-slate-800 space-y-1.5">
