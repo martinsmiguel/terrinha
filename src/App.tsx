@@ -7,6 +7,8 @@ import { DEFAULT_BOT_PROFILE, type BotProfile } from './game/bots';
 import { creditAll, exploredSectorKeys } from './game/mastery';
 import { filterSnapshotFor } from './game/snapshotFilter';
 import { DeltaReceiver, DeltaSender, rulesRevisionOf } from './game/snapshotDelta';
+import { BatchModal } from './components/BatchModal';
+import { canUndoBatch, previewBatch, recordBatch, undoBatch, type BatchCommand, type BatchPreview, type BatchRecord } from './game/batchOrders';
 import { RulesPanel } from './components/RulesPanel';
 import { applyRules, canEditRules } from './game/rulesAdmin';
 import { TalentPanel } from './components/TalentPanel';
@@ -192,6 +194,8 @@ export default function App() {
   const [isTechPanelOpen, setIsTechPanelOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isTalentsOpen, setIsTalentsOpen] = useState(false);
+  const [pendingBatch, setPendingBatch] = useState<{ title: string; preview: BatchPreview } | null>(null);
+  const [batchRecord, setBatchRecord] = useState<BatchRecord | null>(null);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [flowSamples, setFlowSamples] = useState<FlowSample[]>([]);
   const [focusedIsland, setFocusedIsland] = useState<number | null>(null);
@@ -259,8 +263,13 @@ export default function App() {
         const first = gameStateRef.current.units.find((u) => u.id === ids[0]);
         if (first) engineRef.current?.setCameraTarget(first.position.x, first.position.z);
       }
+    } else if (entry.run.kind === 'order' && (role === 'host' || role === 'single')) {
+      // Lote com prévia: lista alvos, donos e efeitos com a MESMA autorização das ações individuais; só aplica ao confirmar.
+      const authorize = (command: BatchCommand) => isAuthorizedPlayerCommand(gameStateRef.current, command, playerSlot, hostVisionRef.current);
+      const preview = previewBatch(gameStateRef.current, entry.run.commands, authorize);
+      setPendingBatch({ title: entry.label, preview });
     } else if (entry.run.kind === 'order') {
-      // Cada comando passa pela mesma autorização do host; recusas aparecem como aviso, nada é dado como executado sem efeito.
+      // Convidado: sem desfazer (o host é quem aplica); cada comando passa pela mesma autorização do host.
       const before = JSON.stringify(gameStateRef.current.units.map((u) => [u.id, u.state, u.targetEntityId]));
       entry.run.commands.forEach((command) => handleIncomingCommand(command));
       window.setTimeout(() => {
@@ -1575,6 +1584,7 @@ export default function App() {
   if (showTutorial) openOverlays.add('tutorial');
   if (isPaletteOpen) openOverlays.add('palette');
   if (isTalentsOpen) openOverlays.add('talents');
+  if (pendingBatch) openOverlays.add('batch');
   if (isRulesOpen) openOverlays.add('rules');
   overlayOrderRef.current = syncOverlayOrder(overlayOrderRef.current, openOverlays);
   const overlayOrder = overlayOrderRef.current;
@@ -1612,6 +1622,7 @@ export default function App() {
           else if (action.overlay === 'controls') setShowControlsModal(false);
           else if (action.overlay === 'palette') setIsPaletteOpen(false);
           else if (action.overlay === 'talents') setIsTalentsOpen(false);
+          else if (action.overlay === 'batch') setPendingBatch(null);
           else if (action.overlay === 'rules') setIsRulesOpen(false);
           else closeTutorial();
           break;
@@ -3361,6 +3372,40 @@ export default function App() {
             triggerNotification(applied.changes.length === 0 ? 'Nenhuma mudança de regra.' : `Regras aplicadas (revisão ${applied.revision}): ${applied.changes.length} mudança(s). Vida das unidades manteve a fração.`, 'success');
           }}
         />
+      )}
+
+      {pendingBatch && (
+        <BatchModal
+          title={pendingBatch.title}
+          preview={pendingBatch.preview}
+          onCancel={() => setPendingBatch(null)}
+          onConfirm={() => {
+            const { preview } = pendingBatch;
+            setBatchRecord(recordBatch(gameStateRef.current, preview, gameStateRef.current.elapsed ?? 0));
+            preview.commands.forEach((command) => handleIncomingCommand(command));
+            setPendingBatch(null);
+            triggerNotification(`Lote aplicado: ${preview.commands.length} ordem(ns). O desfazer vale por 60 s.`, 'success');
+          }}
+        />
+      )}
+
+      {batchRecord && canUndoBatch(batchRecord, gameState.elapsed ?? 0) && (
+        <div className="pointer-events-auto absolute bottom-24 right-3 z-30 flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950/90 px-3 py-1.5 text-[11px] text-slate-200">
+          <span>Lote de {batchRecord.prior.length} ordem(ns)</span>
+          <button
+            type="button"
+            className="rounded bg-amber-700 px-2 py-0.5 font-semibold text-white hover:bg-amber-600"
+            onClick={() => {
+              const result = undoBatch(gameStateRef.current, batchRecord);
+              setGameState((prev) => undoBatch(prev, batchRecord).state);
+              setBatchRecord(null);
+              triggerNotification(`Desfeito: ${result.reverted.length}. ${result.conflicts.length > 0 ? `Conflitos: ${result.conflicts.length} (${result.conflicts[0].reason}).` : ''}`, result.conflicts.length > 0 ? 'warning' : 'success');
+            }}
+          >
+            Desfazer lote
+          </button>
+          <button type="button" aria-label="Dispensar" className="px-1 text-slate-400 hover:text-white" onClick={() => setBatchRecord(null)}>×</button>
+        </div>
       )}
 
       {isTalentsOpen && (
