@@ -77,6 +77,7 @@ import {
 import { FACTION_COLORS } from './game/factions';
 import { pickFrontMostCandidate, resolveClickSelection } from './game/entitySelection';
 import { applyEmbarkOrder, boatCapacity } from './game/navalTransport';
+import { flowRows, pushSample, sampleFlows, type FlowSample } from './game/flows';
 import { RELIC_REACH, applyRelicAction, checkRelicAction, generateRelics } from './game/mysticism';
 import { isExploredBy } from './game/visionAuthority';
 import { buyTalent, effectiveBuildCost, talentById } from './game/talents';
@@ -185,6 +186,7 @@ export default function App() {
   const [isTechPanelOpen, setIsTechPanelOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isTalentsOpen, setIsTalentsOpen] = useState(false);
+  const [flowSamples, setFlowSamples] = useState<FlowSample[]>([]);
   const [focusedIsland, setFocusedIsland] = useState<number | null>(null);
   const [showWorkZones3D, setShowWorkZones3D] = useState(true);
   const [isStrictZoneLeash, setIsStrictZoneLeash] = useState(true);
@@ -327,6 +329,11 @@ export default function App() {
       player4: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 3, maxPop: 15 },
     },
   });
+
+  // Fluxo líquido por minuto: amostra o estado real a cada segundo simulado (janela de 60 s).
+  useEffect(() => {
+    setFlowSamples((previous) => pushSample(previous, sampleFlows(gameState, playerSlot)));
+  }, [gameState.elapsed, role, playerSlot]);
 
   // O host envia a cada convidado o snapshot filtrado pela visão dele (nunca o mundo inteiro).
   useEffect(() => {
@@ -3279,6 +3286,7 @@ export default function App() {
           canRedo={hud.canRedo}
           onTogglePanel={() => hud.setPanelOpen((prev) => !prev)}
           onOpenTalents={() => setIsTalentsOpen(true)}
+          flows={flowRows(flowSamples)}
           relics={(gameState.relics ?? []).filter((relic) => isExploredAt(visionGridRef.current, Math.round(relic.position.x), Math.round(relic.position.z))).map((relic) => {
             const action = relic.kind === 'plant' ? 'harvest' : 'restore';
             const near = gameState.units.find((u) => u.owner === playerSlot && u.type === 'villager' && u.health > 0 && Math.hypot(u.position.x - relic.position.x, u.position.z - relic.position.z) <= RELIC_REACH);
