@@ -32,14 +32,17 @@ function blockedFor(type: UnitType, map: SimulationMap): (x: number, z: number) 
   return map.canStandAt ? (x, z) => !map.canStandAt!(body, x, z) : (x, z) => map.isImpassableAt(x, z);
 }
 
-/** Custo de travessia para a rota (o raso custa mais que a terra seca); `undefined` sem superfície com profundidade. */
-function costFor(type: UnitType, map: SimulationMap): ((x: number, z: number) => number) | undefined {
-  if (!map.surfaceAt) return undefined;
+/**
+ * Peso único de cada célula para a rota: `Infinity` quando bloqueada e o custo de travessia quando livre (o raso custa
+ * mais que a terra seca). Uma só consulta à superfície por célula; sem superfície com profundidade, vale a regra legada.
+ */
+function weightFor(type: UnitType, map: SimulationMap): (x: number, z: number) => number {
   const body = bodyOf(type);
-  return (x, z) => {
-    const cost = moveCost(map.surfaceAt!(x, z), body);
-    return Number.isFinite(cost) ? cost : 1;
-  };
+  if (map.surfaceAt && (body === 'boat' ? Boolean(map.isNavigableAt) : Boolean(map.canStandAt))) {
+    return (x, z) => moveCost(map.surfaceAt!(x, z), body);
+  }
+  const blocked = blockedFor(type, map);
+  return (x, z) => (blocked(x, z) ? Number.POSITIVE_INFINITY : 1);
 }
 
 export interface SimulationBuildingDefinition {
@@ -132,11 +135,11 @@ function findNearbyResource(
 function routeFrom(
   from: { x: number; z: number },
   goal: { x: number; z: number },
-  isBlocked: (x: number, z: number) => boolean,
-  mapSize: number,
-  cost?: (x: number, z: number) => number
+  weight: (x: number, z: number) => number,
+  mapSize: number
 ): { x: number; z: number }[] {
-  const options = { mapSize, maxExpanded: 2400, cost };
+  const isBlocked = (x: number, z: number) => !Number.isFinite(weight(x, z));
+  const options = { mapSize, maxExpanded: 2400, weight };
   const direct = findPath(from, goal, isBlocked, options);
   if (direct.length > 0) return direct;
   const cellX = Math.floor(from.x);
@@ -224,7 +227,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     }
 
     const pathFor = (from: { x: number; z: number }) =>
-      routeFrom(from, goal, blockedFor(unit.type, pMap), mapSize, costFor(unit.type, pMap));
+      routeFrom(from, goal, weightFor(unit.type, pMap), mapSize);
     if (!cached || cached.goal.x !== goal.x || cached.goal.z !== goal.z) {
       storeRoute(unit.id, goal, pathFor(unit.position));
     }
@@ -253,7 +256,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       let heading = goal;
       if (pMap) {
         const pathFor = (from: { x: number; z: number }) =>
-          routeFrom(from, goal, blockedFor(unit.type, pMap), mapSize, costFor(unit.type, pMap));
+          routeFrom(from, goal, weightFor(unit.type, pMap), mapSize);
 
         const cached = cachedRoute(unit.id);
         if (!cached || cached.goal.x !== goal.x || cached.goal.z !== goal.z) {
@@ -796,9 +799,11 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
             if (distanceToHuman > 26) return;
             const pathExists =
               !pMap ||
-              findPath(aiUnit.position, goal, (x, z) => pMap.isImpassableAt(x, z), {
+              // A IA consulta a mesma superfície dos corpos que o jogador: o vau e o custo do raso valem para ela também.
+              findPath(aiUnit.position, goal, blockedFor(aiUnit.type, pMap), {
                 mapSize,
                 maxExpanded: 800,
+                weight: weightFor(aiUnit.type, pMap),
               }).length > 0;
             if (pathExists) {
               aiUnit.targetPosition = goal;

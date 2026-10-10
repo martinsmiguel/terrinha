@@ -261,3 +261,65 @@ describe('revisão da superfície: cache e acomodação', () => {
     expect(result.units.find((unit) => unit.id === 'human')).toBe(human);
   });
 });
+
+describe('empurrão, desembarque, treino e rota parcial respeitam o corpo', () => {
+  it('a separação nunca empurra a carroça para água mais funda que o seu vau, nem o barco para o raso de costa', () => {
+    const map = generateProceduralTerrain(60, 52723);
+    // Acha a beira de um raso de costa: células secas vizinhas de oceano com 0,4 a 0,7 de fundo.
+    let cell: { x: number; z: number } | null = null;
+    for (let x = 1; x < 59 && !cell; x += 0.5) {
+      for (let z = 1; z < 59 && !cell; z += 0.5) {
+        const here = map.surfaceAt(x, z);
+        const east = map.surfaceAt(x + 1, z);
+        if (here.water === 'none' && east.water === 'ocean' && east.depth > 0.4) cell = { x, z };
+      }
+    }
+    expect(cell).not.toBeNull();
+    const cart: Unit = { id: 'cart', type: 'wagon', owner: 'player1', position: { x: cell!.x, z: cell!.z }, targetPosition: null, targetEntityId: null, health: 300, maxHealth: 300, attackDamage: 0, state: 'idle' };
+    const crowd: Unit[] = [cart, ...[1, 2, 3, 4].map((n): Unit => ({ ...cart, id: `v${n}`, type: 'villager', position: { x: cell!.x + 0.1 * n, z: cell!.z + 0.1 * n } }))];
+    let state: GameState = { units: crowd, buildings: [], resourceNodes: [], playerResources: { player1: { wood: 0, food: 0, gold: 0, stone: 0, planks: 0, pop: 5, maxPop: 9 } } };
+    const ctx: SimulationContext = { playerSlot: 'player1', mode: 'host', map, pathCache: new Map(), gatherRadiusLimit: 14, sustainableForestryEnabled: false, buildingDefinitions: {}, random: () => 0.5, createId: () => 'x' };
+    for (let tick = 0; tick < 200; tick += 1) state = tickGameState(state, ctx).state;
+    for (const unit of state.units) expect(map.canStandAt(unit.type === 'wagon' ? 'cart' : 'human', unit.position.x, unit.position.z), unit.id).toBe(true);
+  });
+
+  it('toda rota (inclusive parcial) só passa por células em que o corpo pode estar', () => {
+    const map = generateProceduralTerrain(60, 91570);
+    for (const body of BODY_IDS) {
+      const standable: { x: number; z: number }[] = [];
+      for (let x = 1; x < 59; x += 2) for (let z = 1; z < 59; z += 2) if (map.canStandAt(body, x + 0.5, z + 0.5)) standable.push({ x: x + 0.5, z: z + 0.5 });
+      const blocked = (x: number, z: number) => !map.canStandAt(body, x, z);
+      for (const budget of [30, 4000]) {
+        const path = findPath(standable[0], standable[standable.length - 1], blocked, { mapSize: 60, maxExpanded: budget });
+        for (const point of path) expect(map.canStandAt(body, point.x, point.z), `${body} orçamento ${budget}`).toBe(true);
+      }
+    }
+  });
+
+  it('o barco nasce só em água navegável perto do cais e o desembarque coloca passageiros em terra firme', async () => {
+    const { disembarkPassengers } = await import('../../src/game/navalTransport');
+    const map = generateProceduralTerrain(60, 52723);
+    let coast: { x: number; z: number } | null = null;
+    for (let x = 2; x < 58 && !coast; x += 0.5) for (let z = 2; z < 58 && !coast; z += 0.5) if (map.isNavigableAt(x, z) && map.surfaceAt(x + 3, z).water === 'none') coast = { x, z };
+    expect(coast).not.toBeNull();
+    const passenger: Unit = { id: 'p', type: 'villager', owner: 'player1', position: { x: 0, z: 0 }, targetPosition: null, targetEntityId: null, health: 100, maxHealth: 100, attackDamage: 5, state: 'idle' };
+    const boat: Unit = { ...passenger, id: 'b', type: 'trade_boat', position: coast!, passengers: [passenger, { ...passenger, id: 'p2' }] };
+    const result = disembarkPassengers({ units: [boat], buildings: [], resourceNodes: [], playerResources: {} }, 'b', map);
+    expect(result.placed.length).toBeGreaterThan(0);
+    for (const unit of result.placed) expect(map.surfaceAt(unit.position.x, unit.position.z).water).toBe('none');
+  });
+
+  it('variável ao vivo nos dois sentidos: aumentar o vau não move ninguém; reduzi-lo acomoda sem matar', () => {
+    const wade = (limit: number): StepTerrain => ({ isImpassableAt: () => false, isOceanAt: () => false, canStandAt: (_b, x) => (x >= 10 && x < 14 ? 0.6 <= limit : true) });
+    const units = [11.5, 12.5, 13.5].map((x, i) => ({ id: `u${i}`, type: 'villager' as UnitType, position: { x, z: 20.5 }, state: 'idle', targetPosition: null, targetEntityId: null, health: 100 }));
+    const wider = settleUnits(units, wade(0.81)); // com 0,81 todos estão em água de 0,6 vadeável
+    expect(wider.moved).toEqual([]);
+    expect(wider.units).toEqual(units);
+    const narrower = settleUnits(units, wade(0.3));
+    expect(narrower.moved.length).toBe(3);
+    expect(narrower.units.every((unit) => unit.health === 100)).toBe(true);
+    expect(narrower.units.every((unit) => wade(0.3).canStandAt!('human', unit.position.x, unit.position.z))).toBe(true);
+    expect(settleUnits(narrower.units, wade(0.81)).moved).toEqual([]); // voltar a 0,81 é seguro: ninguém é deslocado de novo
+  });
+});
+
