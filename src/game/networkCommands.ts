@@ -4,6 +4,7 @@ import { UNIT_ATTRIBUTES } from './unitAttributes';
 import { BUILDING_CATALOG } from './buildingCatalog';
 import { researchBlock } from './tech';
 import { FOUNDATION_KIT, lifePhase } from './foundation';
+import { canTarget, type OwnerVision } from './visionAuthority';
 import { UNIT_COSTS, tradeResource, type MarketResourceType } from './economy';
 
 export const PLAYER_SLOTS = ['player1', 'player2', 'player3', 'player4'] as const;
@@ -236,10 +237,16 @@ function canAffordTraining(state: GameState, building: Building, unitType: Train
   return canAffordResources(resources, UNIT_COSTS[unitType]);
 }
 
+/**
+ * Autoriza um comando de jogador no host. Com `vision` (visão autoritativa por dono), o jogador só pode escolher como
+ * alvo o que conhece: inimigos visíveis agora, recursos e terreno de construção já explorados. Sem `vision`, só vale a
+ * posse e as demais regras.
+ */
 export function isAuthorizedPlayerCommand(
   state: GameState,
   value: unknown,
-  owner: PlayerSlot
+  owner: PlayerSlot,
+  vision?: OwnerVision
 ): value is NetworkCommand {
   if (!isValidNetworkCommand(value, worldSizeOf(state))) return false;
 
@@ -249,7 +256,8 @@ export function isAuthorizedPlayerCommand(
       return (
         ownsUnit(state, value.wagonId, owner)?.type === 'wagon' &&
         lifePhase(owner, state.buildings, state.units) === 'arriving' &&
-        Boolean(kit && kit.wood >= FOUNDATION_KIT.wood && kit.stone >= FOUNDATION_KIT.stone)
+        Boolean(kit && kit.wood >= FOUNDATION_KIT.wood && kit.stone >= FOUNDATION_KIT.stone) &&
+        canTarget(vision, owner, { position: value.position }, 'explored')
       );
     }
     case 'move':
@@ -258,6 +266,7 @@ export function isAuthorizedPlayerCommand(
       const unit = ownsUnit(state, value.unitId, owner);
       const node = state.resourceNodes.find((resource) => resource.id === value.targetId && resource.remaining > 0);
       if (!unit || !node) return false;
+      if (!canTarget(vision, owner, node, 'explored')) return false;
       return unit.type === 'villager'
         ? node.type !== 'fish_school'
         : unit.type === 'fishing_boat' && node.type === 'fish_school';
@@ -276,9 +285,13 @@ export function isAuthorizedPlayerCommand(
       const targetBuilding = state.buildings.find((building) => building.id === targetId);
       // Barcos so enfrentam embarcacoes inimigas: nunca encostam em terra.
       if (isBoatUnit(attacker.type)) {
-        return Boolean(targetUnit && targetUnit.owner !== owner && isBoatUnit(targetUnit.type));
+        return Boolean(targetUnit && targetUnit.owner !== owner && isBoatUnit(targetUnit.type) && canTarget(vision, owner, targetUnit, 'visible'));
       }
-      return Boolean((targetUnit && targetUnit.owner !== owner) || (targetBuilding && targetBuilding.owner !== owner));
+      // Unidade inimiga: só enquanto visível. Edifício inimigo: basta já ter sido explorado (a posição não muda).
+      return Boolean(
+        (targetUnit && targetUnit.owner !== owner && canTarget(vision, owner, targetUnit, 'visible')) ||
+        (targetBuilding && targetBuilding.owner !== owner && canTarget(vision, owner, targetBuilding, 'explored'))
+      );
     }
     case 'build_order': {
       const unit = ownsUnit(state, value.unitId, owner);
@@ -290,6 +303,7 @@ export function isAuthorizedPlayerCommand(
       const def = BUILDING_CATALOG[value.buildingType];
       const resources = state.playerResources[owner];
       if (!def || !resources || !canAffordResources(resources, def.cost)) return false;
+      if (!canTarget(vision, owner, { position: value.position }, 'explored')) return false;
       return (value.builderIds || []).every((id) => ownsUnit(state, id, owner)?.type === 'villager');
     }
     case 'train': {

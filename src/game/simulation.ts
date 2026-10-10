@@ -11,6 +11,7 @@ import { advanceResearch, gatherMultiplier, TECH_DEFS, unitDamageMultiplier } fr
 import type { TechState } from './tech';
 import { evaluateMatch } from './victory';
 import { advanceFoundation, clearEliminatedOrders, lifePhase } from './foundation';
+import { canTarget, type OwnerVision } from './visionAuthority';
 import { UNIT_ATTRIBUTES, effectiveAttribute, unitAttribute, type RuleSettings } from './unitAttributes';
 
 export interface SimulationMap {
@@ -33,6 +34,8 @@ export type SimulationPathCache = Map<string, SimulationPath>;
 
 export interface SimulationContext {
   ruleSettings?: RuleSettings;
+  /** Visão e exploração por dono, mantidas no host. Sem ela, nenhum alvo é filtrado por visão. */
+  vision?: OwnerVision;
   playerSlot: string;
   mode: 'host' | 'single';
   map?: SimulationMap;
@@ -71,10 +74,12 @@ function findNearbyResource(
   targetNode: GameState['resourceNodes'][number] | undefined,
   resourceType: GameState['resourceNodes'][number]['type'],
   anchor: { x: number; z: number },
-  maxRadius: number
+  maxRadius: number,
+  knows: (node: GameState['resourceNodes'][number]) => boolean = () => true
 ) {
   return nodes
     .filter((node) =>
+      knows(node) &&
       node.type === resourceType &&
       node.id !== targetNode?.id &&
       node.remaining > 0 &&
@@ -318,7 +323,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
 
           const maxRadius = unit.gatherRadiusLimit || context.gatherRadiusLimit || 18;
           const anchor = unit.gatherOrigin || targetNode.position || unit.position;
-          const nextTarget = findNearbyResource(updatedNodes, unit, targetNode, targetNode.type, anchor, maxRadius);
+          const nextTarget = findNearbyResource(updatedNodes, unit, targetNode, targetNode.type, anchor, maxRadius, (node) => canTarget(context.vision, unit.owner, node, 'explored'));
 
           if (nextTarget) {
             if (isSustainableTree) nextTarget.harvestMode = 'sustainable';
@@ -355,7 +360,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
 
       const maxRadius = unit.gatherRadiusLimit || context.gatherRadiusLimit || 14;
       const anchor = unit.gatherOrigin || targetNode?.position || unit.position;
-      const nextTarget = findNearbyResource(updatedNodes, unit, targetNode, resType, anchor, maxRadius);
+      const nextTarget = findNearbyResource(updatedNodes, unit, targetNode, resType, anchor, maxRadius, (node) => canTarget(context.vision, unit.owner, node, 'explored'));
 
       if (nextTarget) {
         if (isSustainableTree) nextTarget.harvestMode = 'sustainable';
@@ -387,6 +392,11 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       const targetEnemy = updatedUnits.find((candidate) => candidate.id === unit.targetEntityId);
       const targetBuilding = !targetEnemy ? updatedBuildings.find((b) => b.id === unit.targetEntityId) ?? null : null;
       const target = targetEnemy || targetBuilding;
+
+      // Alvo inimigo fora de vista: a perseguição acaba. Unidade exige visão atual; edifício, só exploração.
+      if (target && target.owner !== unit.owner && !canTarget(context.vision, unit.owner, target, targetEnemy ? 'visible' : 'explored')) {
+        return { ...unit, state: 'idle' as const, targetEntityId: null, targetPosition: null };
+      }
 
       if (target && target.health > 0) {
         const dx = target.position.x - unit.position.x;
@@ -592,6 +602,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     let nearestDist = 12;
     for (const enemy of updatedUnits) {
       if (enemy.owner === building.owner || enemy.health <= 0) continue;
+      if (!canTarget(context.vision, building.owner, enemy, 'visible')) continue;
       const dist = Math.hypot(enemy.position.x - building.position.x, enemy.position.z - building.position.z);
       if (dist < nearestDist) {
         nearestDist = dist;
@@ -660,6 +671,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
           let nearestDistance = Infinity;
           for (const node of updatedNodes) {
             if (node.type !== 'tree') continue;
+            if (!canTarget(context.vision, aiSlot, node, 'explored')) continue;
             const distanceToTc = Math.hypot(node.position.x - aiTc.position.x, node.position.z - aiTc.position.z);
             if (distanceToTc <= 18 && distanceToTc < nearestDistance) {
               nearestDistance = distanceToTc;
@@ -682,7 +694,8 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
           const humanTc = updatedBuildings.find(
             (building) => building.owner === playerSlot && building.type === 'town_center'
           );
-          if (humanTc) {
+          // A IA só marcha contra o que já descobriu.
+          if (humanTc && canTarget(context.vision, aiSlot, humanTc, 'explored')) {
             const goal = { x: humanTc.position.x + 2, z: humanTc.position.z + 2 };
             const distanceToHuman = Math.hypot(goal.x - aiUnit.position.x, goal.z - aiUnit.position.z);
             if (distanceToHuman > 26) return;
