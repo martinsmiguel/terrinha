@@ -68,6 +68,10 @@ export interface ProceduralMapResult {
   economy: EconomyVerdict[];
   /** Fertilidade das fazendas na posição, pelo perfil declarado da ilha (0 no oceano e fora de ilhas). */
   fertilityAt: (x: number, z: number) => number;
+  /** Motivos pelos quais este mundo foi considerado inviável (vazio quando viável). */
+  viabilityReasons: string[];
+  /** Sementes puladas antes desta, com o motivo de cada rejeição. */
+  rejectedSeeds: { seed: number; reasons: string[] }[];
   /** O mundo passou nas provas e todo nascedouro tem sítios suficientes. */
   viable: boolean;
   /** Sementes tentadas até achar um mundo viável (a semente usada está em `seed`). */
@@ -94,13 +98,17 @@ const PROFILE_PALETTES: Record<
 export function generateProceduralTerrain(mapSize: number = 60, seed?: number): ProceduralMapResult {
   const start = seed ?? Math.floor(Math.random() * 100000);
   let last: ProceduralMapResult | null = null;
+  const rejected: { seed: number; reasons: string[] }[] = [];
   for (let attempt = 0; attempt < MAX_SEED_ATTEMPTS; attempt += 1) {
     const candidate = buildProceduralTerrain(mapSize, start + attempt * SEED_STEP);
     assessViability(candidate);
     candidate.seedAttempts = attempt + 1;
+    candidate.rejectedSeeds = [...rejected];
     if (candidate.viable) return candidate;
+    rejected.push({ seed: candidate.seed, reasons: candidate.viabilityReasons });
     last = candidate;
   }
+  last!.rejectedSeeds = rejected.slice(0, -1);
   return last!;
 }
 
@@ -139,11 +147,15 @@ function assessViability(map: ProceduralMapResult): void {
   map.economy = [0, 1, 2, 3].map((index) =>
     evaluateNativeEconomy(map.resourceNodes.filter((node) => new RegExp(`^(?:tree|gold-mine|stone|food-bush|fish)-${index}-`).test(node.id)))
   );
-  map.viable =
-    proof.viable &&
-    capitalSites.every((count) => count >= CAPITAL_MIN_SITES) &&
-    immediateExpansion.every((cells) => cells >= 25) &&
-    map.economy.every((verdict) => verdict.viable);
+  const reasons: string[] = [];
+  proof.islands.forEach((island) => {
+    for (const [check, ok] of Object.entries(island.checks)) if (!ok) reasons.push(`natal ${island.island}: prova de ${check}`);
+  });
+  capitalSites.forEach((count, i) => { if (count < CAPITAL_MIN_SITES) reasons.push(`natal ${i}: ${count} sítios de capital`); });
+  immediateExpansion.forEach((cells, i) => { if (cells < 25) reasons.push(`natal ${i}: expansão imediata ${cells} < 25`); });
+  map.economy.forEach((verdict, i) => { if (!verdict.viable) reasons.push(`natal ${i}: economia sem ${verdict.missing.join(', ')}`); });
+  map.viabilityReasons = reasons;
+  map.viable = reasons.length === 0;
 }
 
 function buildProceduralTerrain(mapSize: number, actualSeed: number): ProceduralMapResult {
@@ -548,6 +560,8 @@ function buildProceduralTerrain(mapSize: number, actualSeed: number): Procedural
     isImpassableAt,
     proof: { islands: [], viable: false },
     economy: [],
+    viabilityReasons: [],
+    rejectedSeeds: [],
     fertilityAt: (x, z) => {
       const island = calculateElevationData(x, z).island;
       return island ? fertilityOf(island.profile, island.kind) : 0;
