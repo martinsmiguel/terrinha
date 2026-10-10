@@ -6,6 +6,8 @@ import {
 import type { ChatMessage } from '../game/multiplayer';
 import { soundManager } from '../game/audio';
 import { useDialogFocus } from '../hooks/useDialogFocus';
+import type { HudAccessibility } from '../game/hudAccessibility';
+import { AccessibilityPanel } from './AccessibilityPanel';
 
 interface ActiveWorkZone {
   id: string;
@@ -37,6 +39,7 @@ interface GameDialogsProps {
   onSendChat(event: FormEvent): void;
   onOpenTutorial(): void;
   showControlsModal: boolean;
+  accessibility: { settings: HudAccessibility; appliedScale: number; update(change: (current: HudAccessibility) => HudAccessibility): void; reset(): void };
   setShowControlsModal: Dispatch<SetStateAction<boolean>>;
   isWorkZoneModalOpen: boolean;
   setIsWorkZoneModalOpen: Dispatch<SetStateAction<boolean>>;
@@ -55,6 +58,7 @@ interface GameDialogsProps {
 }
 
 export function GameDialogs({
+  accessibility,
   isHudVisible, isChatOpen, setIsChatOpen, chatMessages, currentChatInput, setCurrentChatInput, onSendChat,
   onOpenTutorial,
   showControlsModal, setShowControlsModal, isWorkZoneModalOpen, setIsWorkZoneModalOpen,
@@ -197,6 +201,8 @@ export function GameDialogs({
                   <li>• <strong className="text-slate-200">Trabalho em Equipe</strong>: Múltiplos aldeões na mesma obra aceleram o tempo!</li>
                 </ul>
               </div>
+
+              <AccessibilityPanel settings={accessibility.settings} appliedScale={accessibility.appliedScale} onChange={accessibility.update} onReset={accessibility.reset} />
             </div>
 
             <div className="flex gap-2">

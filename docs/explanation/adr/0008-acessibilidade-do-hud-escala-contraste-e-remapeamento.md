@@ -47,3 +47,15 @@ em três viewports.
   AA de 24 px); ampliar a área de toque entra com a avaliação em dispositivo real.
 - Os quatro adiamentos precisam de card próprio antes do aceite do #59; este ADR
   não os fecha.
+
+## Atualização — card [#115](https://github.com/martinsmiguel/terrinha/issues/115)
+
+Os quatro adiamentos foram implementados; medições e limites em `docs/evidence/card-115/README.md`.
+
+| Item | Resultado |
+| --- | --- |
+| Escala 75-200% | Entregue. A escala aplicada é limitada pela largura da tela (375 px: até 100%; 414 px: até 110%) para o layout não vazar. |
+| Contraste AAA | Padrão permanece AA; AAA é o modo opcional "Alto contraste", medido a 7:1 ou mais nos fundos usados. |
+| Daltonismo | Três perfis por filtro de correção, validados por simulação (ΔE). Sem avaliação com pessoas daltônicas. |
+| Remapeamento | Entregue sobre `hotkeys.ts`, com validação de conflito e persistência local. |
+| Alvos de toque 44 px | Área clicável ampliada por pseudo-elemento; botões colados dividem a área. Sem teste em dispositivo físico. |
