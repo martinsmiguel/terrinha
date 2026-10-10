@@ -142,3 +142,12 @@ export function createStartingForce(owner: string, arrival: Point, createId: () 
     newUnit(createId(), 'soldier', owner, { x: arrival.x + 2.5, z: arrival.z - 1.5 }),
   ];
 }
+
+/** Ponto de referência da base do jogador: a capital, senão a carroça, senão qualquer unidade. */
+export function homeAnchor(owner: string, buildings: readonly Building[], units: readonly Unit[]): Point | null {
+  const capital = buildings.find((building) => building.owner === owner && building.type === 'town_center' && building.health > 0);
+  if (capital) return { x: capital.position.x, z: capital.position.z };
+  const own = units.filter((unit) => unit.owner === owner && unit.health > 0);
+  const wagon = own.find((unit) => unit.type === 'wagon') ?? own[0];
+  return wagon ? { x: wagon.position.x, z: wagon.position.z } : null;
+}

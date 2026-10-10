@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Building, GameState, Unit } from '../../src/game/model';
 import {
-  CAPITAL_BUILD_SECONDS, CAPITAL_MAX_HEALTH, FOUNDATION_KIT, advanceFoundation, createStartingForce, findCapitalSites, foundCapital, lifePhase,
+  CAPITAL_BUILD_SECONDS, CAPITAL_MAX_HEALTH, FOUNDATION_KIT, advanceFoundation, createStartingForce, findCapitalSites, foundCapital, homeAnchor, lifePhase,
 } from '../../src/game/foundation';
 import { evaluateMatch, localOutcome } from '../../src/game/victory';
 import { UNIT_ATTRIBUTES } from '../../src/game/unitAttributes';
@@ -173,5 +173,14 @@ describe('createStartingForce', () => {
     expect(force.every((unit) => unit.owner === 'player3' && unit.health === unit.maxHealth)).toBe(true);
     expect(new Set(force.map((unit) => unit.id)).size).toBe(4);
     expect(lifePhase('player3', [], force)).toBe('arriving');
+  });
+});
+
+describe('homeAnchor', () => {
+  it('prefere a capital, depois a carroça e por fim qualquer unidade viva', () => {
+    expect(homeAnchor('player1', [capital('player1')], [wagon('player1')])).toEqual({ x: 12, z: 12 });
+    expect(homeAnchor('player1', [], [wagon('player1')])).toEqual({ x: 10, z: 10 });
+    expect(homeAnchor('player1', [], [wagon('player1', { health: 0 }), wagon('player1', { id: 'v', type: 'villager', position: { x: 4, z: 5 } })])).toEqual({ x: 4, z: 5 });
+    expect(homeAnchor('player2', [capital('player1')], [wagon('player1')])).toBeNull();
   });
 });
