@@ -16,5 +16,34 @@ export default defineConfig(() => {
         '@': path.resolve('.'),
       },
     },
+    test: {
+      projects: [
+        {
+          extends: true,
+          test: {
+            name: 'unit',
+            include: ['tests/unit/**/*.test.ts'],
+            // Testes que geram mundos procedurais passam isolados mas estouram os 5 s padrão sob carga.
+            testTimeout: 30_000,
+          },
+        },
+        {
+          extends: true,
+          test: {
+            name: 'integration',
+            include: ['tests/integration/**/*.test.ts'],
+          },
+        },
+        {
+          extends: true,
+          test: {
+            name: 'perf',
+            include: ['tests/perf/**/*.test.ts'],
+            // O orçamento de 50 ms por tick mede tempo real: roda depois dos demais, sem disputar CPU com eles.
+            sequence: { groupOrder: 1 },
+          },
+        },
+      ],
+    },
   };
 });
