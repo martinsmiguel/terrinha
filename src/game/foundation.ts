@@ -26,8 +26,9 @@ const isCapital = (building: Building, owner: string) =>
 export function lifePhase(owner: string, buildings: readonly Building[], units: readonly Unit[]): LifePhase {
   const capital = buildings.find((building) => isCapital(building, owner));
   if (capital) return capital.isComplete ? 'active' : 'founding';
-  const hasWagon = units.some((unit) => unit.owner === owner && unit.type === 'wagon' && unit.health > 0);
-  return hasWagon ? 'arriving' : 'eliminated';
+  const isLiveWagon = (unit: Unit): boolean =>
+    (unit.owner === owner && unit.type === 'wagon' && unit.health > 0) || (unit.passengers ?? []).some(isLiveWagon);
+  return units.some(isLiveWagon) ? 'arriving' : 'eliminated';
 }
 
 /** Posições de sede viáveis ao redor de `origin`, distintas entre si e ordenadas por proximidade. */

@@ -10,6 +10,7 @@ import { applyPopDelta, countDeathsByOwner } from './population';
 import { advanceResearch, gatherMultiplier, TECH_DEFS, unitDamageMultiplier } from './tech';
 import type { TechState } from './tech';
 import { evaluateMatch } from './victory';
+import { advanceFoundation } from './foundation';
 import { UNIT_ATTRIBUTES, effectiveAttribute, unitAttribute, type RuleSettings } from './unitAttributes';
 
 export interface SimulationMap {
@@ -114,6 +115,16 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     position: { ...building.position },
     trainingQueue: building.trainingQueue.map((item) => ({ ...item })),
   }));
+  updatedBuildings = updatedBuildings.map((building) => {
+    const advanced = advanceFoundation(building);
+    if (advanced.isComplete && !building.isComplete) {
+      effects.push({ type: 'sound', sound: 'building-completed', buildingType: 'town_center' });
+      if (building.owner === playerSlot) {
+        effects.push({ type: 'notification', message: 'Capital fundada! O Centro da Vila está pronto.', level: 'success' });
+      }
+    }
+    return advanced;
+  });
   let updatedResources: GameState['playerResources'] = Object.fromEntries(
     Object.entries(state.playerResources).map(([slot, resources]) => [slot, { ...resources }])
   );
@@ -628,7 +639,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       const aiTc = updatedBuildings.find((building) => building.owner === aiSlot && building.type === 'town_center');
       const aiUnits = updatedUnits.filter((candidate) => candidate.owner === aiSlot);
       const aiRes = updatedResources[aiSlot];
-      if (!aiRes || !aiTc) return;
+      if (!aiRes || !aiTc || !aiTc.isComplete) return;
 
       if (aiTc.trainingQueue.length === 0 && aiUnits.length < 8) {
         const cycle: UnitType[] = ['soldier', 'villager', 'soldier', 'cavalry'];
@@ -750,7 +761,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       techs: updatedTechs,
       match:
         activeSlots.length >= 2
-          ? evaluateMatch(updatedBuildings, activeSlots)
+          ? evaluateMatch(updatedBuildings, activeSlots, updatedUnits)
           : { status: 'running' as const, players: activeSlots },
     },
     effects,

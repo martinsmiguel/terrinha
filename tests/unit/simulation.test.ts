@@ -289,5 +289,45 @@ describe('simulation performance', () => {
       expect(free.position.x - 14).toBeCloseTo(0.16);
     });
   });
+
+  describe('fundação da capital', () => {
+    const wagon = (owner: string): Unit => createUnit({ id: `wagon-${owner}`, type: 'wagon', owner, health: 300, maxHealth: 300, attackDamage: 0 });
+    const founding = (owner: string) => createBuilding({ id: `tc-${owner}`, owner, isComplete: false, buildProgress: 0, health: 240, maxHealth: 2400 });
+    const slots = { activeSlots: ['player1', 'player2'] };
+
+    it('a capital em obras avança sozinha e conclui em 20 s com aviso ao dono', () => {
+      let current = createState({ buildings: [founding('player1'), createBuilding({ id: 'tc-player2', owner: 'player2' })], units: [wagon('player2')] });
+      const effects: string[] = [];
+      for (let tick = 0; tick < 400; tick += 1) {
+        const result = tickGameState(current, context(slots));
+        current = result.state;
+        result.effects.forEach((effect) => effects.push(effect.type));
+        if (tick === 398) expect(current.buildings.find((b) => b.id === 'tc-player1')!.isComplete).toBe(false);
+      }
+      const capital = current.buildings.find((b) => b.id === 'tc-player1')!;
+      expect(capital).toMatchObject({ isComplete: true, health: 2400 });
+      expect(effects.filter((type) => type === 'notification')).toHaveLength(1);
+    });
+
+    it('a partida não termina só porque falta o Centro: a carroça mantém o jogador vivo', () => {
+      const state = createState({ units: [wagon('player1'), wagon('player2')] });
+      expect(tickGameState(state, context(slots)).state.match).toEqual({ status: 'running', players: ['player1', 'player2'] });
+    });
+
+    it('sem carroça e sem capital o jogador é eliminado e o outro vence', () => {
+      const state = createState({ units: [wagon('player2')] });
+      expect(tickGameState(state, context(slots)).state.match).toEqual({ status: 'finished', winner: 'player2', players: ['player1', 'player2'] });
+    });
+
+    it('a IA só treina depois que a capital está concluída', () => {
+      const ai = (isComplete: boolean) => createState({
+        buildings: [createBuilding({ id: 'tc-ai', owner: 'player2', isComplete, buildProgress: isComplete ? 100 : 0, health: isComplete ? 2400 : 240, maxHealth: 2400 }), createBuilding({ id: 'tc-1', owner: 'player1' })],
+        playerResources: { player1: playerResources(), player2: { ...playerResources(), food: 500, gold: 500 } },
+      });
+      const run = (state: GameState) => tickGameState(state, context({ mode: 'single', ...slots })).state.buildings.find((b) => b.id === 'tc-ai')!;
+      expect(run(ai(false)).trainingQueue).toHaveLength(0);
+      expect(run(ai(true)).trainingQueue.length).toBeGreaterThan(0);
+    });
+  });
 });
 
