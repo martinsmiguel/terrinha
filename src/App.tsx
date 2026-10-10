@@ -247,6 +247,25 @@ export default function App() {
       const key = entry.run.key;
       // Mesma via do teclado: o atalho exibido é o que executa. Fecha a busca antes, para não agir atrás do overlay.
       window.setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })), 0);
+    } else if (entry.run.kind === 'select') {
+      // Efeito explícito: troca a seleção pelos ociosos e mostra o primeiro.
+      const ids = entry.run.ids;
+      if (ids.length > 0) {
+        setSelectedUnitIds(ids);
+        setSelectedEntity({ id: ids[0], kind: 'unit' });
+        const first = gameStateRef.current.units.find((u) => u.id === ids[0]);
+        if (first) engineRef.current?.setCameraTarget(first.position.x, first.position.z);
+      }
+    } else if (entry.run.kind === 'order') {
+      // Cada comando passa pela mesma autorização do host; recusas aparecem como aviso, nada é dado como executado sem efeito.
+      const before = JSON.stringify(gameStateRef.current.units.map((u) => [u.id, u.state, u.targetEntityId]));
+      entry.run.commands.forEach((command) => handleIncomingCommand(command));
+      window.setTimeout(() => {
+        const after = gameStateRef.current.units;
+        const started = entry.run.kind === 'order' ? entry.run.commands.filter((c) => after.find((u) => u.id === c.unitId)?.targetEntityId === c.targetId).length : 0;
+        if (started === 0 && before) triggerNotification('Nenhuma ordem foi aceita pelo host (alvo desconhecido ou fora da visão).', 'warning');
+        else triggerNotification(`${started} ordem(ns) aceita(s).`, 'success');
+      }, 150);
     } else if (entry.run.kind === 'tech') {
       setIsTechPanelOpen(true);
     } else {
@@ -3331,6 +3350,10 @@ export default function App() {
       {isPaletteOpen && (
         <CommandPalette
           discovered={discoveredLocalities()}
+          orders={{
+            idleVillagers: gameState.units.filter((u) => u.owner === playerSlot && u.type === 'villager' && u.health > 0 && u.state === 'idle'),
+            knownNodes: gameState.resourceNodes.filter((n) => isExploredAt(visionGridRef.current, Math.round(n.position.x), Math.round(n.position.z))),
+          }}
           onClose={() => setIsPaletteOpen(false)}
           onRun={runPaletteEntry}
         />
