@@ -1,3 +1,4 @@
+import type { BuildingType as BuildableType } from './buildingDefs';
 import type { BuildingType, UnitType } from './model';
 
 /** Overlays modais, na ordem em que foram abertos (o último é o mais recente). */
@@ -16,7 +17,7 @@ export type HotkeyAction =
   | { kind: 'toggle-work-zones' }
   | { kind: 'center-camera' }
   | { kind: 'formation'; formation: SquadFormation }
-  | { kind: 'build'; building: BuildingType }
+  | { kind: 'build'; building: BuildableType }
   | { kind: 'train'; unit: UnitType };
 
 /** Onde o atalho vale. Escopos de edifícios diferentes nunca estão ativos juntos. */
@@ -36,7 +37,7 @@ export interface HotkeyDefinition {
 
 const global = (key: string, action: HotkeyAction, description: string): HotkeyDefinition =>
   ({ key, scope: { type: 'global' }, action, description, priority: 0 });
-const villager = (key: string, building: BuildingType, description: string): HotkeyDefinition =>
+const villager = (key: string, building: BuildableType, description: string): HotkeyDefinition =>
   ({ key, scope: { type: 'villager' }, action: { kind: 'build', building }, description, priority: 1 });
 const train = (building: BuildingType, key: string, unit: UnitType, description: string): HotkeyDefinition =>
   ({ key, scope: { type: 'building', building }, action: { kind: 'train', unit }, description, priority: 2 });
@@ -110,7 +111,7 @@ export interface HotkeyEventLike {
   ctrlKey?: boolean;
   metaKey?: boolean;
   altKey?: boolean;
-  target?: HotkeyTarget | null;
+  target?: object | null;
 }
 
 export interface HotkeyContext {
@@ -126,13 +127,15 @@ const EDITABLE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 const ACTIVATABLE_TAGS = new Set(['BUTTON', 'A', 'SUMMARY']);
 
 /** Controles que usam o teclado nativamente: texto, listas e contenteditable. */
-export function isEditableTarget(target: HotkeyTarget | null | undefined): boolean {
+export function isEditableTarget(raw: object | null | undefined): boolean {
+  const target = raw as HotkeyTarget | null | undefined;
   if (!target) return false;
   if (target.isContentEditable) return true;
   return EDITABLE_TAGS.has((target.tagName ?? '').toUpperCase());
 }
 
-function isActivatable(target: HotkeyTarget | null | undefined): boolean {
+function isActivatable(raw: object | null | undefined): boolean {
+  const target = raw as HotkeyTarget | null | undefined;
   if (!target) return false;
   if (ACTIVATABLE_TAGS.has((target.tagName ?? '').toUpperCase())) return true;
   const role = target.getAttribute?.('role');
@@ -170,4 +173,11 @@ export function resolveHotkey(event: HotkeyEventLike, context: HotkeyContext): H
     if (!best || def.priority > best.priority) best = def;
   }
   return best?.action ?? null;
+}
+
+/** Mantém a ordem de abertura: remove o que fechou e acrescenta o que abriu ao fim. */
+export function syncOverlayOrder(previous: readonly OverlayId[], open: ReadonlySet<OverlayId>): OverlayId[] {
+  const kept = previous.filter((id) => open.has(id));
+  const added = [...open].filter((id) => !kept.includes(id));
+  return [...kept, ...added];
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  HOTKEYS, RESOLVED_CONFLICTS, findKeyCollisions, isNativeKeyboardEvent, resolveHotkey,
+  HOTKEYS, RESOLVED_CONFLICTS, findKeyCollisions, isNativeKeyboardEvent, resolveHotkey, syncOverlayOrder,
   type HotkeyContext, type HotkeyEventLike, type OverlayId,
 } from '../../src/game/hotkeys';
 
@@ -93,5 +93,17 @@ describe('overlays abertos', () => {
 
   it('Esc sem overlay cancela construção ou seleção', () => {
     expect(resolveHotkey(press('Escape'), idle)).toEqual({ kind: 'cancel' });
+  });
+});
+
+describe('ordem dos overlays', () => {
+  it('o último aberto fica por último e fechar preserva a ordem dos demais', () => {
+    let order = syncOverlayOrder([], new Set<OverlayId>(['controls']));
+    order = syncOverlayOrder(order, new Set<OverlayId>(['controls', 'world-map']));
+    order = syncOverlayOrder(order, new Set<OverlayId>(['controls', 'world-map', 'tutorial']));
+    expect(order).toEqual(['controls', 'world-map', 'tutorial']);
+    order = syncOverlayOrder(order, new Set<OverlayId>(['controls', 'tutorial']));
+    expect(order).toEqual(['controls', 'tutorial']);
+    expect(syncOverlayOrder(order, new Set())).toEqual([]);
   });
 });
