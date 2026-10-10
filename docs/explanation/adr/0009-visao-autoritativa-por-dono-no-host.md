@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposto — 2026-10-10 · Card [#74](https://github.com/martinsmiguel/terrinha/issues/74); reconciliação em [#94](https://github.com/martinsmiguel/terrinha/issues/94)
+Aceito e implementado — 2026-10-10 (sem validação humana) · Card [#74](https://github.com/martinsmiguel/terrinha/issues/74); reconciliação em [#94](https://github.com/martinsmiguel/terrinha/issues/94)
 
 ## Contexto
 

@@ -4,6 +4,11 @@
 
 Aceito — 2026-09-27 · Implementado no card #16
 
+**Atualização 2026-10-10:** parcialmente superado pelo [ADR-0009](0009-visao-autoritativa-por-dono-no-host.md). A grade de névoa por cliente
+continua sendo a forma de **desenhar** a névoa, mas o que o jogador pode **alvejar e saber** passou a vir da visão autoritativa do host, e o
+snapshot de cada convidado é filtrado por essa visão ([#75](https://github.com/martinsmiguel/terrinha/issues/75)). O contexto abaixo é histórico
+e descreve o que valia na data da decisão: antes de #75 o estado completo chegava a todos.
+
 ## Contexto
 
 O estado completo do jogo chega a todos os clientes ~20×/s

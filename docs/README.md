@@ -29,7 +29,21 @@ Decisões arquiteturais são registradas como **ADRs** em
 [0004](explanation/adr/0004-nevoa-por-cliente-no-shader.md) ·
 [0005](explanation/adr/0005-participantes-dinamicos-da-partida.md) ·
 [0006](explanation/adr/0006-fila-unica-de-pesquisa-validada-no-host.md) ·
-[0007](explanation/adr/0007-geografia-por-semente-e-exploracao-local.md)
+[0007](explanation/adr/0007-geografia-por-semente-e-exploracao-local.md) ·
+[0008](explanation/adr/0008-acessibilidade-do-hud-escala-contraste-e-remapeamento.md) ·
+[0009](explanation/adr/0009-visao-autoritativa-por-dono-no-host.md) ·
+[0010](explanation/adr/0010-decisoes-de-escala-e-rede-do-alpha.md)
+
+## Todas as páginas
+
+- Tutoriais: [configurando o ambiente](tutorials/configurando-ambiente.md) · [primeira partida](tutorials/primeira-partida.md)
+- How-to: [entrar em partida](how-to/entrar-em-partida.md) · [criar novo módulo](how-to/criar-novo-modulo.md) ·
+  [auditar procedência dos cards](how-to/auditar-procedencia-cards.md) · [proteção da main](how-to/protecao-main.md) ·
+  [executar em produção](how-to/executar-producao.md)
+- Referência: [mundo e ilhas](reference/mundo-e-ilhas.md) · [economia das ilhas](reference/economia-das-ilhas.md) ·
+  [atributos das unidades](reference/atributos-unidades.md) · [toolchain](reference/toolchain.md) · [análise estática](reference/analise-estatica.md)
+
+A checagem local `npm run docs:check` verifica links, âncoras, índice de ADRs, páginas órfãs e referências a arquivos do código; falha se algo não existir.
 
 A especificação completa do produto está em
 [`explanation/especificacao-v2.html`](explanation/especificacao-v2.html) (CC BY 4.0).
