@@ -7,6 +7,8 @@ import { DEFAULT_BOT_PROFILE, type BotProfile } from './game/bots';
 import { creditAll, exploredSectorKeys } from './game/mastery';
 import { filterSnapshotFor } from './game/snapshotFilter';
 import { DeltaReceiver, DeltaSender, rulesRevisionOf } from './game/snapshotDelta';
+import { RulesPanel } from './components/RulesPanel';
+import { applyRules, canEditRules } from './game/rulesAdmin';
 import { TalentPanel } from './components/TalentPanel';
 import { CommandPalette } from './components/CommandPalette';
 import { focusLocality, type PaletteEntry, type PaletteLocality } from './game/commandPalette';
@@ -190,6 +192,7 @@ export default function App() {
   const [isTechPanelOpen, setIsTechPanelOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isTalentsOpen, setIsTalentsOpen] = useState(false);
+  const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [flowSamples, setFlowSamples] = useState<FlowSample[]>([]);
   const [focusedIsland, setFocusedIsland] = useState<number | null>(null);
   const [showWorkZones3D, setShowWorkZones3D] = useState(true);
@@ -1572,6 +1575,7 @@ export default function App() {
   if (showTutorial) openOverlays.add('tutorial');
   if (isPaletteOpen) openOverlays.add('palette');
   if (isTalentsOpen) openOverlays.add('talents');
+  if (isRulesOpen) openOverlays.add('rules');
   overlayOrderRef.current = syncOverlayOrder(overlayOrderRef.current, openOverlays);
   const overlayOrder = overlayOrderRef.current;
 
@@ -1608,6 +1612,7 @@ export default function App() {
           else if (action.overlay === 'controls') setShowControlsModal(false);
           else if (action.overlay === 'palette') setIsPaletteOpen(false);
           else if (action.overlay === 'talents') setIsTalentsOpen(false);
+          else if (action.overlay === 'rules') setIsRulesOpen(false);
           else closeTutorial();
           break;
         case 'cancel':
@@ -1647,6 +1652,10 @@ export default function App() {
         case 'toggle-work-zones':
           soundManager.playClickSound();
           setIsWorkZoneModalOpen((prev) => !prev);
+          break;
+        case 'toggle-rules':
+          e.preventDefault();
+          setIsRulesOpen(true);
           break;
         case 'toggle-talents':
           e.preventDefault();
@@ -3338,6 +3347,21 @@ export default function App() {
         className="absolute top-0 left-0 right-0 h-4 z-30 pointer-events-auto"
         onMouseEnter={() => { if (!isHudPreviewMode) setIsHoverPeeking(true); }}
       />
+
+      {isRulesOpen && (
+        <RulesPanel
+          editable={canEditRules(role)}
+          session={gameState.ruleSettings}
+          appliedAt={gameState.rulesApplied}
+          onClose={() => setIsRulesOpen(false)}
+          onApply={(draft) => {
+            if (!canEditRules(role)) return;
+            const applied = applyRules(gameStateRef.current, draft);
+            setGameState((prev) => applyRules(prev, draft).state);
+            triggerNotification(applied.changes.length === 0 ? 'Nenhuma mudança de regra.' : `Regras aplicadas (revisão ${applied.revision}): ${applied.changes.length} mudança(s). Vida das unidades manteve a fração.`, 'success');
+          }}
+        />
+      )}
 
       {isTalentsOpen && (
         <TalentPanel
