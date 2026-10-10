@@ -2,7 +2,7 @@ import type { BuildingType as BuildableType } from './buildingCatalog';
 import type { BuildingType, UnitType } from './model';
 
 /** Overlays modais, na ordem em que foram abertos (o último é o mais recente). */
-export type OverlayId = 'world-map' | 'work-zone' | 'empire-catalog' | 'controls' | 'tutorial' | 'palette';
+export type OverlayId = 'world-map' | 'work-zone' | 'empire-catalog' | 'controls' | 'tutorial' | 'palette' | 'talents';
 
 export type SquadFormation = 'box' | 'line' | 'spread';
 
@@ -15,6 +15,7 @@ export type HotkeyAction =
   | { kind: 'cycle-hud-composition' }
   | { kind: 'toggle-hud-panel' }
   | { kind: 'open-palette' }
+  | { kind: 'toggle-talents' }
   | { kind: 'hud-undo' }
   | { kind: 'hud-redo' }
   | { kind: 'toggle-minimap' }
@@ -162,6 +163,10 @@ export function isNativeKeyboardEvent(event: HotkeyEventLike): boolean {
  * apenas o mais recente: seleção e ordens da partida não são tocadas.
  */
 export function resolveHotkey(event: HotkeyEventLike, context: HotkeyContext): HotkeyAction | null {
+  // Alt+T abre/fecha os talentos (Alt não colide com as teclas de jogo, como o P da pesca); com overlay aberto só o Esc age.
+  if (event.key.toLowerCase() === 't' && event.altKey && !event.ctrlKey && !event.metaKey && !isEditableTarget(event.target) && context.overlays.length === 0) {
+    return { kind: 'toggle-talents' };
+  }
   // Ctrl/Cmd+K abre a busca, mesmo a partir de um botão; em campo de texto e com overlay aberto não age.
   if (event.key.toLowerCase() === 'k' && (event.ctrlKey || event.metaKey) && !event.altKey && !isEditableTarget(event.target) && context.overlays.length === 0) {
     return { kind: 'open-palette' };

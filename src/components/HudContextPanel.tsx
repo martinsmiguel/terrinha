@@ -12,6 +12,8 @@ interface HudContextPanelProps {
   canUndo: boolean;
   canRedo: boolean;
   onTogglePanel(): void;
+  onOpenTalents(): void;
+  talentPoints: number;
   onSelectComposition(composition: HudComposition): void;
   onToggleIdle(enabled: boolean): void;
   onUndo(): void;
@@ -74,11 +76,21 @@ export function HudContextPanel(props: HudContextPanelProps) {
         Painel <kbd className="rounded bg-slate-800 px-1 font-mono text-[10px]">J</kbd>
       </button>
 
+      <button
+        type="button"
+        onClick={props.onOpenTalents}
+        title="Talentos (Alt+T)"
+        className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-950/90 px-2.5 py-1 text-[11px] font-semibold text-slate-200 hover:border-amber-500/60"
+      >
+        Talentos <kbd className="rounded bg-slate-800 px-1 font-mono text-[10px]">Alt+T</kbd>
+        {props.talentPoints > 0 && <span className="rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-slate-950" aria-label={`${props.talentPoints} pontos disponíveis`}>{props.talentPoints}</span>}
+      </button>
+
       {config.panelOpen && (
         <section
           id="hud-context-panel"
           aria-label={`Painel contextual: ${label}`}
-          style={{ maxHeight: Math.max(96, bottom - (top + 36)) }}
+          style={{ maxHeight: Math.max(96, bottom - (top + 72)) }}
           className="pointer-events-auto w-[min(18rem,calc(100vw-1rem))] space-y-2 overflow-y-auto rounded-xl border border-slate-700 bg-slate-950/90 p-2.5 text-xs text-slate-200 backdrop-blur-md"
         >
           <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Composição da interface">
