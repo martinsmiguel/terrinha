@@ -4,7 +4,7 @@ import { findPath } from './movement/pathfinding';
 import { FOUNDATION_KIT, type Point } from './foundation';
 
 /** Lado do terreno plano que a capital ocupa. */
-export const CAPITAL_FOOTPRINT = 5;
+export const CAPITAL_FOOTPRINT = 4;
 const MAX_SLOPE = 0.85;
 
 export interface CapitalSiteTerrain {
@@ -63,18 +63,20 @@ export function evaluateCapitalSite(
 
   let terrainOk = true;
   if (space) {
-    const corners: Point[] = [site, { x: x - half, z: z - half }, { x: x + half, z: z - half }, { x: x - half, z: z + half }, { x: x + half, z: z + half }];
-    if (terrain.isWaterAt && corners.some((corner) => terrain.isWaterAt!(corner.x, corner.z))) {
+    // Mesmos pontos de amostra da colocação de edifícios: centro e quatro cantos a 45% da pegada.
+    const reach = CAPITAL_FOOTPRINT * 0.45;
+    const corners: Point[] = [{ x: x - reach, z: z - reach }, { x: x + reach, z: z + reach }, { x: x - reach, z: z + reach }, { x: x + reach, z: z - reach }];
+    if (terrain.isWaterAt?.(x, z)) {
       terrainOk = false;
       reasons.push('Água sob a fundação');
     }
-    if (terrain.isCliffAt && corners.some((corner) => terrain.isCliffAt!(corner.x, corner.z))) {
+    if (terrain.isCliffAt?.(x, z)) {
       terrainOk = false;
       reasons.push('Rochedo íngreme intransitável');
     }
     if (terrain.getHeightAt) {
       const center = terrain.getHeightAt(x, z);
-      const slope = Math.max(...corners.slice(1).map((corner) => Math.abs(terrain.getHeightAt!(corner.x, corner.z) - center)));
+      const slope = Math.max(...corners.map((corner) => Math.abs(terrain.getHeightAt!(corner.x, corner.z) - center)));
       if (slope > MAX_SLOPE) {
         terrainOk = false;
         reasons.push('Terreno muito íngreme para fundação estável');
@@ -87,7 +89,8 @@ export function evaluateCapitalSite(
   let access = true;
   if (options.from && terrain.isImpassableAt) {
     const blocked = terrain.isImpassableAt;
-    access = findPath(options.from, site, (px, pz) => blocked(px, pz), { mapSize: terrain.mapSize, maxExpanded: 2400 }).length > 0;
+    // Carroça já no sítio: não há caminho a percorrer e o acesso está garantido.
+    access = Math.hypot(options.from.x - x, options.from.z - z) < 1 || findPath(options.from, site, (px, pz) => blocked(px, pz), { mapSize: terrain.mapSize, maxExpanded: 2400 }).length > 0;
     if (!access) reasons.push('A carroça não alcança este sítio por terra');
   }
 

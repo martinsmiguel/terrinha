@@ -19,9 +19,10 @@ describe('evaluateCapitalSite', () => {
     expect(evaluateCapitalSite({ x: Number.NaN, z: 30 }, open).valid).toBe(false);
   });
 
-  it('recusa água em qualquer canto, rochedo e declive forte', () => {
-    expect(evaluateCapitalSite({ x: 30, z: 30 }, { ...open, isWaterAt: (x) => x > 31 }).terrain).toBe(false);
-    expect(evaluateCapitalSite({ x: 30, z: 30 }, { ...open, isCliffAt: (x, z) => x > 31 && z > 31 }).terrain).toBe(false);
+  it('recusa água ou rochedo sob o centro e declive forte nos cantos', () => {
+    expect(evaluateCapitalSite({ x: 30, z: 30 }, { ...open, isWaterAt: (x) => x >= 30 }).terrain).toBe(false);
+    expect(evaluateCapitalSite({ x: 30, z: 30 }, { ...open, isWaterAt: (x) => x > 40 }).terrain).toBe(true);
+    expect(evaluateCapitalSite({ x: 30, z: 30 }, { ...open, isCliffAt: (x, z) => x === 30 && z === 30 }).terrain).toBe(false);
     expect(evaluateCapitalSite({ x: 30, z: 30 }, { ...open, getHeightAt: (x) => (x > 31 ? 2 : 0) }).terrain).toBe(false);
   });
 
@@ -38,4 +39,11 @@ describe('evaluateCapitalSite', () => {
     expect(evaluateCapitalSite({ x: 30, z: 30 }, open, { kit: { wood: 400, stone: 199 } }).valid).toBe(false);
     expect(evaluateCapitalSite({ x: 30, z: 30 }, open).access).toBe(true);
   });
+
+  it('carroça já no sítio tem acesso garantido (sem caminho a percorrer)', () => {
+    const report = evaluateCapitalSite({ x: 30, z: 30 }, open, { from: { x: 30.2, z: 30 }, kit });
+    expect(report.access).toBe(true);
+    expect(report.valid).toBe(true);
+  });
 });
+

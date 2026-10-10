@@ -684,11 +684,11 @@ export default function App() {
   };
 
   // Sitios candidatos de sede para a carroca do jogador (>= 3 quando o terreno permite)
-  const capitalSitesFor = (current: GameState, wagon: Unit, radius = 20) =>
+  const capitalSitesFor = (current: GameState, wagon: Unit, radius = 30) =>
     findCapitalSites(
       wagon.position,
       (x, z) => evaluateCapitalSite({ x, z }, capitalTerrainFor(current), { from: wagon.position, kit: current.foundationKits?.[wagon.owner] }).valid,
-      { maxRadius: radius }
+      { maxRadius: radius, minSpacing: 4 }
     );
 
   // A IA funda a capital sozinha no melhor sitio perto da chegada
