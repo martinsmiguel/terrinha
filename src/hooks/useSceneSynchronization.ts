@@ -8,6 +8,7 @@ import type { BuildingType } from '../game/buildingCatalog';
 import { createConstructionScaffold } from '../game/buildingScaffold';
 import { FACTION_COLORS } from '../game/factions';
 import { isVisibleAt } from '../game/visibility';
+import { HULL_RISE, hullTilt, waveAt } from '../game/waves';
 import type { PlayerSlot } from '../game/networkCommands';
 
 type MutableValue<T> = { current: T };
@@ -24,6 +25,23 @@ interface SceneSynchronizationContext {
   role: 'host' | 'client' | 'single';
   playerSlot: PlayerSlot;
   visionGridRef: MutableValue<Uint8Array>;
+}
+
+/** Aplica as ondas à malha do oceano (grade 48x48): altura por vértice e normais analíticas, com o tempo da partida. */
+function updateWaterMesh(mesh: THREE.Mesh, t: number): void {
+  const geometry = mesh.geometry as THREE.BufferGeometry;
+  const position = geometry.getAttribute('position') as THREE.BufferAttribute;
+  const normal = geometry.getAttribute('normal') as THREE.BufferAttribute;
+  const base = (mesh.userData.waveBase ??= new Float32Array(position.array)) as Float32Array;
+  for (let i = 0; i < position.count; i += 1) {
+    const x = base[i * 3];
+    const z = base[i * 3 + 2];
+    const sample = waveAt(x, z, t);
+    position.setY(i, sample.height);
+    normal.setXYZ(i, sample.normal.x, sample.normal.y, sample.normal.z);
+  }
+  position.needsUpdate = true;
+  normal.needsUpdate = true;
 }
 
 export function useSceneSynchronization({
@@ -286,6 +304,9 @@ export function useSceneSynchronization({
           : 0;
       group.position.y = nodeY;
     });
+
+    // Tempo das ondas: o relógio da partida do host (`elapsed`, também no snapshot do convidado), o mesmo para malha e cascos.
+    const waveTime = gameState.elapsed ?? 0;
 
     // 2. Sync Units
     const currentUnitIds = new Set(gameState.units.map((u) => u.id));
@@ -564,12 +585,19 @@ export function useSceneSynchronization({
 
       // Update position according to terrain elevation
       const isBoat = isBoatUnit(unit.type);
+      const sea = isBoat ? waveAt(unit.position.x, unit.position.z, waveTime) : null;
       const unitY = isBoat
-        ? 0.02
+        ? 0.02 + sea!.height * HULL_RISE
         : proceduralMapRef.current
         ? proceduralMapRef.current.getHeightAt(unit.position.x, unit.position.z)
         : 0;
       group.position.set(unit.position.x, unitY, unit.position.z);
+      if (sea) {
+        // Pitch/roll só visuais: seguem a normal da onda e não alteram posição lógica, calado nem navegação.
+        const tilt = hullTilt(sea.normal, group.rotation.y);
+        group.rotation.x = tilt.pitch;
+        group.rotation.z = tilt.roll;
+      }
 
       // Update selection indicator visibility
       const ring = group.getObjectByName('selection_ring') as THREE.Mesh;
@@ -588,6 +616,9 @@ export function useSceneSynchronization({
         unit.owner === playerSlot ||
         isVisibleAt(visionGridRef.current, Math.floor(unit.position.x), Math.floor(unit.position.z));
     });
+
+    // Água: a malha segue a mesma função de onda dos cascos, com o tempo da partida do host.
+    if (proceduralMapRef.current) updateWaterMesh(proceduralMapRef.current.waterMesh, waveTime);
 
     // 3. Sync Buildings
     const currentBuildingIds = new Set(gameState.buildings.map((b) => b.id));

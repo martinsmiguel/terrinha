@@ -4,8 +4,10 @@ import { UNIT_ATTRIBUTES } from './unitAttributes';
 import { BUILDING_CATALOG } from './buildingCatalog';
 import { researchBlock } from './tech';
 import { FOUNDATION_KIT, lifePhase } from './foundation';
-import { canTarget, type OwnerVision } from './visionAuthority';
+import { canTarget, isExploredBy, type OwnerVision } from './visionAuthority';
 import { bodyOf, type BodyId } from './bodyModel';
+import { checkRelicAction } from './mysticism';
+import { canBuyTalent, effectiveBuildCost } from './talents';
 import { outpostSpacingReason } from './colonies';
 import { previewKit, previewLoad } from './colonialTransport';
 import { redirectRoute, routeProblems, type RouteLeg, type RoutePort } from './tradeRoutes';
@@ -81,6 +83,8 @@ export type NetworkCommand = CommandMetadata & (
   | { type: 'disembark'; boatId: string }
   | { type: 'load_cargo'; boatId: string; cargo: Partial<Record<'wood' | 'food' | 'gold' | 'stone' | 'planks', number>> }
   | { type: 'load_kit'; boatId: string }
+  | { type: 'buy_talent'; id: string }
+  | { type: 'harvest_plant' | 'restore_monument'; unitId: string; relicId: string }
   | { type: 'set_route'; boatId: string; a: RoutePort; b: RoutePort; outbound: RouteLeg; back: RouteLeg | null; partial?: boolean }
   | { type: 'cancel_route'; boatId: string }
   | { type: 'pause_route' | 'resume_route'; boatId: string }
@@ -221,6 +225,11 @@ export function isValidNetworkCommand(value: unknown, mapSize: number = MAP_LIMI
         && Object.entries(value.cargo).every(([key, amount]) => (RESOURCE_KEYS as readonly string[]).includes(key) && typeof amount === 'number' && Number.isInteger(amount) && amount >= 0 && amount <= 1000);
     case 'load_kit':
       return allowedKeys('boatId') && isId(value.boatId);
+    case 'buy_talent':
+      return allowedKeys('id') && isId(value.id);
+    case 'harvest_plant':
+    case 'restore_monument':
+      return allowedKeys('unitId', 'relicId') && isId(value.unitId) && isId(value.relicId);
     case 'set_route':
       return allowedKeys('boatId', 'a', 'b', 'outbound', 'back', 'partial') && isId(value.boatId) && isRoutePort(value.a) && isRoutePort(value.b)
         && isRouteLeg(value.outbound) && (value.back === null || isRouteLeg(value.back)) && (value.partial === undefined || typeof value.partial === 'boolean');
@@ -347,7 +356,7 @@ export function isAuthorizedPlayerCommand(
       if (value.owner !== owner) return false;
       const def = BUILDING_CATALOG[value.buildingType];
       const resources = state.playerResources[owner];
-      if (!def || !resources || !canPayAt(state, owner, payerLocality(state, owner, value.buildingType, value.position, terrain?.localityOf), def.cost)) return false;
+      if (!def || !resources || !canPayAt(state, owner, payerLocality(state, owner, value.buildingType, value.position, terrain?.localityOf), effectiveBuildCost(state, owner, value.buildingType, def.cost))) return false;
       if (!canTarget(vision, owner, { position: value.position }, 'explored')) return false;
       if (value.buildingType === 'outpost') {
         // Posto avançado: solo transitável conhecido e distância mínima de outros postos e da capital própria.
@@ -407,6 +416,15 @@ export function isAuthorizedPlayerCommand(
         return Boolean(unit) && !isBoatUnit((unit as Unit).type);
       });
     }
+    case 'harvest_plant':
+    case 'restore_monument': {
+      // Entidade, estado, dono, alcance, custo e conhecimento do local são validados no host.
+      const known = (x: number, z: number) => !vision || isExploredBy(vision, owner, x, z);
+      return checkRelicAction(state, owner, value.type === 'harvest_plant' ? 'harvest' : 'restore', value.unitId, value.relicId, known).ok;
+    }
+    case 'buy_talent':
+      // O host valida nível, pré-requisito, pontos e ID único; recusa não debita nem repete.
+      return canBuyTalent(state, owner, value.id).ok;
     case 'load_cargo':
     case 'load_kit': {
       const boat = ownsUnit(state, value.boatId, owner);

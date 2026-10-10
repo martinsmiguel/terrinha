@@ -3,6 +3,7 @@ import { findLandingCells, type NavalMap } from './navalTransport';
 import type { GameState, Unit, UnitType } from './model';
 import { BOAT_CAPACITY, worldSizeOf } from './model';
 import { applyPopDelta } from './population';
+import { hasTalent } from './talents';
 
 /** Dados revisados do transporte colonial e do porão. */
 export const COLONIAL_TRANSPORT = {
@@ -64,6 +65,8 @@ export interface Hold {
 
 /** Estado real do porão para a interface: passageiros, carga, kit e capacidade (200 colonial, 100/125 mercante). */
 export function holdOf(boat: Unit, talent = false): Hold {
+  // O talento Comboio vem do estado; o parâmetro continua permitindo forçar em testes e prévias.
+  talent = talent || false;
   const kit = boat.kit ? cargoTotal(COLONIAL_TRANSPORT.kit) : 0;
   return {
     kind: boat.type === 'colonial_transport' ? 'colonial' : boat.type === 'trade_boat' ? 'merchant' : 'other',
@@ -98,7 +101,7 @@ function previewPayload(
   if (!hasAnchorNear(state, boat, locality, resolve)) reasons.push('O barco está longe de um posto ou cais próprio para carregar.');
   const amount = cargoTotal(payload);
   if (amount <= 0 || KEYS.some((key) => (payload[key] ?? 0) < 0)) reasons.push('Quantidade inválida.');
-  const hold = holdOf(boat, talent);
+  const hold = holdOf(boat, talent || hasTalent(state, boat.owner, 'comboio'));
   if (hold.capacity === 0) reasons.push('Este barco não tem porão.');
   else if (hold.used + amount > hold.capacity) reasons.push(`Porão cheio: ${hold.used + amount} acima da capacidade de ${hold.capacity}.`);
   const stock = stockAt(state, boat.owner, locality);
@@ -171,7 +174,7 @@ export function disembarkStep(state: GameState, boatId: string, map: NavalMap, d
   if (!cell) return { state, released: null, blocked: true };
   const [first, ...rest] = passengers;
   const released: Unit = { ...first, position: { x: cell.x, z: cell.z }, targetPosition: null, targetEntityId: null, state: 'idle', embarkTargetId: undefined };
-  const interval = talent ? COLONIAL_TRANSPORT.disembarkSecondsTalent : COLONIAL_TRANSPORT.disembarkSeconds;
+  const interval = talent || hasTalent(state, boat.owner, 'desembarque') ? COLONIAL_TRANSPORT.disembarkSecondsTalent : COLONIAL_TRANSPORT.disembarkSeconds;
   const updatedBoat: Unit = { ...boat, passengers: rest, disembarkCooldown: rest.length > 0 ? interval : undefined };
   return { state: { ...replaceUnit(state, updatedBoat), units: [...replaceUnit(state, updatedBoat).units, released] }, released, blocked: false };
 }

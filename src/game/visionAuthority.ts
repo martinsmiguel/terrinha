@@ -1,4 +1,6 @@
 import type { Building, GameState, Unit } from './model';
+import { FAROL_VISION, hasTalent } from './talents';
+import { runeSources } from './mysticism';
 import { MAP_SIZE } from './model';
 import {
   createVisionGrid, expireVision, gridSizeOf, isExploredAt, isVisibleAt, revealVision, visionRadiusFor,
@@ -8,12 +10,14 @@ import {
 /** Visão e exploração autoritativas, mantidas só no host: uma grade por dono (jogador ou IA). */
 export type OwnerVision = Record<string, Uint8Array>;
 
-type VisionState = Pick<GameState, 'units' | 'buildings' | 'ruleSettings'>;
+type VisionState = Pick<GameState, 'units' | 'buildings' | 'ruleSettings'> & Partial<Pick<GameState, 'talents' | 'relics'>>;
 
 const sourceOf = (entity: Unit | Building, state: VisionState): VisionSource => ({
   x: entity.position.x,
   z: entity.position.z,
-  radius: visionRadiusFor(entity, state.ruleSettings),
+  radius: (entity.type === 'dock' || entity.type === 'outpost') && hasTalent(state, entity.owner, 'farol')
+    ? Math.max(visionRadiusFor(entity, state.ruleSettings), FAROL_VISION)
+    : visionRadiusFor(entity, state.ruleSettings),
 });
 
 /** Fontes de visão de um dono: suas unidades e seus edifícios (a mesma regra do cliente, que só desenha a névoa). */
@@ -21,6 +25,7 @@ export function visionSourcesFor(state: VisionState, owner: string): VisionSourc
   return [
     ...state.units.filter((unit) => unit.owner === owner && unit.health > 0).map((unit) => sourceOf(unit, state)),
     ...state.buildings.filter((building) => building.owner === owner && building.health > 0).map((building) => sourceOf(building, state)),
+    ...runeSources(state.relics, owner),
   ];
 }
 

@@ -6,6 +6,7 @@
 import { creditAll, exploredSectorKeys } from './game/mastery';
 import { filterSnapshotFor } from './game/snapshotFilter';
 import { DeltaReceiver, DeltaSender, rulesRevisionOf } from './game/snapshotDelta';
+import { TalentPanel } from './components/TalentPanel';
 import { CommandPalette } from './components/CommandPalette';
 import { focusLocality, type PaletteEntry, type PaletteLocality } from './game/commandPalette';
 import { computeArchipelago } from './game/archipelago';
@@ -76,6 +77,10 @@ import {
 import { FACTION_COLORS } from './game/factions';
 import { pickFrontMostCandidate, resolveClickSelection } from './game/entitySelection';
 import { applyEmbarkOrder, boatCapacity } from './game/navalTransport';
+import { flowRows, pushSample, sampleFlows, type FlowSample } from './game/flows';
+import { RELIC_REACH, applyRelicAction, checkRelicAction, generateRelics } from './game/mysticism';
+import { isExploredBy } from './game/visionAuthority';
+import { buyTalent, effectiveBuildCost, talentById } from './game/talents';
 import { findBerth, routeAlerts } from './game/tradeRoutes';
 import { assignRoute, cancelRoute, pauseRoute, redirectRoute, resumeRoute } from './game/tradeRoutes';
 import { localityLabel } from './game/colonialTransport';
@@ -180,6 +185,8 @@ export default function App() {
   const [isWorkZoneModalOpen, setIsWorkZoneModalOpen] = useState(false);
   const [isTechPanelOpen, setIsTechPanelOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [isTalentsOpen, setIsTalentsOpen] = useState(false);
+  const [flowSamples, setFlowSamples] = useState<FlowSample[]>([]);
   const [focusedIsland, setFocusedIsland] = useState<number | null>(null);
   const [showWorkZones3D, setShowWorkZones3D] = useState(true);
   const [isStrictZoneLeash, setIsStrictZoneLeash] = useState(true);
@@ -322,6 +329,11 @@ export default function App() {
       player4: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 3, maxPop: 15 },
     },
   });
+
+  // Fluxo líquido por minuto: amostra o estado real a cada segundo simulado (janela de 60 s).
+  useEffect(() => {
+    setFlowSamples((previous) => pushSample(previous, sampleFlows(gameState, playerSlot)));
+  }, [gameState.elapsed, role, playerSlot]);
 
   // O host envia a cada convidado o snapshot filtrado pela visão dele (nunca o mundo inteiro).
   useEffect(() => {
@@ -918,6 +930,8 @@ export default function App() {
       mapSeed: procMap.seed,
       mapSize: worldSizeSetting,
       foundationKits,
+      relics: generateRelics(procMap.islands),
+      elapsed: 0,
     };
     if (role === 'single') {
       slots.filter((slot) => slot !== playerSlot).forEach((slot) => {
@@ -1202,6 +1216,21 @@ export default function App() {
       }
       setGameState(next);
       triggerNotification(cmd.type === 'load_kit' ? 'Kit de colonização embarcado.' : 'Carga embarcada.', 'success');
+    } else if (cmd.type === 'harvest_plant' || cmd.type === 'restore_monument') {
+      const known = (x: number, z: number) => !hostVisionRef.current || isExploredBy(hostVisionRef.current, commandOwner, x, z);
+      const applied = applyRelicAction(gameStateRef.current, commandOwner, cmd.type === 'harvest_plant' ? 'harvest' : 'restore', cmd.unitId, cmd.relicId, known);
+      if (!applied.check.ok) { triggerNotification(applied.check.message ?? 'Ação recusada.', 'warning'); return; }
+      setGameState((prev) => {
+        const again = applyRelicAction(prev, commandOwner, cmd.type === 'harvest_plant' ? 'harvest' : 'restore', cmd.unitId, cmd.relicId, known);
+        if (!again.check.ok || !again.xp) return prev;
+        return { ...again.state, mastery: creditAll(again.state.mastery, [{ owner: commandOwner, event: again.xp }]) };
+      });
+      triggerNotification(cmd.type === 'harvest_plant' ? 'Planta colhida: bênção de coleta por 60 s.' : 'Monumento restaurado: a runa dá visão ao redor.', 'success');
+    } else if (cmd.type === 'buy_talent') {
+      const bought = buyTalent(gameStateRef.current, commandOwner, cmd.id);
+      if (!bought.check.ok) { triggerNotification(bought.check.message ?? 'Talento recusado.', 'warning'); return; }
+      setGameState((prev) => buyTalent(prev, commandOwner, cmd.id).state);
+      triggerNotification(`Talento adquirido: ${talentById(cmd.id)?.name}.`, 'success');
     } else if (cmd.type === 'set_route') {
       const result = assignRoute(gameStateRef.current, cmd.boatId, cmd);
       if (result.problems.length > 0) { triggerNotification(result.problems[0], 'warning'); return; }
@@ -1330,7 +1359,7 @@ export default function App() {
         trainingQueue: [],
       };
       setGameState((prev) => applyBuildingFoundation(
-        prev, newBuilding, def.cost, cmd.builderIds ?? [],
+        prev, newBuilding, effectiveBuildCost(prev, cmd.owner, cmd.buildingType, def.cost), cmd.builderIds ?? [],
         (current) => checkBuildingPlacementValid(
           cmd.buildingType, cmd.position.x, cmd.position.z,
           current.buildings, current.resourceNodes, worldSizeRef.current,
@@ -1500,6 +1529,7 @@ export default function App() {
   if (showControlsModal) openOverlays.add('controls');
   if (showTutorial) openOverlays.add('tutorial');
   if (isPaletteOpen) openOverlays.add('palette');
+  if (isTalentsOpen) openOverlays.add('talents');
   overlayOrderRef.current = syncOverlayOrder(overlayOrderRef.current, openOverlays);
   const overlayOrder = overlayOrderRef.current;
 
@@ -1535,6 +1565,7 @@ export default function App() {
           else if (action.overlay === 'empire-catalog') setIsEmpireCatalogOpen(false);
           else if (action.overlay === 'controls') setShowControlsModal(false);
           else if (action.overlay === 'palette') setIsPaletteOpen(false);
+          else if (action.overlay === 'talents') setIsTalentsOpen(false);
           else closeTutorial();
           break;
         case 'cancel':
@@ -1571,6 +1602,10 @@ export default function App() {
         case 'toggle-work-zones':
           soundManager.playClickSound();
           setIsWorkZoneModalOpen((prev) => !prev);
+          break;
+        case 'toggle-talents':
+          e.preventDefault();
+          setIsTalentsOpen(true);
           break;
         case 'open-palette':
           e.preventDefault();
@@ -3221,6 +3256,19 @@ export default function App() {
         onMouseEnter={() => { if (!isHudPreviewMode) setIsHoverPeeking(true); }}
       />
 
+      {isTalentsOpen && (
+        <TalentPanel
+          state={gameState}
+          owner={playerSlot}
+          onClose={() => setIsTalentsOpen(false)}
+          onBuy={(id) => {
+            const cmd = { type: 'buy_talent', id };
+            if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+            else multiRef.current?.sendToHost(cmd);
+          }}
+        />
+      )}
+
       {isPaletteOpen && (
         <CommandPalette
           discovered={discoveredLocalities()}
@@ -3237,6 +3285,27 @@ export default function App() {
           canUndo={hud.canUndo}
           canRedo={hud.canRedo}
           onTogglePanel={() => hud.setPanelOpen((prev) => !prev)}
+          onOpenTalents={() => setIsTalentsOpen(true)}
+          flows={flowRows(flowSamples)}
+          relics={(gameState.relics ?? []).filter((relic) => isExploredAt(visionGridRef.current, Math.round(relic.position.x), Math.round(relic.position.z))).map((relic) => {
+            const action = relic.kind === 'plant' ? 'harvest' : 'restore';
+            const near = gameState.units.find((u) => u.owner === playerSlot && u.type === 'villager' && u.health > 0 && Math.hypot(u.position.x - relic.position.x, u.position.z - relic.position.z) <= RELIC_REACH);
+            const check = checkRelicAction(gameState, playerSlot, action, near?.id ?? '', relic.id);
+            return {
+              id: relic.id, kind: relic.kind, position: relic.position, unitId: near?.id ?? null,
+              label: `${relic.kind === 'plant' ? 'Planta' : 'Monumento'} (ilha ${relic.island})`,
+              state: relic.state === 'available' ? 'disponível' : relic.state === 'harvested' ? 'colhida' : relic.state === 'ruined' ? 'em ruínas' : 'restaurado',
+              check: near ? check : { ok: false, message: `Leve um aldeão a até ${RELIC_REACH} de distância.` },
+            };
+          })}
+          onRelicAction={(row) => {
+            if (!row.unitId) return;
+            const cmd = { type: row.kind === 'plant' ? 'harvest_plant' : 'restore_monument', unitId: row.unitId, relicId: row.id };
+            if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+            else multiRef.current?.sendToHost(cmd);
+          }}
+          onFocusRelic={(x, z) => engineRef.current?.setCameraTarget(x, z)}
+          talentPoints={gameState.mastery?.[playerSlot]?.points ?? 0}
           onSelectComposition={hud.setComposition}
           onToggleIdle={hud.setIdleCollapse}
           onUndo={hud.undo}

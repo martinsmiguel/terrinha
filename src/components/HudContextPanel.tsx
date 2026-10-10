@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import { type FlowRow } from '../game/flows';
 import { PanelLeftClose, PanelLeftOpen, Redo2, Undo2 } from 'lucide-react';
 import {
   COMPOSITION_INDICATORS, COMPOSITION_LABEL, COMPOSITION_ORDER, HISTORY_LIMIT, indicatorsFor,
   type HudConfig, type HudComposition, type HudReadout,
 } from '../game/hudConfig';
+
+export interface RelicRow { id: string; kind: 'plant' | 'monument'; state: string; label: string; position: { x: number; z: number }; unitId: string | null; check: { ok: boolean; message?: string } }
 
 interface HudContextPanelProps {
   config: HudConfig;
@@ -12,6 +15,12 @@ interface HudContextPanelProps {
   canUndo: boolean;
   canRedo: boolean;
   onTogglePanel(): void;
+  onOpenTalents(): void;
+  flows: FlowRow[];
+  relics: RelicRow[];
+  onRelicAction(row: RelicRow): void;
+  onFocusRelic(x: number, z: number): void;
+  talentPoints: number;
   onSelectComposition(composition: HudComposition): void;
   onToggleIdle(enabled: boolean): void;
   onUndo(): void;
@@ -74,11 +83,21 @@ export function HudContextPanel(props: HudContextPanelProps) {
         Painel <kbd className="rounded bg-slate-800 px-1 font-mono text-[10px]">J</kbd>
       </button>
 
+      <button
+        type="button"
+        onClick={props.onOpenTalents}
+        title="Talentos (Alt+T)"
+        className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-950/90 px-2.5 py-1 text-[11px] font-semibold text-slate-200 hover:border-amber-500/60"
+      >
+        Talentos <kbd className="rounded bg-slate-800 px-1 font-mono text-[10px]">Alt+T</kbd>
+        {props.talentPoints > 0 && <span className="rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-slate-950" aria-label={`${props.talentPoints} pontos disponíveis`}>{props.talentPoints}</span>}
+      </button>
+
       {config.panelOpen && (
         <section
           id="hud-context-panel"
           aria-label={`Painel contextual: ${label}`}
-          style={{ maxHeight: Math.max(96, bottom - (top + 36)) }}
+          style={{ maxHeight: Math.max(96, bottom - (top + 72)) }}
           className="pointer-events-auto w-[min(18rem,calc(100vw-1rem))] space-y-2 overflow-y-auto rounded-xl border border-slate-700 bg-slate-950/90 p-2.5 text-xs text-slate-200 backdrop-blur-md"
         >
           <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Composição da interface">
@@ -108,6 +127,28 @@ export function HudContextPanel(props: HudContextPanelProps) {
             <dt className="text-slate-400">População</dt><dd className="text-right font-mono">{readout.population.current}/{readout.population.max}</dd>
           </dl>
 
+          <div className="text-[11px]" aria-label="Fluxo líquido por minuto">
+            <div className="text-slate-400">Fluxo líquido por minuto</div>
+            <table className="w-full text-right font-mono text-[10px]">
+              <thead><tr className="text-slate-500"><th className="text-left font-normal"></th><th className="font-normal">império</th><th className="font-normal">colônias</th><th className="font-normal">trânsito</th></tr></thead>
+              <tbody>
+                {props.flows.map((row) => {
+                  const fmt = (rate: FlowRow['empire']) => (rate.perMinute === null ? '—' : `${rate.perMinute >= 0 ? '+' : ''}${rate.perMinute.toFixed(1)}`);
+                  const partial = row.empire.partial && row.empire.perMinute !== null;
+                  return (
+                    <tr key={row.key}>
+                      <td className="text-left text-slate-400">{{ wood: 'Madeira', food: 'Comida', gold: 'Ouro', stone: 'Pedra', planks: 'Tábuas', pop: 'Pop.' }[row.key]}</td>
+                      <td title={partial ? `janela parcial: ${Math.round(row.empire.seconds)} s` : 'janela de 60 s'}>{fmt(row.empire)}{partial ? '*' : ''}</td>
+                      <td>{fmt(row.colonies)}</td>
+                      <td>{fmt(row.transit)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <div className="text-[10px] text-slate-500">Dado real da partida · * janela parcial · transferência interna não conta como produção.</div>
+          </div>
+
           {visible.has('era') && <div className="text-[11px]"><span className="text-slate-400">Era: </span>{era}</div>}
           {visible.has('idle-villagers') && <div className="text-[11px]"><span className="text-slate-400">Aldeões ociosos: </span>{readout.idleVillagers}</div>}
           {visible.has('queues') && (
@@ -120,6 +161,28 @@ export function HudContextPanel(props: HudContextPanelProps) {
           )}
           {visible.has('selection') && (
             <div className="text-[11px]"><span className="text-slate-400">Seleção: </span>{readout.selection ? `${readout.selection.kind === 'unit' ? 'unidade' : readout.selection.kind === 'building' ? 'edifício' : 'recurso'} ${readout.selection.id.slice(0, 8)}` : 'nenhuma'}</div>
+          )}
+
+          {props.relics.length > 0 && (
+            <div className="text-[11px]" aria-label="Plantas e monumentos conhecidos">
+              <div className="text-slate-400">Plantas e monumentos</div>
+              <ul className="space-y-1">
+                {props.relics.map((row) => (
+                  <li key={row.id} className="flex items-center justify-between gap-2">
+                    <span>{row.label} <span className="text-slate-500">· {row.state}</span></span>
+                    <span className="flex gap-1">
+                      <button type="button" onClick={() => props.onFocusRelic(row.position.x, row.position.z)} className="rounded bg-slate-800 px-1.5 py-0.5 hover:bg-slate-700">Ir</button>
+                      {(row.state === 'disponível' || row.state === 'em ruínas') && (
+                        <button type="button" disabled={!row.check.ok} title={row.check.ok ? undefined : row.check.message} onClick={() => props.onRelicAction(row)}
+                          className={`rounded px-1.5 py-0.5 font-semibold ${row.check.ok ? 'bg-amber-600 text-white hover:bg-amber-500' : 'cursor-not-allowed bg-slate-800 text-slate-500'}`}>
+                          {row.kind === 'plant' ? 'Colher' : 'Restaurar'}
+                        </button>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
 
           <label className="flex items-center gap-1.5 text-[11px] text-slate-300">
