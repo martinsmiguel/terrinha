@@ -3,6 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useHudConfig } from './hooks/useHudConfig';
+import { COMPOSITION_LABEL, nextComposition, readHud } from './game/hudConfig';
+import { HudContextPanel } from './components/HudContextPanel';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GameEngine, GameState, PlayerResources, Unit, Building, ResourceNode, MAP_SIZE, UnitType, isBoatUnit } from './game/engine';
 import { createVisionGrid, expireVision, isExploredAt, revealVision } from './game/visibility';
@@ -124,7 +127,10 @@ export default function App() {
   squadFormationRef.current = squadFormation;
 
   // HUD Display modes: 'full' (completo) | 'compact' (compacto tático) | 'hidden' (cinemático)
-  const [hudMode, setHudMode] = useState<'full' | 'compact' | 'hidden'>(isHudPreviewMode ? 'hidden' : 'full');
+  // A configuração do HUD (modo, composição, painéis) tem dono único, com histórico de desfazer/refazer só de configuração.
+  const hud = useHudConfig({ startHidden: isHudPreviewMode });
+  const hudMode = hud.config.mode;
+  const setHudMode = hud.setMode;
   const isHudVisible = hudMode !== 'hidden';
   const [isHoverPeeking, setIsHoverPeeking] = useState(false);
 
@@ -134,8 +140,10 @@ export default function App() {
   isCameraAutoMoveLockedRef.current = isCameraAutoMoveLocked;
 
   // Collapsible bottom cards & minimap state
-  const [isBottomCardCollapsed, setIsBottomCardCollapsed] = useState(false);
-  const [isMinimapCollapsed, setIsMinimapCollapsed] = useState(() => window.matchMedia('(max-width: 639px)').matches);
+  const isBottomCardCollapsed = hud.config.selectionCollapsed;
+  const setIsBottomCardCollapsed = hud.setSelectionCollapsed;
+  const isMinimapCollapsed = hud.config.minimapCollapsed;
+  const setIsMinimapCollapsed = hud.setMinimapCollapsed;
   // O mapa-mundi e controlado aqui para o Esc fechar o mapa sem limpar a selecao.
   const [isWorldMapOpen, setIsWorldMapOpen] = useState(false);
   /**
@@ -1494,6 +1502,23 @@ export default function App() {
         case 'toggle-work-zones':
           soundManager.playClickSound();
           setIsWorkZoneModalOpen((prev) => !prev);
+          break;
+        case 'cycle-hud-composition': {
+          const next = nextComposition(hud.config.composition);
+          hud.cycleComposition();
+          soundManager.playClickSound();
+          triggerNotification(`Composição do HUD: ${COMPOSITION_LABEL[next]}.`, 'info');
+          break;
+        }
+        case 'toggle-hud-panel':
+          hud.setPanelOpen((prev) => !prev);
+          soundManager.playClickSound();
+          break;
+        case 'hud-undo':
+          if (hud.canUndo) { hud.undo(); triggerNotification('Configuração do HUD desfeita.', 'info'); }
+          break;
+        case 'hud-redo':
+          if (hud.canRedo) { hud.redo(); triggerNotification('Configuração do HUD refeita.', 'info'); }
           break;
         case 'toggle-hud-hidden':
           setHudMode((prev) => {
@@ -3122,6 +3147,23 @@ export default function App() {
         onMouseEnter={() => { if (!isHudPreviewMode) setIsHoverPeeking(true); }}
       />
 
+      {!isHudPreviewMode && (
+        <HudContextPanel
+          config={hud.config}
+          readout={readHud(gameState, playerSlot, selectedEntity)}
+          era={String(gameState.techs?.[playerSlot]?.era ?? '—')}
+          canUndo={hud.canUndo}
+          canRedo={hud.canRedo}
+          onTogglePanel={() => hud.setPanelOpen((prev) => !prev)}
+          onSelectComposition={hud.setComposition}
+          onToggleIdle={hud.setIdleCollapse}
+          onUndo={hud.undo}
+          onRedo={hud.redo}
+          onPointerEnterUI={() => engineRef.current?.setIsPointerOverUI(true)}
+          onPointerLeaveUI={() => engineRef.current?.setIsPointerOverUI(false)}
+        />
+      )}
+
       <GameHeader
         hudMode={hudMode}
         setHudMode={setHudMode}
@@ -3238,7 +3280,7 @@ export default function App() {
           </div>
         )}
         {/* Interactive Mini-Map with Fog of War */}
-        <div className="pointer-events-auto">
+        <div className="pointer-events-auto" data-hud-region="minimap">
           <Minimap
             engine={engineRef.current}
             gameState={gameState}

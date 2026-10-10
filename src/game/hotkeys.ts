@@ -12,6 +12,10 @@ export type HotkeyAction =
   | { kind: 'toggle-camera-lock' }
   | { kind: 'toggle-hud-compact' }
   | { kind: 'toggle-hud-hidden' }
+  | { kind: 'cycle-hud-composition' }
+  | { kind: 'toggle-hud-panel' }
+  | { kind: 'hud-undo' }
+  | { kind: 'hud-redo' }
   | { kind: 'toggle-minimap' }
   | { kind: 'toggle-empire-catalog' }
   | { kind: 'toggle-work-zones' }
@@ -47,6 +51,8 @@ export const HOTKEYS: readonly HotkeyDefinition[] = [
   global('l', { kind: 'toggle-camera-lock' }, 'Travar/destravar câmera'),
   global('c', { kind: 'toggle-hud-compact' }, 'Alternar HUD completo e compacto'),
   global('h', { kind: 'toggle-hud-hidden' }, 'Mostrar/ocultar HUD'),
+  global('i', { kind: 'cycle-hud-composition' }, 'Alternar composição do HUD (mapa, exploração, gestão)'),
+  global('j', { kind: 'toggle-hud-panel' }, 'Abrir/fechar painel contextual do HUD'),
   global('m', { kind: 'toggle-minimap' }, 'Recolher/expandir minimapa'),
   global('k', { kind: 'toggle-empire-catalog' }, 'Abrir/fechar catálogo do império'),
   global('z', { kind: 'toggle-work-zones' }, 'Abrir/fechar zonas de trabalho'),
@@ -113,6 +119,7 @@ export interface HotkeyEventLike {
   ctrlKey?: boolean;
   metaKey?: boolean;
   altKey?: boolean;
+  shiftKey?: boolean;
   target?: object | null;
 }
 
@@ -154,6 +161,10 @@ export function isNativeKeyboardEvent(event: HotkeyEventLike): boolean {
  * apenas o mais recente: seleção e ordens da partida não são tocadas.
  */
 export function resolveHotkey(event: HotkeyEventLike, context: HotkeyContext): HotkeyAction | null {
+  // Desfazer/refazer do HUD: Ctrl/Cmd+Z e Ctrl/Cmd+Shift+Z. Só em jogo (sem overlay), fora de campos de texto, e só configuração.
+  if (event.key.toLowerCase() === 'z' && (event.ctrlKey || event.metaKey) && !event.altKey && !isEditableTarget(event.target) && context.overlays.length === 0) {
+    return { kind: event.shiftKey ? 'hud-redo' : 'hud-undo' };
+  }
   if (isNativeKeyboardEvent(event)) return null;
 
   if (context.overlays.length > 0) {
