@@ -19,6 +19,7 @@ import { EmpireCatalogModal } from './components/EmpireCatalogModal';
 import { Tutorial } from './components/Tutorial';
 import { FOUNDATION_KIT, createStartingForce, findCapitalSites, foundCapital, homeAnchor } from './game/foundation';
 import { evaluateCapitalSite, type CapitalSiteTerrain } from './game/capitalSite';
+import { bodyOf } from './game/bodyModel';
 import { updateOwnerVision, visionSourcesFor, type OwnerVision } from './game/visionAuthority';
 
 /** Marcador de que o tutorial de primeira partida ja foi exibido. */
@@ -1033,7 +1034,7 @@ export default function App() {
   const handleIncomingCommand = (cmd: unknown) => {
     if (!isValidNetworkCommand(cmd)) return;
     const commandOwner = cmd.playerSlot === undefined ? playerSlot : isPlayerSlot(cmd.playerSlot) ? cmd.playerSlot : null;
-    if (!commandOwner || !isAuthorizedPlayerCommand(gameStateRef.current, cmd, commandOwner, hostVisionRef.current)) return;
+    if (!commandOwner || !isAuthorizedPlayerCommand(gameStateRef.current, cmd, commandOwner, hostVisionRef.current, proceduralMapRef.current ?? undefined)) return;
 
     if (cmd.type === 'found_capital') {
       setGameState((prev) => {
@@ -1060,7 +1061,7 @@ export default function App() {
         proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
-        proceduralMapRef.current ? proceduralMapRef.current.isOceanAt : undefined,
+        proceduralMapRef.current ? proceduralMapRef.current.isNavigableAt : undefined,
         proceduralMapRef.current?.fertilityAt
       );
       if (!placement.isValid) return;
@@ -1071,9 +1072,11 @@ export default function App() {
       const moving = gameStateRef.current.units.find((u) => u.id === cmd.unitId);
       if (
         moving && isBoatUnit(moving.type) && proceduralMapRef.current &&
-        !proceduralMapRef.current.isOceanAt(target.x, target.z)
+        !proceduralMapRef.current.isNavigableAt(target.x, target.z)
       ) {
-        const oceanCell = findNearestOceanCell(proceduralMapRef.current, target.x, target.z);
+        // Barco: leva o destino à água com calado mais margem (1,0 de fundo) mais próxima.
+        const navigable = { isOceanAt: proceduralMapRef.current.isNavigableAt, mapSize: proceduralMapRef.current.mapSize };
+        const oceanCell = findNearestOceanCell(navigable, target.x, target.z);
         if (oceanCell) target = oceanCell;
       }
       const finalTarget = target;
@@ -1206,7 +1209,7 @@ export default function App() {
           proceduralMapRef.current?.isWaterAt,
           proceduralMapRef.current?.isCliffAt,
           proceduralMapRef.current?.getHeightAt,
-          proceduralMapRef.current?.isOceanAt,
+          proceduralMapRef.current?.isNavigableAt,
           proceduralMapRef.current?.fertilityAt,
         ).isValid,
       ));
@@ -1550,7 +1553,7 @@ export default function App() {
         proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
-        proceduralMapRef.current ? proceduralMapRef.current.isOceanAt : undefined,
+        proceduralMapRef.current ? proceduralMapRef.current.isNavigableAt : undefined,
         proceduralMapRef.current?.fertilityAt
       );
 
@@ -1794,7 +1797,7 @@ export default function App() {
             proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
             proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
             proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
-            proceduralMapRef.current ? proceduralMapRef.current.isOceanAt : undefined,
+            proceduralMapRef.current ? proceduralMapRef.current.isNavigableAt : undefined,
         proceduralMapRef.current?.fertilityAt
           );
           if (ghostBuildingMesh.current) {
@@ -1904,6 +1907,11 @@ export default function App() {
     if (count === 0) return;
 
     if (count === 1) {
+      const body = bodyOf(units[0].type);
+      if (body !== 'boat' && proceduralMapRef.current && !proceduralMapRef.current.canStandAt(body, targetX, targetZ)) {
+        triggerNotification('Destino inacessível para esta unidade: água funda ou rochedo.', 'warning');
+        return;
+      }
       const cmd = {
         type: 'move',
         unitId: units[0].id,

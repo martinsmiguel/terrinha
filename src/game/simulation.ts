@@ -12,12 +12,34 @@ import type { TechState } from './tech';
 import { evaluateMatch } from './victory';
 import { advanceFoundation, clearEliminatedOrders, lifePhase } from './foundation';
 import { canTarget, type OwnerVision } from './visionAuthority';
+import { bodyOf, moveCost, type BodyId, type Surface } from './bodyModel';
 import { UNIT_ATTRIBUTES, effectiveAttribute, unitAttribute, type RuleSettings } from './unitAttributes';
 
 export interface SimulationMap {
   isWaterAt(x: number, z: number): boolean;
   isImpassableAt(x: number, z: number): boolean;
   isOceanAt(x: number, z: number): boolean;
+  /** Modelo de corpos (opcional): vau dos corpos terrestres, calado dos barcos e superfície com profundidade. */
+  canStandAt?(body: BodyId, x: number, z: number): boolean;
+  isNavigableAt?(x: number, z: number): boolean;
+  surfaceAt?(x: number, z: number): Surface;
+}
+
+/** Célula bloqueada para o corpo da unidade: calado para barcos, vau para os terrestres; sem o modelo, a regra legada. */
+function blockedFor(type: UnitType, map: SimulationMap): (x: number, z: number) => boolean {
+  const body = bodyOf(type);
+  if (body === 'boat') return map.isNavigableAt ? (x, z) => !map.isNavigableAt!(x, z) : (x, z) => !map.isOceanAt(x, z);
+  return map.canStandAt ? (x, z) => !map.canStandAt!(body, x, z) : (x, z) => map.isImpassableAt(x, z);
+}
+
+/** Custo de travessia para a rota (o raso custa mais que a terra seca); `undefined` sem superfície com profundidade. */
+function costFor(type: UnitType, map: SimulationMap): ((x: number, z: number) => number) | undefined {
+  if (!map.surfaceAt) return undefined;
+  const body = bodyOf(type);
+  return (x, z) => {
+    const cost = moveCost(map.surfaceAt!(x, z), body);
+    return Number.isFinite(cost) ? cost : 1;
+  };
 }
 
 export interface SimulationBuildingDefinition {
@@ -107,9 +129,10 @@ function routeFrom(
   from: { x: number; z: number },
   goal: { x: number; z: number },
   isBlocked: (x: number, z: number) => boolean,
-  mapSize: number
+  mapSize: number,
+  cost?: (x: number, z: number) => number
 ): { x: number; z: number }[] {
-  const options = { mapSize, maxExpanded: 2400 };
+  const options = { mapSize, maxExpanded: 2400, cost };
   const direct = findPath(from, goal, isBlocked, options);
   if (direct.length > 0) return direct;
   const cellX = Math.floor(from.x);
@@ -188,9 +211,8 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       if (direct) return direct;
     }
 
-    const boat = isBoatUnit(unit.type);
     const pathFor = (from: { x: number; z: number }) =>
-      routeFrom(from, goal, boat ? (x, z) => !pMap.isOceanAt(x, z) : (x, z) => pMap.isImpassableAt(x, z), mapSize);
+      routeFrom(from, goal, blockedFor(unit.type, pMap), mapSize, costFor(unit.type, pMap));
     if (!cached || cached.goal.x !== goal.x || cached.goal.z !== goal.z) {
       pathCache.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: pathFor(unit.position) });
     }
@@ -215,16 +237,11 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       }
 
       const speed = unitAttribute(unit.type, 'movePerTick', ruleSettings);
-      const boat = isBoatUnit(unit.type);
 
       let heading = goal;
       if (pMap) {
-        const pathFor = (from: { x: number; z: number }) => {
-          const isBlocked = boat
-            ? (x: number, z: number) => !pMap.isOceanAt(x, z)
-            : (x: number, z: number) => pMap.isImpassableAt(x, z);
-          return routeFrom(from, goal, isBlocked, mapSize);
-        };
+        const pathFor = (from: { x: number; z: number }) =>
+          routeFrom(from, goal, blockedFor(unit.type, pMap), mapSize, costFor(unit.type, pMap));
 
         const cached = pathCache.get(unit.id);
         if (!cached || cached.goal.x !== goal.x || cached.goal.z !== goal.z) {
@@ -620,7 +637,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       // prova de navegabilidade, entao a fila aguarda sem criar unidade.
       const oceanCell = context.map
         ? findDockOceanSpawnCell(
-            context.map.isOceanAt,
+            context.map.isNavigableAt ?? context.map.isOceanAt,
             building.position.x,
             building.position.z,
             spawnX,
@@ -821,8 +838,11 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         }
       });
     };
-    relax(updatedUnits.filter((unit) => !isBoatUnit(unit.type)), (x, z) => pMap.isImpassableAt(x, z));
-    relax(updatedUnits.filter((unit) => isBoatUnit(unit.type)), (x, z) => !pMap.isOceanAt(x, z));
+    // Cada corpo é empurrado só para onde ele pode estar: barcos pelo calado, os demais pelo próprio vau.
+    for (const group of ['human', 'mount', 'cart', 'boat'] as const) {
+      const members = updatedUnits.filter((unit) => bodyOf(unit.type) === group);
+      if (members.length > 0) relax(members, blockedFor(members[0].type, pMap));
+    }
     if (movedPositions.size > 0) {
       updatedUnits = updatedUnits.map((unit) => {
         const pos = movedPositions.get(unit.id);

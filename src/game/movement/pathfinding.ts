@@ -21,6 +21,11 @@ export interface PathOptions {
    * chamada continuar de onde parou.
    */
   maxExpanded?: number;
+  /**
+   * Multiplicador do custo de entrar numa célula (1 = normal). Torna o raso mais caro que a terra seca para a rota
+   * preferir o caminho seco quando ele não for muito mais longo. Células bloqueadas continuam sendo `isBlocked`.
+   */
+  cost?: (x: number, z: number) => number;
 }
 
 const DEFAULT_MAP_SIZE = 60;
@@ -185,7 +190,7 @@ export const findPath = (
       const neighborIndex = nz * cells + nx;
       if (closed[neighborIndex]) continue;
 
-      const stepCost = diagonal ? SQRT2 : 1;
+      const stepCost = (diagonal ? SQRT2 : 1) * Math.max(1, options.cost?.(toWorld(nx), toWorld(nz)) ?? 1);
       const tentative = gScore[current] + stepCost;
       if (tentative >= gScore[neighborIndex]) continue;
 
