@@ -4,6 +4,7 @@
  */
 
 import { useState } from 'react';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import {
   ArrowLeft,
   ArrowRight,
@@ -90,6 +91,7 @@ export interface TutorialProps {
 }
 
 export const Tutorial = ({ onClose }: TutorialProps) => {
+  const dialogRef = useDialogFocus<HTMLDivElement>();
   const [index, setIndex] = useState(0);
   const step = TUTORIAL_STEPS[index];
   const Icon = step.icon;
@@ -98,11 +100,11 @@ export const Tutorial = ({ onClose }: TutorialProps) => {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
-      <div className="bg-slate-900/95 border border-cyan-500/40 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="tutorial-title" className="bg-slate-900/95 border border-cyan-500/40 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 outline-none">
         <div className="flex items-center justify-between pb-3 border-b border-slate-800">
           <div className="flex items-center gap-2 text-amber-400 font-bold text-base">
             <GraduationCap className="w-5 h-5 text-cyan-400" />
-            <span>Tutorial rápido (2 minutos)</span>
+            <span id="tutorial-title">Tutorial rápido (2 minutos)</span>
           </div>
           <button
             type="button"

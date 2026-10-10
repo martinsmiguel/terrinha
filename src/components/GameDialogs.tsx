@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import type { ChatMessage } from '../game/multiplayer';
 import { soundManager } from '../game/audio';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 
 interface ActiveWorkZone {
   id: string;
@@ -61,6 +62,8 @@ export function GameDialogs({
   isStrictZoneLeash, setIsStrictZoneLeash, onApplyRadiusToAllWorkingVillagers, activeWorkZones,
   onFocusZone, onPointerEnterUI, onPointerLeaveUI, notification,
 }: GameDialogsProps) {
+  const controlsRef = useDialogFocus<HTMLDivElement>(showControlsModal);
+  const workZoneRef = useDialogFocus<HTMLDivElement>(isWorkZoneModalOpen);
   return (
     <>
       {/* LAN CHAT MODAL / DRAWER */}
@@ -113,11 +116,11 @@ export function GameDialogs({
       {/* TACTICAL CONTROLS & SHORTCUTS GUIDE MODAL */}
       {showControlsModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
-          <div className="bg-slate-900/95 border border-slate-700/80 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+          <div ref={controlsRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="controls-title" className="bg-slate-900/95 border border-slate-700/80 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 outline-none">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2 text-amber-400 font-bold text-base">
                 <Info className="w-5 h-5 text-cyan-400" />
-                <span>Guia de Navegação e Controles RTS</span>
+                <span id="controls-title">Guia de Navegação e Controles RTS</span>
               </div>
               <button
                 type="button"
@@ -224,9 +227,14 @@ export function GameDialogs({
       {isWorkZoneModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
           <div
+            ref={workZoneRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="work-zone-title"
             onMouseEnter={() => onPointerEnterUI()}
             onMouseLeave={() => onPointerLeaveUI()}
-            className="bg-slate-900/95 border border-emerald-500/40 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 text-slate-200"
+            className="outline-none bg-slate-900/95 border border-emerald-500/40 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 text-slate-200"
           >
             {/* Header */}
             <div className="flex items-start justify-between pb-3 border-b border-slate-800">
@@ -235,7 +243,7 @@ export function GameDialogs({
                   <Target className="w-6 h-6 animate-pulse" />
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <h2 id="work-zone-title" className="text-base font-bold text-white flex items-center gap-2">
                     Configurador de Zonas de Trabalho
                   </h2>
                   <p className="text-xs text-slate-400">

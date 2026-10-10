@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import {
   X,
   Package,
@@ -46,6 +47,7 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
   onSelectBuildingToBuild,
   activeGatherersCount,
 }) => {
+  const dialogRef = useDialogFocus<HTMLDivElement>(isOpen);
   const [activeTab, setActiveTab] = useState<'catalog' | 'chains' | 'market' | 'stats'>('catalog');
   const [tradeAmount, setTradeAmount] = useState<number>(50);
 
@@ -64,7 +66,7 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/75 backdrop-blur-md animate-fade-in select-none">
-      <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col bg-slate-950/95 border-2 border-amber-600/70 rounded-3xl shadow-[0_0_50px_rgba(217,119,6,0.25)] overflow-hidden">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="empire-catalog-title" className="relative w-full max-w-4xl max-h-[92vh] flex flex-col outline-none bg-slate-950/95 border-2 border-amber-600/70 rounded-3xl shadow-[0_0_50px_rgba(217,119,6,0.25)] overflow-hidden">
         {/* Heraldic AoE2 / SkyCity Ornate Top Banner */}
         <div className="relative px-6 py-4 bg-gradient-to-r from-amber-950/90 via-slate-900 to-amber-950/90 border-b border-amber-500/40 flex items-center justify-between">
           {/* Ornate Corner Accents */}
@@ -80,7 +82,7 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
             </div>
             <div>
               <div className="text-base sm:text-lg font-serif font-bold text-amber-200 tracking-wide flex items-center gap-2">
-                <span>Catálogo do Império & Matriz de Produção</span>
+                <span id="empire-catalog-title">Catálogo do Império & Matriz de Produção</span>
               </div>
               <div className="text-xs text-amber-400/70 font-sans">
                 Sistema Econômico Colonial Inspirado em SkyCity, Ikariam & Age of Empires 2
@@ -102,6 +104,7 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
               onClick={onClose}
               className="p-1.5 rounded-xl bg-slate-900 hover:bg-amber-600/30 border border-slate-700 hover:border-amber-400 text-slate-400 hover:text-white transition-colors"
               title="Fechar Catálogo (ESC)"
+              aria-label="Fechar catálogo do império"
             >
               <X className="w-5 h-5" />
             </button>
