@@ -99,6 +99,7 @@ export function GameHeader({
           <button
             type="button"
             onClick={toggleCameraLock}
+            aria-pressed={isCameraAutoMoveLocked}
             className={`flex items-center gap-1 text-[11px] transition-colors ${
               isCameraAutoMoveLocked ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-slate-200'
             }`}
@@ -124,6 +125,7 @@ export function GameHeader({
             setIsHoverPeeking(false);
             onPointerLeaveUI();
           }}
+          style={{ paddingTop: 'env(safe-area-inset-top)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}
           className={`absolute top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 pointer-events-none transition-all duration-300 z-30 ${
             hudMode === 'hidden' && isHoverPeeking ? 'opacity-100 translate-y-0' : ''
           }`}
@@ -161,6 +163,7 @@ export function GameHeader({
                 <button
                   type="button"
                   onClick={toggleCameraLock}
+            aria-pressed={isCameraAutoMoveLocked}
                   className={`px-2 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors ${
                     isCameraAutoMoveLocked
                       ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm'
@@ -217,11 +220,12 @@ export function GameHeader({
               />
 
               {/* Room & Actions Bar */}
-              <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-950/90 backdrop-blur-md px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-2xl border border-slate-800 shadow-2xl pointer-events-auto">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 max-w-full bg-slate-950/90 backdrop-blur-md px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-2xl border border-slate-800 shadow-2xl pointer-events-auto">
                 {/* Camera Auto-Movement Lock Toggle Button */}
                 <button
                   type="button"
                   onClick={toggleCameraLock}
+            aria-pressed={isCameraAutoMoveLocked}
                   className={`p-1.5 px-2.5 rounded-xl border transition-all flex items-center gap-1.5 text-xs font-semibold ${
                     isCameraAutoMoveLocked
                       ? 'bg-amber-500/25 border-amber-500/50 text-amber-300 shadow-sm shadow-amber-500/20 ring-1 ring-amber-500/30'
@@ -245,6 +249,7 @@ export function GameHeader({
                   <button
                     type="button"
                     onClick={() => setHudMode('full')}
+                    aria-pressed={hudMode === 'full'}
                     className={`px-2 py-1 rounded-lg transition-colors ${
                       hudMode === 'full' ? 'bg-amber-500/20 text-amber-300 font-bold' : 'text-slate-400 hover:text-white'
                     }`}
@@ -255,6 +260,7 @@ export function GameHeader({
                   <button
                     type="button"
                     onClick={() => setHudMode('compact')}
+                    aria-pressed={hudMode === 'compact'}
                     className={`px-2 py-1 rounded-lg transition-colors ${
                       hudMode === 'compact' ? 'bg-amber-500/20 text-amber-300 font-bold' : 'text-slate-400 hover:text-white'
                     }`}
