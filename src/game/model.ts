@@ -118,6 +118,9 @@ export interface GameState {
   mapSize?: number;
   /** Kit de fundacao reservado por jogador ate a capital ser fundada (separado do suprimento). */
   foundationKits?: Record<string, { wood: number; stone: number }>;
+  /** Perfil de comportamento da IA da partida (default Defensivo) e o relógio de cada bot. */
+  botProfile?: import('./bots').BotProfile;
+  botClocks?: Record<string, import('./bots').BotClock>;
   /** Tempestade em aviso ou ativa (estado do host, sincronizado por snapshot). */
   storm?: import('./storms').Storm;
   /** Plantas e monumentos das ilhas (estado do host). */
