@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { createPortal } from 'react-dom';
 import { homeAnchor } from '../game/foundation';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GameEngine, GameState, MAP_SIZE } from '../game/engine';
@@ -482,7 +483,9 @@ export const Minimap: React.FC<MinimapProps> = ({
     }
   };
 
-  const worldMapModal = isWorldMapOpen ? (
+  // Portal em document.body: dentro da barra do minimapa (backdrop-filter) o `fixed inset-0` do modal
+  // ficava preso à caixa da barra, e com o minimapa recolhido o diálogo virava 216x14 px.
+  const worldMapModal = isWorldMapOpen ? createPortal(
     <WorldMapModal
       gameState={gameState}
       playerSlot={playerSlot}
@@ -493,7 +496,8 @@ export const Minimap: React.FC<MinimapProps> = ({
       onToggleRevealAll={() => setDeveloperRevealAll((value) => !value)}
       onNavigate={(target) => engine?.setCameraTarget(target.x, target.z)}
       onPointerOverChange={(isOver) => engine?.setIsPointerOverUI(isOver)}
-    />
+    />,
+    document.body
   ) : null;
 
   // If Minimap is collapsed: render a sleek, compact tactical pill

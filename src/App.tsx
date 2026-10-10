@@ -104,6 +104,8 @@ export default function App() {
   /** Dimensão escolhida no lobby (host e solo); a da sessão ativa fica em `worldSizeRef`. */
   const [worldSizeSetting, setWorldSizeSetting] = useState<number>(MAP_SIZE);
   const worldSizeRef = useRef<number>(MAP_SIZE);
+  /** A câmera já foi levada à base do jogador local nesta sessão. */
+  const cameraCenteredRef = useRef(false);
   const playerSlotRef = useRef<PlayerSlot>('player1');
   playerSlotRef.current = playerSlot;
 
@@ -631,6 +633,11 @@ export default function App() {
             applyTerrainSeed(hostSeed, hostSize);
           }
           const myUnits = remoteState.units.filter((u: Unit) => u.owner === playerSlot);
+          if (!cameraCenteredRef.current && myUnits.length > 0) {
+            const home = homeAnchor(playerSlot, remoteState.buildings, remoteState.units);
+            if (home) engineRef.current?.setCameraTarget(home.x, home.z);
+            cameraCenteredRef.current = true;
+          }
           if (prevMyUnitsCountRef.current !== null && myUnits.length > prevMyUnitsCountRef.current) {
             const newUnit = myUnits[myUnits.length - 1];
             soundManager.playUnitTrainedSound(newUnit?.type || 'villager');
@@ -839,6 +846,11 @@ export default function App() {
       });
     }
     setGameState(initial);
+
+    // Num mundo grande o centro é mar aberto: a câmera começa na chegada do jogador local.
+    const arrival = spawnForSlot(playerSlot);
+    if (arrival) engineRef.current?.setCameraTarget(arrival.x, arrival.z);
+    cameraCenteredRef.current = true;
   };
 
   // Regenerate the procedural archipelago with a fresh seed
