@@ -1307,6 +1307,25 @@ export function SelectionPanel(props: SelectionPanelProps) {
                         </div>
                       )}
 
+                      {/* Posto avançado: posse, estado e motivo de produção bloqueada */}
+                      {selectedBuilding.type === 'outpost' && (
+                        <div className="p-3 rounded-xl bg-cyan-950/40 border border-cyan-800/60 text-cyan-200 text-xs space-y-1">
+                          <div className="font-bold">
+                            Posto Avançado · posse: {selectedBuilding.owner === playerSlot ? 'sua' : selectedBuilding.owner.replace('player', 'jogador ')}
+                          </div>
+                          {selectedBuilding.isComplete ? (
+                            <div className="text-[10px] text-cyan-300/80">
+                              Concluído: território de raio 18, cura de 2 HP/s para tropas terrestres próprias e depósito do estoque local da ilha.
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-amber-300">
+                              Em obras: depósito provisório. Sem coleta, produção nem câmbio até ser concluído.
+                            </div>
+                          )}
+                          <div className="text-[10px] text-slate-400">Pelo mapa-múndi (M) você vê o saldo da colônia e o total do império.</div>
+                        </div>
+                      )}
+
                       {/* Sawmill Information Status */}
                       {selectedBuilding.type === 'sawmill' && (
                         <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/60 text-emerald-300 text-xs flex items-center gap-2.5">

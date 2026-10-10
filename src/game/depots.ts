@@ -145,3 +145,67 @@ export function tradeAt<T extends Stocked>(
   if (!outcome.ok || !outcome.next) return { state, ok: false, reason: outcome.reason };
   return { state: withStock(state, owner, locality, bagOf(outcome.next)), ok: true };
 }
+
+export interface OutpostInfo { id: string; complete: boolean; health: number; maxHealth: number; position: { x: number; z: number } }
+
+export interface LocalityRow {
+  locality: string;
+  island: { index: number; name: string };
+  kind: 'metropole' | 'colonia' | 'regiao';
+  /** O jogador já viu esta ilha; ilhas desconhecidas aparecem só como região desconhecida. */
+  discovered: boolean;
+  outposts: OutpostInfo[];
+  completeDepots: number;
+  /** Saldo aplicável: o que esta localidade pode gastar. Região sem posto não tem saldo. */
+  stock: StockBag | null;
+  productionBlocked: boolean;
+  /** Motivo, em português, de produção bloqueada ou de recusa de ações locais. */
+  reason?: string;
+  /** Ponto para onde a câmera vai (posto completo, posto em obras ou centro da ilha). */
+  focus: { x: number; z: number };
+}
+
+export interface LocalityOverview {
+  rows: LocalityRow[];
+  /** Total do império: metrópole mais colônias, cada estoque contado uma única vez. */
+  total: StockBag;
+}
+
+/**
+ * Visão administrativa das localidades do dono: metrópole, colônias com posto e regiões conhecidas sem posto.
+ * Saldo aplicável (por localidade) e total do império têm campos distintos e nunca somam duas vezes a mesma ilha.
+ */
+export function localityOverview(
+  state: Pick<GameState, 'buildings' | 'playerResources' | 'localStocks'>,
+  owner: string,
+  islands: readonly { index: number; name: string; center: { x: number; z: number } }[],
+  resolve: LocalityResolver,
+  isDiscovered: (island: { index: number }) => boolean
+): LocalityOverview {
+  const mine = state.buildings.filter((building) => building.type === 'outpost' && building.owner === owner && building.health > 0);
+  const rows: LocalityRow[] = islands.map((island) => {
+    const center = { x: island.center.x, z: island.center.z };
+    const locality = resolve(owner, center);
+    const outposts = mine.filter((building) => resolve(owner, building.position) === locality).map((building) => ({
+      id: building.id, complete: building.isComplete, health: building.health, maxHealth: building.maxHealth, position: building.position,
+    }));
+    const completeDepots = outposts.filter((outpost) => outpost.complete).length;
+    const discovered = isDiscovered(island);
+    const kind: LocalityRow['kind'] = locality === HOME ? 'metropole' : outposts.length > 0 ? 'colonia' : 'regiao';
+    const stock = kind === 'regiao' ? null : stockAt(state as Stocked, owner, locality);
+    const blocked = kind === 'colonia' && completeDepots === 0;
+    const reason = blocked
+      ? 'Posto em obras: sem coleta, produção nem câmbio até ser concluído.'
+      : kind === 'regiao' ? (discovered ? 'Sem posto: ações locais indisponíveis; funde um posto para administrar.' : 'Região ainda desconhecida.') : undefined;
+    const focusPost = outposts.find((outpost) => outpost.complete) ?? outposts[0];
+    return {
+      locality, island: { index: island.index, name: island.name }, kind, discovered, outposts, completeDepots, stock,
+      productionBlocked: blocked, reason, focus: focusPost ? { ...focusPost.position } : center,
+    };
+  });
+  const total = emptyBag();
+  for (const row of rows) {
+    if (row.stock) KEYS.forEach((key) => { total[key] += row.stock![key]; });
+  }
+  return { rows: rows.filter((row) => row.kind !== 'regiao' || row.discovered), total };
+}

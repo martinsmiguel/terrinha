@@ -35,6 +35,8 @@ interface MinimapProps {
   onWorldMapOpenChange?: (open: boolean) => void;
   /** Revelar o mapa inteiro so existe em modo desenvolvedor. */
   developerToolsEnabled?: boolean;
+  /** Localidade de uma posição (metrópole ou ilha colonial) para a administração de colônias no mapa-múndi. */
+  localityOf?: (owner: string, position: { x: number; z: number }) => string;
 }
 
 const FACTION_MINIMAP_COLORS: Record<string, string> = {
@@ -59,6 +61,7 @@ export const Minimap: React.FC<MinimapProps> = ({
   isWorldMapOpen: isWorldMapOpenProp,
   onWorldMapOpenChange,
   developerToolsEnabled = false,
+  localityOf,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -503,6 +506,7 @@ export const Minimap: React.FC<MinimapProps> = ({
       onClose={() => setWorldMapOpen(false)}
       onToggleRevealAll={() => setDeveloperRevealAll((value) => !value)}
       onNavigate={(target) => engine?.setCameraTarget(target.x, target.z)}
+      localityOf={localityOf}
       onPointerOverChange={(isOver) => engine?.setIsPointerOverUI(isOver)}
     />,
     document.body

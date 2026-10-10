@@ -54,7 +54,7 @@ import {
   UNIT_COSTS,
   halfCost,
 } from './game/economy';
-import { HOME, debitAt, depotsIn, refundAt } from './game/depots';
+import { HOME, debitAt, depotsIn, refundAt, tradeAt } from './game/depots';
 import { PLAYER_SLOTS, payerLocality, hostLeftSessionMessage, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, soloMatchSlots, type PlayerSlot } from './game/networkCommands';
 import { localOutcome, type LocalOutcome } from './game/victory';
 import {
@@ -66,6 +66,7 @@ import { FACTION_COLORS } from './game/factions';
 import { pickFrontMostCandidate, resolveClickSelection } from './game/entitySelection';
 import { applyEmbarkOrder, boatCapacity } from './game/navalTransport';
 import { assignRoute, cancelRoute, redirectRoute } from './game/tradeRoutes';
+import { localityLabel } from './game/colonialTransport';
 import { deliverCargo, loadCargo, loadKit, previewDisembark, previewKit, previewLoad } from './game/colonialTransport';
 import { tickGameState } from './game/simulation';
 import { applyBuildingFoundation } from './game/buildingOrders';
@@ -1157,6 +1158,16 @@ export default function App() {
       });
       triggerNotification(`Desembarcando ${boatNow.passengers!.length} unidade(s), uma a cada meio segundo.`, 'info');
       soundManager.playClickSound();
+    } else if (cmd.type === 'trade' && cmd.marketId) {
+      // Câmbio local: o saldo é o da ilha do mercado escolhido; a metrópole não paga nem recebe.
+      const marketId = cmd.marketId;
+      setGameState((prev) => {
+        const market = prev.buildings.find((b) => b.id === marketId);
+        const map = proceduralMapRef.current;
+        if (!market || market.type !== 'market' || market.owner !== commandOwner || !market.isComplete || !map) return prev;
+        const applied = tradeAt(prev, commandOwner, map.localityOf(commandOwner, market.position), cmd.resource, cmd.action, cmd.amount);
+        return applied.ok ? applied.state : prev;
+      });
     } else if (cmd.type === 'trade') {
       setGameState((prev) => {
         const resources = prev.playerResources[commandOwner];
@@ -2539,6 +2550,25 @@ export default function App() {
     const myRes = gameState.playerResources[playerSlot];
     if (!myRes) return;
 
+    // Mercado próprio e concluído selecionado numa colônia: o câmbio usa o saldo da ilha dele.
+    const selectedMarket = selectedEntity?.kind === 'building'
+      ? gameState.buildings.find((b) => b.id === selectedEntity.id && b.type === 'market' && b.owner === playerSlot && b.isComplete)
+      : undefined;
+    const marketLocality = selectedMarket ? proceduralMapRef.current?.localityOf(playerSlot, selectedMarket.position) ?? HOME : HOME;
+    if (selectedMarket && marketLocality !== HOME) {
+      const local = tradeAt(gameState, playerSlot, marketLocality, type, action, amount);
+      if (!local.ok) {
+        triggerNotification(local.reason || 'Operação de comércio inválida.', 'warning');
+        return;
+      }
+      const cmdLocal = { type: 'trade', resource: type, action, amount, marketId: selectedMarket.id };
+      if (role === 'host' || role === 'single') handleIncomingCommand(cmdLocal);
+      else multiRef.current?.sendToHost(cmdLocal);
+      soundManager.playClickSound();
+      triggerNotification(`Mercado de ${localityLabel(marketLocality)}: ${action === 'buy' ? 'compra' : 'venda'} de ${amount} de ${MARKET_LABELS[type]}.`, 'success');
+      return;
+    }
+
     const outcome = tradeResource(myRes, type, action, amount);
     if (!outcome.ok || !outcome.next) {
       triggerNotification(outcome.reason || 'Operação de comércio inválida.', 'warning');
@@ -3204,6 +3234,7 @@ export default function App() {
             isWorldMapOpen={isWorldMapOpen}
             onWorldMapOpenChange={setIsWorldMapOpen}
             developerToolsEnabled={developerToolsEnabled}
+            localityOf={proceduralMapRef.current?.localityOf}
           />
         </div>
 
