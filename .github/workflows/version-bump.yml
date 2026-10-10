@@ -26,7 +26,7 @@ jobs:
         run: |
           test "$GITHUB_REF" = refs/heads/main
           node --input-type=module -e 'if (!/^\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?$/.test(process.env.RELEASE_VERSION) || !/^[a-f0-9]{40}$/.test(process.env.CANDIDATE_SHA)) throw new Error("Versão ou SHA inválido")'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.candidate_sha }}
           fetch-depth: 0
@@ -38,7 +38,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
           git merge-base --is-ancestor HEAD origin/main
           node --input-type=module -e 'import fs from "node:fs"; const p=JSON.parse(fs.readFileSync("package.json")); const l=JSON.parse(fs.readFileSync("package-lock.json")); if(p.version!==process.env.RELEASE_VERSION || l.version!==p.version || l.packages[""].version!==p.version) throw new Error("Versão do pacote/lock não preparada")'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
           cache: npm
