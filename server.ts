@@ -1,3 +1,4 @@
+import { EVALUATION_PAGES, pageForUrl } from './serverPages';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -59,7 +60,7 @@ async function startServer() {
     app.use('*', async (req, res, next) => {
       try {
         const url = req.originalUrl;
-        const page = ['/poc.html', '/poc-hud.html', '/poc-avaliacao.html'].includes(req.path) ? req.path.slice(1) : 'index.html';
+        const page = pageForUrl(url);
         const indexPath = path.resolve(__dirname, page);
         let template = fs.readFileSync(indexPath, 'utf-8');
         template = await viteServer.transformIndexHtml(url, template);
@@ -73,7 +74,7 @@ async function startServer() {
     const clientDir = path.resolve(__dirname, '../dist');
     app.use(express.static(clientDir));
     // Uma página de avaliação ausente não pode parecer válida via fallback SPA.
-    app.get(['/poc.html', '/poc-hud.html', '/poc-avaliacao.html'], (_req, res) => res.sendStatus(404));
+    app.get([...EVALUATION_PAGES], (_req, res) => res.sendStatus(404));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(clientDir, 'index.html'));
     });
