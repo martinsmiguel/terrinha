@@ -33,6 +33,6 @@ exercita dependência pura, import type e rejeições diretas/transitivas, com
 fixtures temporárias removidas após cada execução.
 
 Tipos e constantes vêm de model.ts; engine.ts os reexporta para compatibilidade.
-O catálogo de construção vem de buildingCatalog.ts; buildingDefs.ts continua
-responsável por objetos Three e reexporta o catálogo. Não há alteração de
+O catálogo de construção vem de buildingCatalog.ts, fonte única e pura; os
+objetos Three ficam em buildingScaffold.ts, que importa o catálogo e nunca o contrário. Não há alteração de
 MAP_SIZE, capacidades, custos ou regras de combate neste refactor.

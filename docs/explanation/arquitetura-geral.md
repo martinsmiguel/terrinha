@@ -29,7 +29,8 @@ src/
     ├── navalTransport.ts → embarque/desembarque de unidades em barcos
     ├── worldMap.ts      → regras do mapa-múndi (descoberta, clique, névoa)
     ├── mapProjection.ts → projeção única mundo ↔ pixel (minimapa/mapa-múndi)
-    ├── buildingDefs.ts  → catálogo dos 8 edifícios + andaimes
+    ├── buildingCatalog.ts → catálogo puro dos 8 edifícios (custos, footprint, HP, duração)
+    ├── buildingScaffold.ts → andaimes e prévia 3D (Three), consomem o catálogo
     ├── buildingGhost.ts → posicionamento válido (cliff/água/inclinação/colisão)
     ├── economy.ts       → custos de unidades/edifícios, compra/venda, reembolso
     ├── victory.ts       → MatchStatus, participantes, fim de partida
