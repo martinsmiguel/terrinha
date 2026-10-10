@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Building, GameState, PlayerResources, Unit } from '../../src/game/engine';
 import { tickGameState, type SimulationContext } from '../../src/game/simulation';
 import { parseRuleSettings } from '../../src/game/unitAttributes';
+import { updateOwnerVision } from '../../src/game/visionAuthority';
 
 const playerResources = (): PlayerResources => ({
   wood: 100,
@@ -359,6 +360,84 @@ describe('simulation performance', () => {
       expect(unit.targetPosition).toEqual({ x: 40, z: 40 });
       expect(unit.position.x).toBeGreaterThan(10);
       expect(current.buildings.find((building) => building.id === 'tc-2')!.trainingQueue).toEqual([]);
+    });
+  });
+
+  describe('visão autoritativa do host', () => {
+    const owners = ['player1', 'player2'];
+    const visionFor = (state: GameState, size = 60) => updateOwnerVision(undefined, state, owners, size);
+    const withVision = (state: GameState, overrides: Partial<SimulationContext> = {}) =>
+      context({ activeSlots: owners, vision: visionFor(state), ...overrides });
+
+    it('a perseguição acaba quando o alvo inimigo sai de vista e continua enquanto ele é visível', () => {
+      const attacker = createUnit({ id: 'soldier', type: 'soldier', position: { x: 10, z: 10 }, targetEntityId: 'enemy', state: 'attacking' });
+      const near = createUnit({ id: 'enemy', owner: 'player2', position: { x: 16, z: 10 } });
+      const hidden = { ...near, position: { x: 40, z: 40 } };
+      const capital = (owner: string) => createBuilding({ id: `tc-${owner}`, owner, position: { x: owner === 'player1' ? 5 : 55, z: owner === 'player1' ? 5 : 55 } });
+      const seen = createState({ units: [attacker, near], buildings: [capital('player1'), capital('player2')] });
+      const unseen = createState({ units: [attacker, hidden], buildings: [capital('player1'), capital('player2')] });
+
+      const kept = tickGameState(seen, withVision(seen)).state.units.find((u) => u.id === 'soldier')!;
+      expect(kept).toMatchObject({ state: 'attacking', targetEntityId: 'enemy' });
+
+      const lost = tickGameState(unseen, withVision(unseen)).state.units.find((u) => u.id === 'soldier')!;
+      expect(lost).toMatchObject({ state: 'idle', targetEntityId: null });
+      expect(lost.position).toEqual({ x: 10, z: 10 });
+    });
+
+    it('sem visão informada a perseguição segue como antes (legado e testes)', () => {
+      const attacker = createUnit({ id: 'soldier', type: 'soldier', position: { x: 10, z: 10 }, targetEntityId: 'enemy', state: 'attacking' });
+      const far = createUnit({ id: 'enemy', owner: 'player2', position: { x: 40, z: 40 } });
+      const state = createState({ units: [attacker, far], buildings: [createBuilding({ owner: 'player1' }), createBuilding({ id: 'b2', owner: 'player2', position: { x: 55, z: 55 } })] });
+      const moved = tickGameState(state, context({ activeSlots: owners })).state.units.find((u) => u.id === 'soldier')!;
+      expect(moved.state).toBe('attacking');
+    });
+
+    it('a torre só atira em inimigo que o dono enxerga', () => {
+      const tower = createBuilding({ id: 'tower', type: 'tower', owner: 'player1', position: { x: 30, z: 30 }, isComplete: true });
+      const enemy = createUnit({ id: 'enemy', owner: 'player2', position: { x: 38, z: 30 } });
+      const hasScout = (state: GameState) => [...state.units];
+      const blindState = createState({ buildings: [tower, createBuilding({ id: 'tc-2', owner: 'player2', position: { x: 50, z: 50 } })], units: hasScout({ units: [enemy] } as GameState) });
+      // A torre (visão 9) alcança 12; o inimigo a 8 de distância está visível, então leva dano.
+      expect(tickGameState(blindState, withVision(blindState)).state.units[0].health).toBeLessThan(100);
+
+      // Inimigo a 11 (dentro do alcance 12, fora da visão 9 da torre): não é alvo.
+      const edge = { ...enemy, position: { x: 41, z: 30 } };
+      const edgeState = createState({ buildings: blindState.buildings.map((b) => (b.id === 'tower' ? tower : b)), units: [edge] });
+      expect(tickGameState(edgeState, withVision(edgeState)).state.units[0].health).toBe(100);
+    });
+
+    it('ao esgotar um recurso o coletor só passa para outro que o dono já explorou', () => {
+      const worker = createUnit({ id: 'worker', position: { x: 10, z: 10 }, targetEntityId: 'a', state: 'gathering' });
+      const nodes = [
+        { id: 'a', type: 'stone' as const, position: { x: 10.5, z: 10 }, remaining: 0.1 },
+        { id: 'b', type: 'stone' as const, position: { x: 12, z: 10 }, remaining: 50 },
+      ];
+      const capitals = [createBuilding({ id: 'tc-1', owner: 'player1', position: { x: 5, z: 5 } }), createBuilding({ id: 'tc-2', owner: 'player2', position: { x: 55, z: 55 } })];
+      const known = createState({ units: [worker], resourceNodes: nodes, buildings: capitals });
+      const next = tickGameState(known, withVision(known)).state.units[0];
+      expect(next.targetEntityId).toBe('b');
+
+      // Mesmo cenário, mas a visão do dono não cobre o recurso b: ele não é escolhido.
+      const blind = { ...known };
+      const vision = updateOwnerVision(undefined, { units: [{ ...worker, position: { x: 10, z: 10 } }], buildings: [], ruleSettings: undefined }, owners, 60);
+      vision.player1.fill(0);
+      const stopped = tickGameState(blind, context({ activeSlots: owners, vision })).state.units[0];
+      expect(stopped.targetEntityId).not.toBe('b');
+    });
+
+    it('a IA só marcha contra o Centro do jogador depois de descobri-lo', () => {
+      const soldiers = [1, 2, 3].map((n) => createUnit({ id: `ai-${n}`, owner: 'player2', type: 'soldier', position: { x: 30 + n, z: 30 } }));
+      const humanTc = createBuilding({ id: 'tc-1', owner: 'player1', position: { x: 45, z: 30 } });
+      const aiTc = createBuilding({ id: 'tc-2', owner: 'player2', position: { x: 31, z: 31 } });
+      const state = createState({ units: soldiers, buildings: [humanTc, aiTc], playerResources: { player1: playerResources(), player2: playerResources() } });
+      const marching = (vision: ReturnType<typeof visionFor>) =>
+        tickGameState(state, context({ mode: 'single', activeSlots: owners, vision })).state.units.filter((u) => u.owner === 'player2' && u.targetPosition).length;
+
+      const unexplored = visionFor(state);
+      unexplored.player2.fill(0);
+      expect(marching(unexplored)).toBe(0);
+      expect(marching(visionFor(state))).toBeGreaterThan(0);
     });
   });
 });

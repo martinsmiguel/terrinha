@@ -3,6 +3,7 @@ import { hostLeftSessionMessage, isAuthorizedPlayerCommand, isValidJoinRequest, 
 import { BUILDING_CATALOG } from '../../src/game/buildingCatalog';
 import { createTechState } from '../../src/game/tech';
 import type { GameState } from '../../src/game/engine';
+import { updateOwnerVision } from '../../src/game/visionAuthority';
 
 const state: GameState = {
   units: [
@@ -449,6 +450,67 @@ describe('saída de jogadores', () => {
     expect(hostLeftSessionMessage('host', { isHost: false })).toBeNull();
     expect(hostLeftSessionMessage('host', { isHost: true })).toBeNull();
     expect(hostLeftSessionMessage('single', { isHost: true })).toBeNull();
+  });
+});
+
+describe('comandos e visão do dono', () => {
+  // player1 enxerga ao redor de (10,10) (aldeão) e (8,8) (Centro da Vila, raio 16); nada além.
+  const world: GameState = {
+    ...state,
+    units: [
+      ...state.units,
+      { id: 'scout-enemy', type: 'soldier', owner: 'player2', position: { x: 14, z: 10 }, targetPosition: null, targetEntityId: null, health: 100, maxHealth: 100, attackDamage: 10, state: 'idle' },
+      { id: 'far-enemy', type: 'soldier', owner: 'player2', position: { x: 52, z: 52 }, targetPosition: null, targetEntityId: null, health: 100, maxHealth: 100, attackDamage: 10, state: 'idle' },
+    ],
+    buildings: [
+      ...state.buildings,
+      { id: 'far-house', type: 'house', owner: 'player2', position: { x: 50, z: 55 }, health: 100, maxHealth: 100, isComplete: true, trainingQueue: [] },
+    ],
+    resourceNodes: [
+      { id: 'tree-near', type: 'tree', position: { x: 11, z: 10 }, remaining: 100 },
+      { id: 'tree-far', type: 'tree', position: { x: 50, z: 8 }, remaining: 100 },
+    ],
+  };
+  const vision = updateOwnerVision(undefined, world, ['player1', 'player2'], 60);
+  const soldier = { ...state.units[1], id: 'my-soldier', owner: 'player1' as const };
+  const withSoldier: GameState = { ...world, units: [...world.units, soldier] };
+
+  it('só ataca unidade inimiga visível; fora de vista é recusado; sem visão informada segue valendo', () => {
+    const attack = (targetId: string) => ({ type: 'attack', unitId: 'my-soldier', targetId });
+    expect(isAuthorizedPlayerCommand(withSoldier, attack('scout-enemy'), 'player1', vision)).toBe(true);
+    expect(isAuthorizedPlayerCommand(withSoldier, attack('far-enemy'), 'player1', vision)).toBe(false);
+    expect(isAuthorizedPlayerCommand(withSoldier, attack('far-enemy'), 'player1')).toBe(true);
+  });
+
+  it('edifício inimigo precisa ter sido explorado; recurso também', () => {
+    const aged = updateOwnerVision(vision, { units: [], buildings: [], ruleSettings: undefined }, ['player1'], 60);
+    expect(aged.player1.some((cell) => cell === 1)).toBe(true);
+    const attackHouse = { type: 'attack', unitId: 'my-soldier', targetId: 'far-house' };
+    expect(isAuthorizedPlayerCommand(withSoldier, attackHouse, 'player1', vision)).toBe(false);
+    const gather = (targetId: string) => ({ type: 'gather', unitId: 'villager-1', targetId });
+    expect(isAuthorizedPlayerCommand(withSoldier, gather('tree-near'), 'player1', vision)).toBe(true);
+    expect(isAuthorizedPlayerCommand(withSoldier, gather('tree-far'), 'player1', vision)).toBe(false);
+    expect(isAuthorizedPlayerCommand(withSoldier, gather('tree-far'), 'player1')).toBe(true);
+  });
+
+  it('só se constrói em terreno explorado, e mover para o desconhecido continua permitido', () => {
+    const build = (x: number, z: number) => ({ type: 'build', buildingType: 'house', owner: 'player1', position: { x, z } });
+    expect(isAuthorizedPlayerCommand(withSoldier, build(12, 12), 'player1', vision)).toBe(true);
+    expect(isAuthorizedPlayerCommand(withSoldier, build(55, 55), 'player1', vision)).toBe(false);
+    expect(isAuthorizedPlayerCommand(withSoldier, { type: 'move', unitId: 'villager-1', target: { x: 55, z: 55 } }, 'player1', vision)).toBe(true);
+  });
+
+  it('a fundação da capital também exige sítio explorado pelo dono no host', () => {
+    const arrival: GameState = {
+      ...withSoldier,
+      buildings: [],
+      units: [{ id: 'wagon-1', type: 'wagon', owner: 'player1', position: { x: 20, z: 20 }, targetPosition: null, targetEntityId: null, health: 300, maxHealth: 300, attackDamage: 0, state: 'idle' }],
+      foundationKits: { player1: { wood: 400, stone: 200 } },
+    };
+    const arrivalVision = updateOwnerVision(undefined, arrival, ['player1'], 60);
+    const found = (x: number, z: number) => ({ type: 'found_capital', wagonId: 'wagon-1', position: { x, z } });
+    expect(isAuthorizedPlayerCommand(arrival, found(22, 20), 'player1', arrivalVision)).toBe(true);
+    expect(isAuthorizedPlayerCommand(arrival, found(55, 55), 'player1', arrivalVision)).toBe(false);
   });
 });
 
