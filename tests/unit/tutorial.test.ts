@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { TUTORIAL_STEPS } from '../../src/components/Tutorial';
 
 describe('tutorial de primeira partida', () => {
-  it('cobre selecao, movimento, coleta, construcao e combate', () => {
+  it('cobre fundacao, selecao, movimento, coleta, construcao e combate', () => {
     expect(TUTORIAL_STEPS.map((step) => step.id)).toEqual([
+      'fundacao',
       'selecao',
       'movimento',
       'coleta',

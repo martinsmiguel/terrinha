@@ -5,7 +5,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GameEngine, GameState, PlayerResources, Unit, Building, ResourceNode, MAP_SIZE, UnitType, isBoatUnit } from './game/engine';
-import { createVisionGrid, expireVision, revealVision, visionRadiusFor } from './game/visibility';
+import { createVisionGrid, expireVision, isExploredAt, revealVision, visionRadiusFor } from './game/visibility';
 import { MultiplayerManager, ChatMessage } from './game/multiplayer';
 import { Minimap } from './components/Minimap';
 import { TechPanel } from './components/TechPanel';
@@ -17,7 +17,8 @@ import { resolveHotkey, syncOverlayOrder, type OverlayId } from './game/hotkeys'
 import { generateProceduralTerrain, findNearestOceanCell, ProceduralMapResult } from './game/proceduralMap';
 import { EmpireCatalogModal } from './components/EmpireCatalogModal';
 import { Tutorial } from './components/Tutorial';
-import { UNIT_ATTRIBUTES } from './game/unitAttributes';
+import { FOUNDATION_KIT, createStartingForce, findCapitalSites, foundCapital, homeAnchor } from './game/foundation';
+import { evaluateCapitalSite, type CapitalSiteTerrain } from './game/capitalSite';
 
 /** Marcador de que o tutorial de primeira partida ja foi exibido. */
 const TUTORIAL_SEEN_KEY = 'terrinha:tutorial-seen';
@@ -51,7 +52,7 @@ import {
   UNIT_COSTS,
   halfCost,
 } from './game/economy';
-import { PLAYER_SLOTS, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, soloMatchSlots, type PlayerSlot } from './game/networkCommands';
+import { PLAYER_SLOTS, hostLeftSessionMessage, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, soloMatchSlots, type PlayerSlot } from './game/networkCommands';
 import { localOutcome, type LocalOutcome } from './game/victory';
 import {
   createTechState,
@@ -92,6 +93,7 @@ export default function App() {
   const [lanIps, setLanIps] = useState<string[]>([]);
   const [copiedIp, setCopiedIp] = useState(false);
   const [, setConnectedPlayers] = useState(1);
+  const [sessionEndedMessage, setSessionEndedMessage] = useState<string | null>(null);
 
   // Participantes da partida: no solo vem do tamanho escolhido (2..4),
   // no multiplayer e o host mais quem entrar na sala.
@@ -581,6 +583,10 @@ export default function App() {
         setIsGameStarted(false);
       };
 
+      multi.onConnectionStatus = (connected) => {
+        if (!connected && role === 'client') setSessionEndedMessage('Conexão com o host perdida. A sessão foi encerrada.');
+      };
+
       multi.onPlayerJoined = (data) => {
         setConnectedPlayers(data.playerCount);
         const joinedSlot = isPlayerSlot(data.playerSlot) ? data.playerSlot : null;
@@ -599,6 +605,8 @@ export default function App() {
 
       multi.onPlayerLeft = (data) => {
         setConnectedPlayers(data.playerCount);
+        const ended = hostLeftSessionMessage(role, data);
+        if (ended) setSessionEndedMessage(ended);
         const leftSlot = isPlayerSlot(data.playerSlot) ? data.playerSlot : null;
         if (leftSlot && role === 'host') {
           activeSlotsRef.current = activeSlotsRef.current.filter((slot) => slot !== leftSlot);
@@ -664,50 +672,46 @@ export default function App() {
     };
   }, [isGameStarted]);
 
-  // Base inicial de um slot: Centro da Vila + 2 aldeoes + 1 soldado
-  const buildStarterBase = (slot: PlayerSlot, spawn: { x: number; z: number }) => {
-    const townCenter: Building = {
-      id: uuidv4(),
-      type: 'town_center',
-      owner: slot,
-      position: { x: spawn.x, z: spawn.z },
-      health: 2400,
-      maxHealth: 2400,
-      isComplete: true,
-      trainingQueue: [],
+  // Chegada de um slot: carroca + 2 aldeoes + 1 soldado. A capital e fundada pelo jogador.
+  const buildStarterForce = (slot: PlayerSlot, spawn: { x: number; z: number }): Unit[] =>
+    createStartingForce(slot, spawn, uuidv4);
+
+  // Terreno usado para validar sitios de sede (mesma regra no preview e no host)
+  const capitalTerrainFor = (current: GameState, useFog = true): CapitalSiteTerrain => {
+    const map = proceduralMapRef.current;
+    return {
+      mapSize: MAP_SIZE,
+      buildings: current.buildings,
+      nodes: current.resourceNodes,
+      isWaterAt: map?.isWaterAt,
+      isCliffAt: map?.isCliffAt,
+      getHeightAt: map?.getHeightAt,
+      isImpassableAt: map?.isImpassableAt,
+      isDiscovered: useFog ? (x, z) => isExploredAt(visionGridRef.current, Math.round(x), Math.round(z)) : undefined,
     };
+  };
 
-    const villager = (offsetX: number): Unit => ({
-      id: uuidv4(),
-      type: 'villager',
-      owner: slot,
-      position: { x: spawn.x + offsetX, z: spawn.z + 2 },
-      targetPosition: null,
-      targetEntityId: null,
-      health: UNIT_ATTRIBUTES.villager.maxHealth,
-      maxHealth: UNIT_ATTRIBUTES.villager.maxHealth,
-      attackDamage: UNIT_ATTRIBUTES.villager.attackDamage,
-      state: 'idle' as const,
-    });
+  // Sitios candidatos de sede para a carroca do jogador (>= 3 quando o terreno permite)
+  const capitalSitesFor = (current: GameState, wagon: Unit, radius = 30, useFog = true) =>
+    findCapitalSites(
+      wagon.position,
+      (x, z) => evaluateCapitalSite({ x, z }, capitalTerrainFor(current, useFog), { from: wagon.position, kit: current.foundationKits?.[wagon.owner] }).valid,
+      { maxRadius: radius, minSpacing: 4 }
+    );
 
-    const units: Unit[] = [
-      villager(1.8),
-      villager(-1.8),
-      {
-        id: uuidv4(),
-        type: 'soldier',
-        owner: slot,
-        position: { x: spawn.x + 2.5, z: spawn.z - 1.5 },
-        targetPosition: null,
-        targetEntityId: null,
-        health: UNIT_ATTRIBUTES.soldier.maxHealth,
-        maxHealth: UNIT_ATTRIBUTES.soldier.maxHealth,
-        attackDamage: UNIT_ATTRIBUTES.soldier.attackDamage,
-        state: 'idle',
-      },
-    ];
-
-    return { townCenter, units };
+  // A IA funda a capital sozinha no melhor sitio perto da chegada
+  const autoFoundCapital = (current: GameState, slot: PlayerSlot): GameState => {
+    const wagon = current.units.find((unit) => unit.owner === slot && unit.type === 'wagon');
+    if (!wagon) return current;
+    const site = capitalSitesFor(current, wagon, 30, false)[0];
+    if (!site) return current;
+    const result = foundCapital(
+      current,
+      { owner: slot, wagonId: wagon.id, position: site },
+      (x, z) => evaluateCapitalSite({ x, z }, capitalTerrainFor(current, false), { from: wagon.position }).valid,
+      uuidv4
+    );
+    return result.ok ? result.state : current;
   };
 
   const spawnForSlot = (slot: PlayerSlot): { x: number; z: number } | null => {
@@ -733,17 +737,19 @@ export default function App() {
   const spawnStarterBaseFor = (slot: PlayerSlot) => {
     const spawn = spawnForSlot(slot);
     if (!spawn) return;
-    if (gameStateRef.current.buildings.some((b) => b.owner === slot && b.type === 'town_center')) return;
+    const current = gameStateRef.current;
+    if (current.buildings.some((b) => b.owner === slot && b.type === 'town_center')) return;
+    if (current.units.some((u) => u.owner === slot && u.type === 'wagon')) return;
 
-    const { townCenter, units } = buildStarterBase(slot, spawn);
+    const units = buildStarterForce(slot, spawn);
     setGameState((prev) => ({
       ...prev,
-      buildings: [...prev.buildings, townCenter],
       units: [...prev.units, ...units],
       playerResources: { ...prev.playerResources, [slot]: startingColonyResources(units.length) },
       techs: { ...prev.techs, [slot]: prev.techs?.[slot] ?? createTechState() },
+      foundationKits: { ...prev.foundationKits, [slot]: { ...FOUNDATION_KIT } },
     }));
-    triggerNotification(`${FACTION_COLORS[slot]?.name ?? slot} recebeu uma base inicial!`, 'success');
+    triggerNotification(`${FACTION_COLORS[slot]?.name ?? slot} chegou com a carroça de fundação!`, 'success');
   };
 
   // Initial map setup with Procedural Archipelago, Town Centers, Resources & Villagers
@@ -783,6 +789,7 @@ export default function App() {
     const units: Unit[] = [];
     const playerResources: Record<string, PlayerResources> = {};
     const techs: Record<string, ReturnType<typeof createTechState>> = {};
+    const foundationKits: Record<string, { wood: number; stone: number }> = {};
 
     PLAYER_SLOTS.forEach((slot) => {
       playerResources[slot] = startingColonyResources(0);
@@ -792,23 +799,30 @@ export default function App() {
     slots.forEach((slot) => {
       const spawn = spawnForSlot(slot);
       if (!spawn) return;
-      const starter = buildStarterBase(slot, spawn);
-      buildings.push(starter.townCenter);
-      units.push(...starter.units);
-      playerResources[slot] = startingColonyResources(starter.units.length);
+      const force = buildStarterForce(slot, spawn);
+      units.push(...force);
+      playerResources[slot] = startingColonyResources(force.length);
+      foundationKits[slot] = { ...FOUNDATION_KIT };
     });
 
     setActiveSlots(slots);
     activeSlotsRef.current = slots;
 
-    setGameState({
+    let initial: GameState = {
       units,
       buildings,
       resourceNodes: nodes,
       playerResources,
       techs,
       mapSeed: procMap.seed,
-    });
+      foundationKits,
+    };
+    if (role === 'single') {
+      slots.filter((slot) => slot !== playerSlot).forEach((slot) => {
+        initial = autoFoundCapital(initial, slot);
+      });
+    }
+    setGameState(initial);
   };
 
   // Regenerate the procedural archipelago with a fresh seed
@@ -987,6 +1001,20 @@ export default function App() {
     if (!isValidNetworkCommand(cmd)) return;
     const commandOwner = cmd.playerSlot === undefined ? playerSlot : isPlayerSlot(cmd.playerSlot) ? cmd.playerSlot : null;
     if (!commandOwner || !isAuthorizedPlayerCommand(gameStateRef.current, cmd, commandOwner)) return;
+
+    if (cmd.type === 'found_capital') {
+      setGameState((prev) => {
+        const wagon = prev.units.find((unit) => unit.id === cmd.wagonId && unit.owner === commandOwner);
+        const result = foundCapital(
+          prev,
+          { owner: commandOwner, wagonId: cmd.wagonId, position: cmd.position },
+          (x, z) => evaluateCapitalSite({ x, z }, capitalTerrainFor(prev, commandOwner === playerSlot), { from: wagon?.position }).valid,
+          uuidv4
+        );
+        return result.ok ? result.state : prev;
+      });
+      return;
+    }
 
     if (cmd.type === 'build') {
       const placement = checkBuildingPlacementValid(
@@ -1408,10 +1436,10 @@ export default function App() {
             engineRef.current.setCameraTarget(firstU.position.x, firstU.position.z);
             triggerNotification('Câmera centralizada no pelotão selecionado', 'info');
           } else if (selectedUnitIdsRef.current.length === 0) {
-            const myTc = state.buildings.find((b) => b.owner === playerSlot && b.type === 'town_center');
-            if (myTc && engineRef.current) {
-              engineRef.current.setCameraTarget(myTc.position.x, myTc.position.z);
-              triggerNotification('Câmera centralizada no Centro da Vila', 'info');
+            const home = homeAnchor(playerSlot, state.buildings, state.units);
+            if (home && engineRef.current) {
+              engineRef.current.setCameraTarget(home.x, home.z);
+              triggerNotification('Câmera centralizada na base', 'info');
             }
           }
           break;
@@ -2389,9 +2417,9 @@ export default function App() {
   // Jump camera directly to the nearest resource of a given type
   const handleJumpToResource = (type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school' | 'stone') => {
     if (!engineRef.current) return;
-    const myTc = gameState.buildings.find((b) => b.owner === playerSlot && b.type === 'town_center');
-    const refX = myTc ? myTc.position.x : MAP_SIZE / 2;
-    const refZ = myTc ? myTc.position.z : MAP_SIZE / 2;
+    const home = homeAnchor(playerSlot, gameState.buildings, gameState.units);
+    const refX = home ? home.x : MAP_SIZE / 2;
+    const refZ = home ? home.z : MAP_SIZE / 2;
 
     const available = gameState.resourceNodes.filter((n) => n.type === type && n.remaining > 0);
     if (available.length === 0) {
@@ -2706,6 +2734,7 @@ export default function App() {
         setMatchSize={setMatchSize}
         onStartGame={(nextRole) => {
           setLobbyError(null);
+          setSessionEndedMessage(null);
           setRole(nextRole);
           setIsGameStarted(true);
         }}
@@ -2745,7 +2774,7 @@ export default function App() {
   const contenders = matchStatus?.players ?? activeSlots;
   const isMatchContender = contenders.includes(playerSlot);
   const outcome: LocalOutcome = isMatchContender
-    ? localOutcome(playerSlot, gameState.buildings, contenders)
+    ? localOutcome(playerSlot, gameState.buildings, contenders, gameState.units)
     : 'running';
   const showResultScreen = isMatchContender && (matchFinished || outcome !== 'running');
   const isDraw = matchStatus?.status === 'finished' && matchStatus.winner === null;
@@ -3092,6 +3121,14 @@ export default function App() {
         </div>
 
         <SelectionPanel
+          getCapitalSites={(wagon) =>
+            capitalSitesFor(gameState, wagon).map(({ x, z }) => ({
+              x,
+              z,
+              report: evaluateCapitalSite({ x, z }, capitalTerrainFor(gameState), { from: wagon.position, kit: gameState.foundationKits?.[wagon.owner] }),
+            }))
+          }
+          focusPoint={(x, z) => engineRef.current?.setCameraTarget(x, z)}
           gameState={gameState}
           playerSlot={playerSlot}
           role={role}
@@ -3188,6 +3225,22 @@ export default function App() {
 
       {/* TUTORIAL DE PRIMEIRA PARTICIDA */}
       {showTutorial && <Tutorial onClose={closeTutorial} />}
+      {sessionEndedMessage && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/90 p-4 pointer-events-auto">
+          <div role="alertdialog" aria-modal="true" aria-labelledby="session-ended-title" className="w-full max-w-sm rounded-3xl border border-red-500/40 bg-slate-900 p-6 text-center shadow-2xl">
+            <h2 id="session-ended-title" className="text-lg font-bold text-white">Sessão encerrada</h2>
+            <p className="mt-2 text-sm text-slate-300">{sessionEndedMessage}</p>
+            <button
+              type="button"
+              autoFocus
+              onClick={() => window.location.reload()}
+              className="mt-4 rounded-xl bg-amber-700 px-4 py-2 text-sm font-bold text-white hover:bg-amber-800"
+            >
+              Voltar ao lobby
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* TECH PANEL MODAL */}
       {isTechPanelOpen && (

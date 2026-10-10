@@ -53,6 +53,8 @@ export const UNIT_COSTS: Record<UnitType, ResourceCost> = {
   fishing_boat: { wood: 75, planks: 25 },
   trade_boat: { wood: 100, gold: 30, planks: 30 },
   warship: { wood: 120, gold: 80, planks: 40 },
+  /** A carroça não é treinável; só nasce no início da partida. */
+  wagon: {},
 };
 
 /** 2 madeira refinadas viram 1 tábua por tick de cada Serralheria concluída. */

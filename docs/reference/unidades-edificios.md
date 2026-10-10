@@ -55,8 +55,34 @@
 | Fazenda & Granja | F | 75 madeira | 9 s | +2 comida/s |
 | Cais & Doca Naval | B | 140 madeira | 15 s | Treina barcos; só em margem do oceano navegável |
 
-Centro da Vila (Town Center): 2400 HP, criado no início da partida; não
-consta no catálogo de construção.
+Centro da Vila (Town Center): 2400 HP, fundado pelo jogador a partir da carroça
+(20 s, uso único do kit reservado de 400 madeira e 200 pedra); não consta no
+catálogo de construção nem é treinável.
+
+## Carroça de fundação
+
+| Atributo | Valor |
+| --- | --- |
+| Vida | 300 HP |
+| Velocidade | 0,16 por passo (20 Hz) |
+| Visão | 10 |
+| Ataque | nenhum |
+| Origem | só no início da partida (não treinável); conta como 1 de população |
+
+Cada jogador recebe também 2 aldeões e 1 soldado. O suprimento inicial é 350
+madeira, 350 comida, 200 ouro, 100 pedra e 0 tábuas; o kit de fundação é
+reservado à parte e só pode ser gasto fundando a capital.
+
+## Fases de vida
+
+| Fase | Quando | Eliminado se |
+| --- | --- | --- |
+| Chegando | só a carroça | a carroça é destruída antes de fundar |
+| Fundando | capital em obras | a capital em obras é destruída e não há carroça |
+| Ativo | capital concluída | a capital é destruída |
+
+Entrepostos e outras construções não dão vida extra. Ao ser eliminado, o jogador
+perde ordens e filas de produção. Fonte: `src/game/foundation.ts`.
 
 ## Combate (resumo)
 

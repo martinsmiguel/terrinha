@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { homeAnchor } from '../game/foundation';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GameEngine, GameState, MAP_SIZE } from '../game/engine';
 import { VISION_EXPLORED, VISION_VISIBLE, visionAt } from '../game/visibility';
@@ -470,11 +471,9 @@ export const Minimap: React.FC<MinimapProps> = ({
 
   // Center camera on own Town Center
   const centerOnTownCenter = () => {
-    const myTc = gameState.buildings.find(
-      (b) => b.owner === playerSlot && b.type === 'town_center'
-    );
-    if (myTc && engine) {
-      engine.setCameraTarget(myTc.position.x, myTc.position.z);
+    const home = homeAnchor(playerSlot, gameState.buildings, gameState.units);
+    if (home && engine) {
+      engine.setCameraTarget(home.x, home.z);
     }
   };
 

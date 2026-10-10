@@ -8,6 +8,7 @@ import { useDialogFocus } from '../hooks/useDialogFocus';
 import {
   ArrowLeft,
   ArrowRight,
+  Castle,
   Check,
   GraduationCap,
   Hammer,
@@ -26,8 +27,19 @@ export interface TutorialStep {
   tip?: string;
 }
 
-/** Os 5 passos do tutorial de 2 minutos: selecao, movimento, coleta, construcao, combate. */
+/** Os 6 passos do tutorial de 2 minutos: fundacao, selecao, movimento, coleta, construcao, combate. */
 export const TUTORIAL_STEPS: TutorialStep[] = [
+  {
+    id: 'fundacao',
+    title: 'Fundar a capital',
+    icon: Castle,
+    lines: [
+      'Você chega com uma carroça, 2 aldeões e 1 soldado; ainda não há Centro da Vila.',
+      'Selecione a carroça e escolha um sítio no painel: ele mostra espaço, terreno, acesso e kit.',
+      'Fundar leva 20 s e usa o kit reservado (400 madeira, 200 pedra); cancelar não gasta nada.',
+    ],
+    tip: 'Sem a carroça nem a capital você é eliminado: proteja a carroça até fundar.',
+  },
   {
     id: 'selecao',
     title: 'Selecionar',
@@ -81,7 +93,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
       'Quartel treina com S (soldado) e G (cavalaria); Centro da Vila treina aldeões com V.',
       'Torres de Vigia defendem a base; a barra de vida mostra quem está aguentando.',
     ],
-    tip: 'Destrua o Centro da Vila inimigo para vencer — e pesquise melhorias no botão Tecnologias.',
+    tip: 'Elimine a capital inimiga (ou a carroça, antes de fundar) para vencer — e pesquise melhorias em Tecnologias.',
   },
 ];
 

@@ -13,6 +13,7 @@ import { soundManager } from '../game/audio';
 import { canAfford, describeCost, UNIT_COSTS } from '../game/economy';
 import { REPAIR_HP_PER_TICK, REPAIR_WOOD_PER_HP } from '../game/simulation';
 import { boatCapacity } from '../game/navalTransport';
+import { FoundationPanel, type CapitalSiteOption } from './FoundationPanel';
 
 interface ActiveWorkZone {
   id: string; x: number; z: number; radius: number; unitIds: string[];
@@ -81,6 +82,8 @@ interface SelectionPanelProps {
   handleRepairBuilding(unitId: string, buildingId: string): void;
   handleDemolishBuilding(buildingId: string): void;
   handleDisembark(boatId: string): void;
+  getCapitalSites(wagon: Unit): CapitalSiteOption[];
+  focusPoint(x: number, z: number): void;
   triggerNotification(message: string, type?: 'info' | 'success' | 'warning'): void;
   multiRef: { current: MultiplayerManager | null };
   onPointerEnterUI(): void;
@@ -89,7 +92,7 @@ interface SelectionPanelProps {
 
 export function SelectionPanel(props: SelectionPanelProps) {
   const {
-    playerSlot, role, selectedEntity, selectedUnitsList, selectedUnit,
+    gameState, playerSlot, role, selectedEntity, selectedUnitsList, selectedUnit,
     selectedBuilding, selectedResource, soldierCount, villagerCount, totalSquadHealth, totalSquadMaxHealth,
     activeBuildersOnSelectedBuilding, activeGatherersOnSelectedResource,
     totalQueuedForPlayer, myResources, groveTrees, matureGroveCount, regrowingGroveCount,
@@ -101,7 +104,7 @@ export function SelectionPanel(props: SelectionPanelProps) {
     handleSetGroveHarvestMode, handleToggleResourceHarvestMode, handleClearForestCluster,
     handleAssignVillagersToResource, handleAssignSelectedSquadToResource, handleRemoveResourceImmediately,
     renderVillagerBuildCatalog, nearestVillagerToSelectedBuilding, handleRepairBuilding,
-    handleDemolishBuilding, handleDisembark, triggerNotification, multiRef, onPointerEnterUI, onPointerLeaveUI,
+    handleDemolishBuilding, handleDisembark, getCapitalSites, focusPoint, triggerNotification, multiRef, onPointerEnterUI, onPointerLeaveUI,
   } = props;
   return (
     <>
@@ -122,9 +125,9 @@ export function SelectionPanel(props: SelectionPanelProps) {
                   </>
                 ) : selectedUnitsList.length === 1 ? (
                   <>
-                    {selectedUnitsList[0].type === 'villager' ? <Users className="w-4 h-4 text-amber-400 shrink-0" /> : <Sword className="w-4 h-4 text-blue-400 shrink-0" />}
+                    {selectedUnitsList[0].type === 'villager' || selectedUnitsList[0].type === 'wagon' ? <Users className="w-4 h-4 text-amber-400 shrink-0" /> : <Sword className="w-4 h-4 text-blue-400 shrink-0" />}
                     <span className="font-bold text-white truncate">
-                      {selectedUnitsList[0].type === 'villager' ? 'Aldeão' : selectedUnitsList[0].type === 'cavalry' ? 'Cavalaria' : 'Mosqueteiro'} ({Math.round(selectedUnitsList[0].health)}/{selectedUnitsList[0].maxHealth} HP)
+                      {selectedUnitsList[0].type === 'villager' ? 'Aldeão' : selectedUnitsList[0].type === 'cavalry' ? 'Cavalaria' : selectedUnitsList[0].type === 'wagon' ? 'Carroça de Fundação' : 'Mosqueteiro'} ({Math.round(selectedUnitsList[0].health)}/{selectedUnitsList[0].maxHealth} HP)
                     </span>
                   </>
                 ) : selectedBuilding ? (
@@ -420,6 +423,8 @@ export function SelectionPanel(props: SelectionPanelProps) {
                           ? 'Barco Mercante'
                           : selectedUnit.type === 'warship'
                           ? 'Barco de Guerra'
+                          : selectedUnit.type === 'wagon'
+                          ? 'Carroça de Fundação'
                           : 'Aldeão Construtor'}
                       </h3>
                       <div className="text-xs text-slate-400 flex items-center gap-2">
@@ -442,6 +447,22 @@ export function SelectionPanel(props: SelectionPanelProps) {
                     style={{ width: `${(selectedUnit.health / selectedUnit.maxHealth) * 100}%` }}
                   />
                 </div>
+
+                {selectedUnit.type === 'wagon' && selectedUnit.owner === playerSlot && (
+                  <FoundationPanel
+                    wagon={selectedUnit}
+                    buildingCount={gameState.buildings.length}
+                    kit={gameState.foundationKits?.[playerSlot]}
+                    getOptions={getCapitalSites}
+                    onPreview={focusPoint}
+                    onConfirm={(x, z) => {
+                      const cmd = { type: 'found_capital', wagonId: selectedUnit.id, position: { x, z } };
+                      if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+                      else multiRef.current?.sendToHost(cmd);
+                      triggerNotification('Fundando a capital: a carroça foi armada no sítio escolhido.', 'success');
+                    }}
+                  />
+                )}
 
                 {isBoatUnit(selectedUnit.type) && (
                   <div className="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between gap-2 text-xs">

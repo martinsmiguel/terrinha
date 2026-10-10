@@ -3,6 +3,7 @@ import { BOAT_CAPACITY, isBoatUnit } from './model';
 import { UNIT_ATTRIBUTES } from './unitAttributes';
 import { BUILDING_CATALOG } from './buildingCatalog';
 import { researchBlock } from './tech';
+import { FOUNDATION_KIT, lifePhase } from './foundation';
 import { UNIT_COSTS, tradeResource, type MarketResourceType } from './economy';
 
 export const PLAYER_SLOTS = ['player1', 'player2', 'player3', 'player4'] as const;
@@ -73,6 +74,7 @@ export type NetworkCommand = CommandMetadata & (
   | { type: 'embark'; unitIds: string[]; boatId: string }
   | { type: 'disembark'; boatId: string }
   | { type: 'trade'; resource: MarketResourceType; action: 'buy' | 'sell'; amount: number }
+  | { type: 'found_capital'; wagonId: string; position: Position }
 );
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -198,6 +200,8 @@ export function isValidNetworkCommand(value: unknown): value is NetworkCommand {
       return allowedKeys('unitIds', 'boatId') && isStringList(value.unitIds) && new Set(value.unitIds).size === value.unitIds.length && isId(value.boatId);
     case 'disembark':
       return allowedKeys('boatId') && isId(value.boatId);
+    case 'found_capital':
+      return allowedKeys('wagonId', 'position') && isId(value.wagonId) && isPosition(value.position);
     case 'trade':
       return (
         allowedKeys('resource', 'action', 'amount') &&
@@ -241,6 +245,14 @@ export function isAuthorizedPlayerCommand(
   if (!isValidNetworkCommand(value)) return false;
 
   switch (value.type) {
+    case 'found_capital': {
+      const kit = state.foundationKits?.[owner];
+      return (
+        ownsUnit(state, value.wagonId, owner)?.type === 'wagon' &&
+        lifePhase(owner, state.buildings, state.units) === 'arriving' &&
+        Boolean(kit && kit.wood >= FOUNDATION_KIT.wood && kit.stone >= FOUNDATION_KIT.stone)
+      );
+    }
     case 'move':
       return Boolean(ownsUnit(state, value.unitId, owner));
     case 'gather': {
@@ -344,4 +356,12 @@ export function isAuthorizedPlayerCommand(
     default:
       return false;
   }
+}
+
+/**
+ * Convidados não sustentam a partida: se quem saiu era o host, a sessão termina para todos.
+ * Quando o convidado sai, o host conserva as últimas ordens dele, sem IA nem retomada automática.
+ */
+export function hostLeftSessionMessage(role: 'host' | 'client' | 'single', leaver: { isHost?: boolean }): string | null {
+  return role === 'client' && leaver.isHost === true ? 'O host saiu da partida. A sessão foi encerrada.' : null;
 }

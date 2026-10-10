@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAuthorizedPlayerCommand, isValidJoinRequest, isValidNetworkCommand, roomJoinError, soloMatchSlots } from '../../src/game/networkCommands';
+import { hostLeftSessionMessage, isAuthorizedPlayerCommand, isValidJoinRequest, isValidNetworkCommand, roomJoinError, soloMatchSlots } from '../../src/game/networkCommands';
 import { BUILDING_CATALOG } from '../../src/game/buildingCatalog';
 import { createTechState } from '../../src/game/tech';
 import type { GameState } from '../../src/game/engine';
@@ -403,3 +403,52 @@ describe('gathering settings and market commands', () => {
     ).toBe(false);
   });
 });
+
+describe('found_capital command', () => {
+  const wagonState: GameState = {
+    ...state,
+    units: [
+      { id: 'wagon-1', type: 'wagon', owner: 'player3', position: { x: 20, z: 20 }, targetPosition: null, targetEntityId: null, health: 300, maxHealth: 300, attackDamage: 0, state: 'idle' },
+      ...state.units,
+    ],
+    foundationKits: { player3: { wood: 400, stone: 200 } },
+  };
+  const command = { type: 'found_capital', wagonId: 'wagon-1', position: { x: 21, z: 22 } };
+
+  it('valida o formato e recusa campos extras, posição fora do mapa e id vazio', () => {
+    expect(isValidNetworkCommand(command)).toBe(true);
+    expect(isValidNetworkCommand({ ...command, extra: 1 })).toBe(false);
+    expect(isValidNetworkCommand({ ...command, position: { x: -1, z: 5 } })).toBe(false);
+    expect(isValidNetworkCommand({ ...command, position: { x: 61, z: 5 } })).toBe(false);
+    expect(isValidNetworkCommand({ ...command, wagonId: '' })).toBe(false);
+  });
+
+  it('autoriza só o dono da carroça, na fase chegando e com o kit completo', () => {
+    expect(isAuthorizedPlayerCommand(wagonState, command, 'player3')).toBe(true);
+    expect(isAuthorizedPlayerCommand(wagonState, command, 'player2')).toBe(false);
+    expect(isAuthorizedPlayerCommand({ ...wagonState, foundationKits: {} }, command, 'player3')).toBe(false);
+    expect(isAuthorizedPlayerCommand({ ...wagonState, foundationKits: { player3: { wood: 400, stone: 199 } } }, command, 'player3')).toBe(false);
+    expect(isAuthorizedPlayerCommand(wagonState, { ...command, wagonId: 'villager-1' }, 'player1')).toBe(false);
+  });
+
+  it('recusa quem já tem capital e a carroça treinada como unidade comum', () => {
+    const withCapital = { ...wagonState, buildings: [...wagonState.buildings, { ...wagonState.buildings[0], id: 'tc-3', owner: 'player3' }] };
+    expect(isAuthorizedPlayerCommand(withCapital, command, 'player3')).toBe(false);
+    const trainWagon = { type: 'train', buildingId: 'town-center-1', unitType: 'wagon' };
+    expect(isValidNetworkCommand(trainWagon)).toBe(false);
+  });
+});
+
+describe('saída de jogadores', () => {
+  it('só encerra a sessão do convidado quando quem saiu é o host', () => {
+    expect(hostLeftSessionMessage('client', { isHost: true })).toMatch(/sessão foi encerrada/);
+    expect(hostLeftSessionMessage('client', { isHost: false })).toBeNull();
+    expect(hostLeftSessionMessage('client', {})).toBeNull();
+  });
+  it('o host e o modo solo nunca são encerrados por uma saída', () => {
+    expect(hostLeftSessionMessage('host', { isHost: false })).toBeNull();
+    expect(hostLeftSessionMessage('host', { isHost: true })).toBeNull();
+    expect(hostLeftSessionMessage('single', { isHost: true })).toBeNull();
+  });
+});
+

@@ -2,7 +2,7 @@ import type { MatchStatus } from './victory';
 import type { TechState } from './tech';
 import type { RuleSettings } from './unitAttributes';
 
-export type UnitType = 'villager' | 'soldier' | 'cavalry' | 'fishing_boat' | 'trade_boat' | 'warship';
+export type UnitType = 'villager' | 'soldier' | 'cavalry' | 'fishing_boat' | 'trade_boat' | 'warship' | 'wagon';
 
 /** Unidades navais: navegam apenas na agua e enfrentam outras embarcacoes. */
 export const BOAT_UNIT_TYPES: readonly UnitType[] = ['fishing_boat', 'trade_boat', 'warship'];
@@ -16,6 +16,7 @@ export const BOAT_CAPACITY: Record<UnitType, number> = {
   fishing_boat: 2,
   trade_boat: 4,
   warship: 0,
+  wagon: 0,
 };
 export type BuildingType =
   | 'town_center'
@@ -100,6 +101,8 @@ export interface GameState {
   techs?: Record<string, TechState>;
   /** Semente do mapa procedural: a mesma semente recria o mesmo arquipelago. */
   mapSeed?: number;
+  /** Kit de fundacao reservado por jogador ate a capital ser fundada (separado do suprimento). */
+  foundationKits?: Record<string, { wood: number; stone: number }>;
 }
 
 export const MAP_SIZE = 60;

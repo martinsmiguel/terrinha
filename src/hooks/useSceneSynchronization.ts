@@ -495,6 +495,35 @@ export function useSceneSynchronization({
             cannon.position.set(side * 0.62, 0.42, -0.35);
             group.add(cannon);
           }
+        } else if (unit.type === 'wagon') {
+          // Carroca de fundacao: base de carga, rodas laterais e lona na cor do dono
+          const bed = new THREE.Mesh(
+            new THREE.BoxGeometry(1.0, 0.35, 1.7),
+            new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 })
+          );
+          bed.position.y = 0.45;
+          bed.castShadow = true;
+          group.add(bed);
+
+          const canvas = new THREE.Mesh(
+            new THREE.BoxGeometry(0.9, 0.55, 1.3),
+            new THREE.MeshStandardMaterial({ color: ownerColor, roughness: 0.7 })
+          );
+          canvas.position.set(0, 0.9, -0.1);
+          canvas.castShadow = true;
+          group.add(canvas);
+
+          for (const side of [-1, 1]) {
+            for (const frontBack of [-0.55, 0.55]) {
+              const wheel = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.28, 0.28, 0.1, 10),
+                new THREE.MeshStandardMaterial({ color: 0x1c1917 })
+              );
+              wheel.rotation.z = Math.PI / 2;
+              wheel.position.set(side * 0.55, 0.28, frontBack);
+              group.add(wheel);
+            }
+          }
         } else {
           // Villager
           const body = new THREE.Mesh(

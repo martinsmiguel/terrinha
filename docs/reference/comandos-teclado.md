@@ -10,7 +10,7 @@
 | Borda da tela | Pan automático ao mover o mouse |
 | Scroll do mouse | Zoom |
 | Botão do meio + arrastar | Pan livre |
-| `Espaço` | Centralizar na seleção (ou no Centro da Vila) |
+| `Espaço` | Centralizar na seleção (ou na base: capital ou, antes de fundar, a carroça) |
 | `L` | Travar/destravar câmera |
 
 ## Seleção e ordens
