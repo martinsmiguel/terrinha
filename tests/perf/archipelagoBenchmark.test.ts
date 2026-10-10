@@ -87,7 +87,7 @@ function nearestOpenSeaCell(map: ProceduralMapResult, from: { x: number; z: numb
   let bestDistance = Infinity;
   for (let x = 1; x < map.mapSize - 1; x += 1) {
     for (let z = 1; z < map.mapSize - 1; z += 1) {
-      const open = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].every(([dx, dz]) => map.isOceanAt(x + dx + 0.5, z + dz + 0.5));
+      const open = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].every(([dx, dz]) => map.isNavigableAt(x + dx + 0.5, z + dz + 0.5));
       const distance = Math.hypot(x + 0.5 - from.x, z + 0.5 - from.z);
       if (open && distance < bestDistance) { bestDistance = distance; best = { x: x + 0.5, z: z + 0.5 }; }
     }
@@ -209,7 +209,7 @@ describe('ciclo naval completo sem cheats', () => {
     const home = componentOf(map.player1Spawn);
     const toHere = (x: number, z: number) => x >= 4 && z >= 4 && x <= 56 && z <= 56;
     // Sítio de cais: terra válida para 'dock' com oceano navegável por perto.
-    const site = home.find((cell) => toHere(cell.x, cell.z) && checkBuildingPlacementValid('dock', cell.x, cell.z, [], [], 60, map.isWaterAt, map.isCliffAt, map.getHeightAt, map.isOceanAt).isValid);
+    const site = home.find((cell) => toHere(cell.x, cell.z) && checkBuildingPlacementValid('dock', cell.x, cell.z, [], [], 60, map.isWaterAt, map.isCliffAt, map.getHeightAt, map.isNavigableAt).isValid);
     expect(site, 'sem sítio de cais no mapa de teste').toBeTruthy();
 
     const dock: Building = { id: 'dock-1', type: 'dock', owner: 'player1', position: { x: site!.x, z: site!.z }, health: 50, maxHealth: BUILDING_CATALOG.dock.maxHealth, isComplete: false, buildProgress: 0, trainingQueue: [] };
@@ -242,7 +242,7 @@ describe('ciclo naval completo sem cheats', () => {
       playerResources: { ...state.playerResources, player1: paid },
       buildings: state.buildings.map((b) => (b.id === 'dock-1' ? { ...b, trainingQueue: [{ unitType: 'trade_boat', progress: 0 }] } : b)),
     };
-    const oceanSpawn = findDockOceanSpawnCell(map.isOceanAt, site!.x, site!.z, site!.x, site!.z);
+    const oceanSpawn = findDockOceanSpawnCell(map.isNavigableAt, site!.x, site!.z, site!.x, site!.z);
     expect(oceanSpawn, 'cais sem oceano na janela de nascimento').toBeTruthy();
     runUntil('treino-do-barco', () => state.units.some((u) => u.type === 'trade_boat'), 4000);
 

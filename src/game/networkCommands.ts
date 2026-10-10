@@ -5,6 +5,7 @@ import { BUILDING_CATALOG } from './buildingCatalog';
 import { researchBlock } from './tech';
 import { FOUNDATION_KIT, lifePhase } from './foundation';
 import { canTarget, type OwnerVision } from './visionAuthority';
+import { bodyOf, type BodyId } from './bodyModel';
 import { UNIT_COSTS, tradeResource, type MarketResourceType } from './economy';
 
 export const PLAYER_SLOTS = ['player1', 'player2', 'player3', 'player4'] as const;
@@ -246,7 +247,8 @@ export function isAuthorizedPlayerCommand(
   state: GameState,
   value: unknown,
   owner: PlayerSlot,
-  vision?: OwnerVision
+  vision?: OwnerVision,
+  terrain?: { canStandAt(body: BodyId, x: number, z: number): boolean }
 ): value is NetworkCommand {
   if (!isValidNetworkCommand(value, worldSizeOf(state))) return false;
 
@@ -260,8 +262,14 @@ export function isAuthorizedPlayerCommand(
         canTarget(vision, owner, { position: value.position }, 'explored')
       );
     }
-    case 'move':
-      return Boolean(ownsUnit(state, value.unitId, owner));
+    case 'move': {
+      const unit = ownsUnit(state, value.unitId, owner);
+      if (!unit) return false;
+      // Mouse e rede usam a mesma consulta de corpo: destino em que o corpo terrestre nunca poderia estar é recusado.
+      // Barcos são tratados pelo host, que leva o destino ao oceano navegável mais próximo.
+      const body = bodyOf(unit.type);
+      return body === 'boat' || !terrain || terrain.canStandAt(body, value.target.x, value.target.z);
+    }
     case 'gather': {
       const unit = ownsUnit(state, value.unitId, owner);
       const node = state.resourceNodes.find((resource) => resource.id === value.targetId && resource.remaining > 0);

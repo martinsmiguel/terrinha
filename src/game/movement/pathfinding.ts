@@ -21,6 +21,17 @@ export interface PathOptions {
    * chamada continuar de onde parou.
    */
   maxExpanded?: number;
+  /**
+   * Multiplicador do custo de entrar numa célula (1 = normal). Torna o raso mais caro que a terra seca para a rota
+   * preferir o caminho seco quando ele não for muito mais longo. Células bloqueadas continuam sendo `isBlocked`.
+   */
+  cost?: (x: number, z: number) => number;
+  /**
+   * Peso único por célula: `Infinity` bloqueia e qualquer valor finito (>= 1) é o custo de entrar. Consulta a superfície
+   * uma vez por célula (com cache), em vez de uma para bloqueio e outra por aresta para custo. Quando presente, substitui
+   * `isBlocked` e `cost`.
+   */
+  weight?: (x: number, z: number) => number;
 }
 
 const DEFAULT_MAP_SIZE = 60;
@@ -116,8 +127,10 @@ export const findPath = (
 
   const inBounds = (x: number, z: number): boolean => x >= 0 && z >= 0 && x < cells && z < cells;
   if (!inBounds(startX, startZ) || !inBounds(goalX, goalZ)) return [];
-  if (isBlocked(toWorld(startX), toWorld(startZ))) return [];
-  if (isBlocked(toWorld(goalX), toWorld(goalZ))) return [];
+  const weightOf = options.weight;
+  const blockedAt = weightOf ? (x: number, z: number) => !Number.isFinite(weightOf(x, z)) : isBlocked;
+  if (blockedAt(toWorld(startX), toWorld(startZ))) return [];
+  if (blockedAt(toWorld(goalX), toWorld(goalZ))) return [];
   if (startX === goalX && startZ === goalZ) return [];
 
   const maxExpanded = options.maxExpanded ?? cells * cells;
@@ -127,12 +140,25 @@ export const findPath = (
   const closed = new Uint8Array(cellCount);
   const blocked = new Uint8Array(cellCount);
 
+  // Custo de entrar em cada célula, calculado uma única vez (0 = ainda não consultado; o custo mínimo é 1).
+  const cellCost = new Float32Array(cellCount);
   const isCellBlocked = (x: number, z: number): boolean => {
     const index = z * cells + x;
     if (blocked[index] === 0) {
-      blocked[index] = isBlocked(toWorld(x), toWorld(z)) ? 1 : 2;
+      if (weightOf) {
+        const weight = weightOf(toWorld(x), toWorld(z));
+        blocked[index] = Number.isFinite(weight) ? 2 : 1;
+        cellCost[index] = Number.isFinite(weight) ? Math.max(1, weight) : 1;
+      } else {
+        blocked[index] = isBlocked(toWorld(x), toWorld(z)) ? 1 : 2;
+      }
     }
     return blocked[index] === 1;
+  };
+  const costOf = (x: number, z: number): number => {
+    const index = z * cells + x;
+    if (cellCost[index] === 0) cellCost[index] = Math.max(1, options.cost?.(toWorld(x), toWorld(z)) ?? 1);
+    return cellCost[index];
   };
 
   const startIndex = startZ * cells + startX;
@@ -143,7 +169,8 @@ export const findPath = (
   open.push(startIndex, octile(Math.abs(goalX - startX), Math.abs(goalZ - startZ)));
 
   // dx, dz, custo
-  const NEIGHBORS: number[] = [1, 0, 1, -1, 0, 1, -1, 0, 1, 1, 1, -1, -1, 1, -1, -1];
+  // Os 8 vizinhos distintos. (A lista antiga repetia (1,-1) e omitia (0,-1): o A* nunca andava para -z em linha reta.)
+  const NEIGHBORS: number[] = [1, 0, -1, 0, 0, 1, 0, -1, 1, 1, 1, -1, -1, 1, -1, -1];
 
   let expanded = 0;
   let found = false;
@@ -185,7 +212,7 @@ export const findPath = (
       const neighborIndex = nz * cells + nx;
       if (closed[neighborIndex]) continue;
 
-      const stepCost = diagonal ? SQRT2 : 1;
+      const stepCost = (diagonal ? SQRT2 : 1) * costOf(nx, nz);
       const tentative = gScore[current] + stepCost;
       if (tentative >= gScore[neighborIndex]) continue;
 

@@ -186,3 +186,27 @@ describe('consumeReachedWaypoints', () => {
   });
 });
 
+describe('os oito vizinhos do A*', () => {
+  it('alcança um bolsão que só se entra andando para -z em linha reta (regressão)', () => {
+    // Bolsão em (5,2): paredes em (4,2), (6,2) e (5,1); a única entrada é por (5,3), um passo (0,-1).
+    const walls = new Set(['4,2', '6,2', '5,1', '4,1', '6,1']);
+    const blocked = (x: number, z: number) => walls.has(`${Math.floor(x)},${Math.floor(z)}`);
+    const start = { x: 5.5, z: 8.5 };
+    const pocket = { x: 5.5, z: 2.5 };
+    const path = findPath(start, pocket, blocked, { mapSize: 12 });
+    expect(path.length).toBeGreaterThan(0);
+    expect(path[path.length - 1]).toEqual(pocket);
+    expect(findPath(pocket, start, blocked, { mapSize: 12 }).length).toBeGreaterThan(0);
+  });
+
+  it('a existência de rota é simétrica: A alcança B se e somente se B alcança A', () => {
+    const blocked = (x: number, z: number) => (Math.floor(x) + Math.floor(z)) % 7 === 3 && Math.floor(x) % 2 === 0;
+    for (let i = 0; i < 40; i += 1) {
+      const a = { x: (i * 5) % 20 + 0.5, z: (i * 3) % 20 + 0.5 };
+      const b = { x: (i * 11 + 4) % 20 + 0.5, z: (i * 7 + 2) % 20 + 0.5 };
+      if (blocked(a.x, a.z) || blocked(b.x, b.z)) continue;
+      expect(findPath(a, b, blocked, { mapSize: 20 }).length > 0).toBe(findPath(b, a, blocked, { mapSize: 20 }).length > 0);
+    }
+  });
+});
+

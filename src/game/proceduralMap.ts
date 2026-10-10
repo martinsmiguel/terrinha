@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { ResourceNode } from './engine';
 import { evaluateCapitalSite } from './capitalSite';
+import { boatCanFloat, canStand, type BodyId, type Surface } from './bodyModel';
 import { checkBuildingPlacementValid } from './buildingGhost';
 import { CAPITAL_MIN_SITES, findCapitalSites } from './foundation';
 import { proveWorld, type WorldProof } from './worldProofs';
@@ -64,6 +65,12 @@ export interface ProceduralMapResult {
   proof: WorldProof;
   /** Sítios de capital distintos encontrados em cada nascedouro (player1 a player4). */
   capitalSites: number[];
+  /** Superfície no ponto: água (oceano, lago ou rio), profundidade e rochedo. Fonte única do modelo de corpos. */
+  surfaceAt: (x: number, z: number) => Surface;
+  /** O corpo terrestre pode estar neste ponto (terra seca ou água rasa até o seu limite de vau)? */
+  canStandAt: (body: BodyId, x: number, z: number) => boolean;
+  /** O barco flutua neste ponto? Só oceano com calado mais margem (1,0 de fundo); rios e lagos são fechados. */
+  isNavigableAt: (x: number, z: number) => boolean;
   /** Veredito econômico de cada ilha natal (player1 a player4): recursos básicos contra a jornada natal. */
   economy: EconomyVerdict[];
   /** Fertilidade das fazendas na posição, pelo perfil declarado da ilha (0 no oceano e fora de ilhas). */
@@ -117,6 +124,40 @@ export const MAX_SEED_ATTEMPTS = 32;
 /** Passo entre sementes candidatas: primo, para não repetir layouts parecidos. */
 const SEED_STEP = 7919;
 
+/**
+ * Ilhas alcançáveis a pé ou vadeando a partir de cada nascedouro natal (o humano tem o maior vau, então vale para todo
+ * corpo terrestre). Em um mundo válido cada natal alcança só a própria ilha: nunca há conexão terrestre interinsular.
+ */
+function interIslandConnections(map: ProceduralMapResult): string[] {
+  const size = map.mapSize;
+  const problems: string[] = [];
+  map.islands.filter((island) => island.kind === 'native').forEach((origin) => {
+    const seen = new Uint8Array(size * size);
+    const stack: number[] = [];
+    const start = { x: Math.floor(origin.spawn.x), z: Math.floor(origin.spawn.z) };
+    seen[start.x * size + start.z] = 1;
+    stack.push(start.x, start.z);
+    while (stack.length > 0) {
+      const z = stack.pop()!;
+      const x = stack.pop()!;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx;
+        const nz = z + dz;
+        if (nx < 0 || nz < 0 || nx >= size || nz >= size || seen[nx * size + nz]) continue;
+        if (!map.canStandAt('human', nx + 0.5, nz + 0.5)) continue;
+        seen[nx * size + nz] = 1;
+        stack.push(nx, nz);
+      }
+    }
+    map.islands.forEach((other) => {
+      if (other.index !== origin.index && seen[Math.floor(other.center.x) * size + Math.floor(other.center.z)] === 1) {
+        problems.push(`natal ${origin.index} alcança a ilha ${other.index} vadeando`);
+      }
+    });
+  });
+  return problems;
+}
+
 /** Prova as ilhas natais e conta os sítios de capital de cada nascedouro; registra o veredito no mapa. */
 function assessViability(map: ProceduralMapResult): void {
   const proof = proveWorld(map, { islands: map.islands });
@@ -154,6 +195,7 @@ function assessViability(map: ProceduralMapResult): void {
   capitalSites.forEach((count, i) => { if (count < CAPITAL_MIN_SITES) reasons.push(`natal ${i}: ${count} sítios de capital`); });
   immediateExpansion.forEach((cells, i) => { if (cells < 25) reasons.push(`natal ${i}: expansão imediata ${cells} < 25`); });
   map.economy.forEach((verdict, i) => { if (!verdict.viable) reasons.push(`natal ${i}: economia sem ${verdict.missing.join(', ')}`); });
+  reasons.push(...interIslandConnections(map));
   map.viabilityReasons = reasons;
   map.viable = reasons.length === 0;
 }
@@ -511,6 +553,15 @@ function buildProceduralTerrain(mapSize: number, actualSeed: number): Procedural
   const isImpassableAt = (wx: number, wz: number): boolean =>
     isLandBlocked(calculateElevationData(wx, wz));
 
+  const surfaceAt = (wx: number, wz: number): Surface => {
+    const data = calculateElevationData(wx, wz);
+    return {
+      water: !data.isWater ? 'none' : data.isOcean ? 'ocean' : data.isLake ? 'lake' : 'river',
+      depth: data.depth,
+      cliff: data.isCliff,
+    };
+  };
+
   const getCellAt = (wx: number, wz: number): MapCell => {
     const data = calculateElevationData(wx, wz);
     let biome: MapCell['biome'] = 'plains';
@@ -559,6 +610,9 @@ function buildProceduralTerrain(mapSize: number, actualSeed: number): Procedural
     isCliffAt,
     isImpassableAt,
     proof: { islands: [], viable: false },
+    surfaceAt,
+    canStandAt: (body, x, z) => canStand(surfaceAt(x, z), body),
+    isNavigableAt: (x, z) => boatCanFloat(surfaceAt(x, z)),
     economy: [],
     viabilityReasons: [],
     rejectedSeeds: [],

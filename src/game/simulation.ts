@@ -12,12 +12,37 @@ import type { TechState } from './tech';
 import { evaluateMatch } from './victory';
 import { advanceFoundation, clearEliminatedOrders, lifePhase } from './foundation';
 import { canTarget, type OwnerVision } from './visionAuthority';
+import { bodyOf, moveCost, type BodyId, type Surface } from './bodyModel';
 import { UNIT_ATTRIBUTES, effectiveAttribute, unitAttribute, type RuleSettings } from './unitAttributes';
 
 export interface SimulationMap {
   isWaterAt(x: number, z: number): boolean;
   isImpassableAt(x: number, z: number): boolean;
   isOceanAt(x: number, z: number): boolean;
+  /** Modelo de corpos (opcional): vau dos corpos terrestres, calado dos barcos e superfície com profundidade. */
+  canStandAt?(body: BodyId, x: number, z: number): boolean;
+  isNavigableAt?(x: number, z: number): boolean;
+  surfaceAt?(x: number, z: number): Surface;
+}
+
+/** Célula bloqueada para o corpo da unidade: calado para barcos, vau para os terrestres; sem o modelo, a regra legada. */
+function blockedFor(type: UnitType, map: SimulationMap): (x: number, z: number) => boolean {
+  const body = bodyOf(type);
+  if (body === 'boat') return map.isNavigableAt ? (x, z) => !map.isNavigableAt!(x, z) : (x, z) => !map.isOceanAt(x, z);
+  return map.canStandAt ? (x, z) => !map.canStandAt!(body, x, z) : (x, z) => map.isImpassableAt(x, z);
+}
+
+/**
+ * Peso único de cada célula para a rota: `Infinity` quando bloqueada e o custo de travessia quando livre (o raso custa
+ * mais que a terra seca). Uma só consulta à superfície por célula; sem superfície com profundidade, vale a regra legada.
+ */
+function weightFor(type: UnitType, map: SimulationMap): (x: number, z: number) => number {
+  const body = bodyOf(type);
+  if (map.surfaceAt && (body === 'boat' ? Boolean(map.isNavigableAt) : Boolean(map.canStandAt))) {
+    return (x, z) => moveCost(map.surfaceAt!(x, z), body);
+  }
+  const blocked = blockedFor(type, map);
+  return (x, z) => (blocked(x, z) ? Number.POSITIVE_INFINITY : 1);
 }
 
 export interface SimulationBuildingDefinition {
@@ -28,6 +53,8 @@ export interface SimulationBuildingDefinition {
 export interface SimulationPath {
   goal: { x: number; z: number };
   path: { x: number; z: number }[];
+  /** Versão da superfície em que a rota foi calculada: ponte ou revisão do terreno a invalida. */
+  version?: number;
 }
 
 export type SimulationPathCache = Map<string, SimulationPath>;
@@ -43,6 +70,8 @@ export interface SimulationContext {
   map?: SimulationMap;
   nearestOceanCell?(x: number, z: number, maxRadius?: number): { x: number; z: number };
   pathCache?: SimulationPathCache;
+  /** Versão da superfície do mundo. Ao mudar (ponte erguida ou destruída, revisão de regras), as rotas em cache caducam. */
+  surfaceVersion?: number;
   activeSlots?: string[];
   gatherRadiusLimit: number;
   sustainableForestryEnabled: boolean;
@@ -106,10 +135,11 @@ function findNearbyResource(
 function routeFrom(
   from: { x: number; z: number },
   goal: { x: number; z: number },
-  isBlocked: (x: number, z: number) => boolean,
+  weight: (x: number, z: number) => number,
   mapSize: number
 ): { x: number; z: number }[] {
-  const options = { mapSize, maxExpanded: 2400 };
+  const isBlocked = (x: number, z: number) => !Number.isFinite(weight(x, z));
+  const options = { mapSize, maxExpanded: 2400, weight };
   const direct = findPath(from, goal, isBlocked, options);
   if (direct.length > 0) return direct;
   const cellX = Math.floor(from.x);
@@ -142,6 +172,14 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
   const playerSlot = context.playerSlot;
   const pMap = context.map;
   const pathCache: SimulationPathCache = context.pathCache ?? new Map<string, SimulationPath>();
+  const surfaceVersion = context.surfaceVersion ?? 0;
+  // Rota em cache só vale na versão da superfície em que foi calculada.
+  const cachedRoute = (id: string): SimulationPath | undefined => {
+    const entry = pathCache.get(id);
+    return entry && (entry.version ?? 0) === surfaceVersion ? entry : undefined;
+  };
+  const storeRoute = (id: string, goal: { x: number; z: number }, path: { x: number; z: number }[]) =>
+    pathCache.set(id, { goal: { x: goal.x, z: goal.z }, path, version: surfaceVersion });
   const activeSlots = context.activeSlots ?? [playerSlot];
 
   let updatedUnits: Unit[] = state.units.map((unit) => ({
@@ -181,23 +219,22 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     const speed = unitAttribute(unit.type, 'movePerTick', ruleSettings);
     if (!pMap) return stepToward(unit.type, unit.position, goal, speed, undefined);
 
-    const cached = pathCache.get(unit.id);
+    const cached = cachedRoute(unit.id);
     const followingRoute = Boolean(cached && cached.goal.x === goal.x && cached.goal.z === goal.z && cached.path.length > 0);
     if (!followingRoute) {
       const direct = stepToward(unit.type, unit.position, goal, speed, pMap);
       if (direct) return direct;
     }
 
-    const boat = isBoatUnit(unit.type);
     const pathFor = (from: { x: number; z: number }) =>
-      routeFrom(from, goal, boat ? (x, z) => !pMap.isOceanAt(x, z) : (x, z) => pMap.isImpassableAt(x, z), mapSize);
+      routeFrom(from, goal, weightFor(unit.type, pMap), mapSize);
     if (!cached || cached.goal.x !== goal.x || cached.goal.z !== goal.z) {
-      pathCache.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: pathFor(unit.position) });
+      storeRoute(unit.id, goal, pathFor(unit.position));
     }
-    const before = pathCache.get(unit.id)?.path ?? [];
+    const before = cachedRoute(unit.id)?.path ?? [];
     let route = consumeReachedWaypoints(unit.position, before);
     if (before.length > 0 && route.length === 0) route = pathFor(unit.position);
-    if (route !== before) pathCache.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: route });
+    if (route !== before) storeRoute(unit.id, goal, route);
     if (route.length === 0) return null;
     return stepToward(unit.type, unit.position, route[0], speed, pMap);
   };
@@ -215,27 +252,22 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       }
 
       const speed = unitAttribute(unit.type, 'movePerTick', ruleSettings);
-      const boat = isBoatUnit(unit.type);
 
       let heading = goal;
       if (pMap) {
-        const pathFor = (from: { x: number; z: number }) => {
-          const isBlocked = boat
-            ? (x: number, z: number) => !pMap.isOceanAt(x, z)
-            : (x: number, z: number) => pMap.isImpassableAt(x, z);
-          return routeFrom(from, goal, isBlocked, mapSize);
-        };
+        const pathFor = (from: { x: number; z: number }) =>
+          routeFrom(from, goal, weightFor(unit.type, pMap), mapSize);
 
-        const cached = pathCache.get(unit.id);
+        const cached = cachedRoute(unit.id);
         if (!cached || cached.goal.x !== goal.x || cached.goal.z !== goal.z) {
-          pathCache.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: pathFor(unit.position) });
+          storeRoute(unit.id, goal, pathFor(unit.position));
         }
 
-        const before = pathCache.get(unit.id)?.path ?? [];
+        const before = cachedRoute(unit.id)?.path ?? [];
         let cachedPath = consumeReachedWaypoints(unit.position, before);
         // Fim de uma rota parcial: calcula o trecho seguinte a partir daqui.
         if (before.length > 0 && cachedPath.length === 0) cachedPath = pathFor(unit.position);
-        if (cachedPath !== before) pathCache.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: cachedPath });
+        if (cachedPath !== before) storeRoute(unit.id, goal, cachedPath);
 
         const waypoint = cachedPath.length > 0 ? cachedPath[0] : null;
         heading = waypoint ?? goal;
@@ -620,7 +652,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       // prova de navegabilidade, entao a fila aguarda sem criar unidade.
       const oceanCell = context.map
         ? findDockOceanSpawnCell(
-            context.map.isOceanAt,
+            context.map.isNavigableAt ?? context.map.isOceanAt,
             building.position.x,
             building.position.z,
             spawnX,
@@ -767,9 +799,11 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
             if (distanceToHuman > 26) return;
             const pathExists =
               !pMap ||
-              findPath(aiUnit.position, goal, (x, z) => pMap.isImpassableAt(x, z), {
+              // A IA consulta a mesma superfície dos corpos que o jogador: o vau e o custo do raso valem para ela também.
+              findPath(aiUnit.position, goal, blockedFor(aiUnit.type, pMap), {
                 mapSize,
                 maxExpanded: 800,
+                weight: weightFor(aiUnit.type, pMap),
               }).length > 0;
             if (pathExists) {
               aiUnit.targetPosition = goal;
@@ -821,8 +855,11 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         }
       });
     };
-    relax(updatedUnits.filter((unit) => !isBoatUnit(unit.type)), (x, z) => pMap.isImpassableAt(x, z));
-    relax(updatedUnits.filter((unit) => isBoatUnit(unit.type)), (x, z) => !pMap.isOceanAt(x, z));
+    // Cada corpo é empurrado só para onde ele pode estar: barcos pelo calado, os demais pelo próprio vau.
+    for (const group of ['human', 'mount', 'cart', 'boat'] as const) {
+      const members = updatedUnits.filter((unit) => bodyOf(unit.type) === group);
+      if (members.length > 0) relax(members, blockedFor(members[0].type, pMap));
+    }
     if (movedPositions.size > 0) {
       updatedUnits = updatedUnits.map((unit) => {
         const pos = movedPositions.get(unit.id);
