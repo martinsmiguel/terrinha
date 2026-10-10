@@ -1,4 +1,5 @@
 import { healUnitsInTerritory } from './colonies';
+import { reconcileDepots, type LocalityResolver } from './depots';
 import { isBoatUnit, worldSizeOf } from './model';
 import { boardArrivedPassengers } from './navalTransport';
 import type { BuildingType, GameState, Unit, UnitType } from './model';
@@ -24,6 +25,8 @@ export interface SimulationMap {
   canStandAt?(body: BodyId, x: number, z: number): boolean;
   isNavigableAt?(x: number, z: number): boolean;
   surfaceAt?(x: number, z: number): Surface;
+  /** Localidade de uma posição para um dono (metrópole ou ilha colonial), base dos estoques locais. */
+  localityOf?: LocalityResolver;
 }
 
 /** Célula bloqueada para o corpo da unidade: calado para barcos, vau para os terrestres; sem o modelo, a regra legada. */
@@ -86,7 +89,7 @@ export type SimulationEffect =
   | { type: 'boat-sinking'; x: number; z: number }
   | { type: 'construction-particles'; x: number; z: number }
   | { type: 'sound'; sound: 'combat-hit' | 'hammer' | 'building-completed' | 'unit-trained'; musket?: boolean; unitType?: UnitType; buildingType?: BuildingType }
-  | { type: 'notification'; message: string; level: 'success' };
+  | { type: 'notification'; message: string; level: 'success' | 'warning' };
 
 export interface SimulationTickResult {
   state: GameState;
@@ -882,9 +885,20 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     updatedBuildings = cleared.buildings;
   }
 
+  // Última construção de posto destruída: o estoque local da ilha se perde (pausa de produção segue de productionPaused).
+  let updatedLocalStocks = state.localStocks;
+  if (pMap?.localityOf && state.localStocks) {
+    const reconciled = reconcileDepots({ ...state, buildings: updatedBuildings, playerResources: updatedResources }, pMap.localityOf);
+    updatedLocalStocks = reconciled.state.localStocks;
+    reconciled.lost.filter((entry) => entry.owner === playerSlot).forEach(() => {
+      effects.push({ type: 'notification', message: 'O último posto da colônia caiu: o estoque local foi perdido.', level: 'warning' });
+    });
+  }
+
   return {
     state: {
       ...state,
+      ...(updatedLocalStocks ? { localStocks: updatedLocalStocks } : {}),
       units: updatedUnits,
       buildings: updatedBuildings,
       resourceNodes: updatedNodes,
