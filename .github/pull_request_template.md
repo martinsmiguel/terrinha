@@ -22,6 +22,19 @@ Merge registra integração; Done exige confirmação do aceite no card. -->
 - Impacto em jogo, rede ou interface:
 - Documentação atualizada (quadrante Diátaxis), quando aplicável:
 
+## Procedência da fatia
+
+- Branch/base e SHA candidato:
+- Primeira fatia e critérios demonstrados:
+- Estado: candidato; integração, avaliação e aceite precisam de prova própria.
+- Dependências pendentes e ordem de integração:
+- Critério → cenário → prova acessível → resultado/limites:
+- Responsável humano e data comprometida: não definidos até compromisso.
+
+Preservar histórico e intervenções manuais do card. Fontes privadas permanecem
+locais; a descrição pública precisa explicar o escopo sem depender delas.
+Resultado inconclusivo não atende ao critério; merge sozinho não fecha o card.
+
 ## Quality gate
 
 - [ ] O diff contém somente arquivos necessários para esta issue.
