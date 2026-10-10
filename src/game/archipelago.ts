@@ -178,8 +178,8 @@ const ISLAND_SLOTS = [
   { fx: 44 / 60, fz: 44 / 60, kind: 'native' as const, radiusFactor: 0.1333 }, // player2 (sudeste)
   { fx: 16 / 60, fz: 44 / 60, kind: 'native' as const, radiusFactor: 0.1333 }, // player3 (sudoeste)
   { fx: 44 / 60, fz: 16 / 60, kind: 'native' as const, radiusFactor: 0.1333 }, // player4 (nordeste)
-  { fx: 0.5, fz: 0.1, kind: 'neutral' as const, radiusFactor: 0.075 }, // neutra do norte
-  { fx: 0.5, fz: 0.9, kind: 'neutral' as const, radiusFactor: 0.075 }, // neutra do sul
+  { fx: 0.5, fz: 0.1, kind: 'neutral' as const, radiusFactor: 0.05 }, // neutra do norte
+  { fx: 0.5, fz: 0.9, kind: 'neutral' as const, radiusFactor: 0.05 }, // neutra do sul
 ];
 
 /** Pool: floresta e sempre incluida (garante lago + rio na partida). */
