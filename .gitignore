@@ -7,3 +7,8 @@ coverage/
 .env*
 bun.lock
 graphify-out/
+
+<<<<<<< HEAD
+.planning-state/
+__pycache__/
+dist-server/

@@ -51,12 +51,14 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
   };
 
   return (
-    <div className="relative pointer-events-auto flex items-center gap-1.5 sm:gap-2.5">
+    <div className="relative pointer-events-auto flex flex-wrap max-w-full items-center gap-1.5 sm:gap-2.5">
       {/* 1. WOOD NAV CARD */}
       <div className="relative">
         <button
           type="button"
           onClick={() => toggleFlyout('wood')}
+          aria-expanded={activeFlyout === 'wood'}
+          aria-label="Madeira"
           className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-2xl border transition-all ${
             activeFlyout === 'wood'
               ? 'bg-amber-950/90 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.25)] text-amber-200'
@@ -70,18 +72,18 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
           <div className="text-left">
             <div className="text-[9px] text-amber-400/80 font-semibold uppercase tracking-wider flex items-center gap-1">
               <span>Madeira</span>
-              <span className="text-[8px] font-mono text-slate-400">({activeGatherers.wood} coletando)</span>
+              <span className="hidden sm:inline text-[8px] font-mono text-slate-400">({activeGatherers.wood} coletando)</span>
             </div>
             <div className="text-xs sm:text-sm font-mono font-bold text-amber-300">
               {Math.floor(resources.wood)}
             </div>
           </div>
-          <ChevronDown className="w-3 h-3 text-slate-500 ml-0.5" />
+          <ChevronDown className="hidden sm:block w-3 h-3 text-slate-400 ml-0.5" />
         </button>
 
         {/* Wood Flyout Drawer */}
         {activeFlyout === 'wood' && (
-          <div className="absolute top-full left-0 mt-2 w-56 p-3 rounded-2xl bg-slate-950/95 border border-amber-500/60 shadow-2xl backdrop-blur-xl z-50 text-xs space-y-2 animate-fade-in">
+          <div className="max-sm:fixed max-sm:inset-x-2 max-sm:top-28 max-sm:w-auto absolute top-full left-0 mt-2 w-56 p-3 rounded-2xl bg-slate-950/95 border border-amber-500/60 shadow-2xl backdrop-blur-xl z-50 text-xs space-y-2 animate-fade-in">
             <div className="font-bold text-amber-300 flex items-center justify-between pb-1 border-b border-slate-800">
               <span>Gestão de Madeira</span>
               <span className="text-[10px] text-slate-400">{activeGatherers.wood} lenhadores</span>
@@ -93,7 +95,7 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Silvicultura Sustentável:</span>
-                <span className={isSustainableForestry ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
+                <span className={isSustainableForestry ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
                   {isSustainableForestry ? 'Ativa' : 'Desligada'}
                 </span>
               </div>
@@ -142,6 +144,8 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
         <button
           type="button"
           onClick={() => toggleFlyout('food')}
+          aria-expanded={activeFlyout === 'food'}
+          aria-label="Alimento"
           className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-2xl border transition-all ${
             activeFlyout === 'food'
               ? 'bg-red-950/90 border-red-400 shadow-[0_0_15px_rgba(239,68,68,0.25)] text-red-200'
@@ -157,18 +161,18 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
           <div className="text-left">
             <div className="text-[9px] text-red-400/80 font-semibold uppercase tracking-wider flex items-center gap-1">
               <span>Alimento</span>
-              <span className="text-[8px] font-mono text-slate-400">({activeGatherers.food} coletando)</span>
+              <span className="hidden sm:inline text-[8px] font-mono text-slate-400">({activeGatherers.food} coletando)</span>
             </div>
             <div className="text-xs sm:text-sm font-mono font-bold text-red-300">
               {Math.floor(resources.food)}
             </div>
           </div>
-          <ChevronDown className="w-3 h-3 text-slate-500 ml-0.5" />
+          <ChevronDown className="hidden sm:block w-3 h-3 text-slate-400 ml-0.5" />
         </button>
 
         {/* Food Flyout */}
         {activeFlyout === 'food' && (
-          <div className="absolute top-full left-0 mt-2 w-60 p-3 rounded-2xl bg-slate-950/95 border border-red-500/60 shadow-2xl backdrop-blur-xl z-50 text-xs space-y-2 animate-fade-in">
+          <div className="max-sm:fixed max-sm:inset-x-2 max-sm:top-28 max-sm:w-auto absolute top-full left-0 mt-2 w-60 p-3 rounded-2xl bg-slate-950/95 border border-red-500/60 shadow-2xl backdrop-blur-xl z-50 text-xs space-y-2 animate-fade-in">
             <div className="font-bold text-red-300 flex items-center justify-between pb-1 border-b border-slate-800">
               <span>Suprimento de Alimentos</span>
               <span className="text-[10px] text-slate-400">{activeGatherers.food} colonos</span>
@@ -211,6 +215,8 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
         <button
           type="button"
           onClick={() => toggleFlyout('fish')}
+          aria-expanded={activeFlyout === 'fish'}
+          aria-label="Rio e pesca"
           className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-2xl border transition-all ${
             activeFlyout === 'fish'
               ? 'bg-blue-950/90 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.25)] text-blue-200'
@@ -226,18 +232,18 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
           <div className="text-left">
             <div className="text-[9px] text-blue-400/80 font-semibold uppercase tracking-wider flex items-center gap-1">
               <span>Rio & Pesca</span>
-              <span className="text-[8px] font-mono text-slate-400">({activeGatherers.fish} coletando)</span>
+              <span className="hidden sm:inline text-[8px] font-mono text-slate-400">({activeGatherers.fish} coletando)</span>
             </div>
             <div className="text-xs sm:text-sm font-mono font-bold text-blue-300">
               Cardumes
             </div>
           </div>
-          <ChevronDown className="w-3 h-3 text-slate-500 ml-0.5" />
+          <ChevronDown className="hidden sm:block w-3 h-3 text-slate-400 ml-0.5" />
         </button>
 
         {/* Fish Flyout */}
         {activeFlyout === 'fish' && (
-          <div className="absolute top-full left-0 mt-2 w-64 p-3 rounded-2xl bg-slate-950/95 border border-blue-500/60 shadow-2xl backdrop-blur-xl z-50 text-xs space-y-2 animate-fade-in">
+          <div className="max-sm:fixed max-sm:inset-x-2 max-sm:top-28 max-sm:w-auto absolute top-full left-0 mt-2 w-64 p-3 rounded-2xl bg-slate-950/95 border border-blue-500/60 shadow-2xl backdrop-blur-xl z-50 text-xs space-y-2 animate-fade-in">
             <div className="font-bold text-blue-300 flex items-center justify-between pb-1 border-b border-slate-800">
               <span>Exploração Fluvial & Barcos</span>
               <span className="text-[10px] text-slate-400">{activeGatherers.fish} barcos</span>
@@ -280,6 +286,8 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
         <button
           type="button"
           onClick={() => toggleFlyout('gold')}
+          aria-expanded={activeFlyout === 'gold'}
+          aria-label="Ouro e minério"
           className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-2xl border transition-all ${
             activeFlyout === 'gold'
               ? 'bg-yellow-950/90 border-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.25)] text-yellow-200'
@@ -295,18 +303,18 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
           <div className="text-left">
             <div className="text-[9px] text-yellow-400/80 font-semibold uppercase tracking-wider flex items-center gap-1">
               <span>Ouro & Minério</span>
-              <span className="text-[8px] font-mono text-slate-400">({activeGatherers.gold} coletando)</span>
+              <span className="hidden sm:inline text-[8px] font-mono text-slate-400">({activeGatherers.gold} coletando)</span>
             </div>
             <div className="text-xs sm:text-sm font-mono font-bold text-yellow-300">
               {Math.floor(resources.gold)}
             </div>
           </div>
-          <ChevronDown className="w-3 h-3 text-slate-500 ml-0.5" />
+          <ChevronDown className="hidden sm:block w-3 h-3 text-slate-400 ml-0.5" />
         </button>
 
         {/* Gold Flyout */}
         {activeFlyout === 'gold' && (
-          <div className="absolute top-full left-0 mt-2 w-60 p-3 rounded-2xl bg-slate-950/95 border border-yellow-500/60 shadow-2xl backdrop-blur-xl z-50 text-xs space-y-2 animate-fade-in">
+          <div className="max-sm:fixed max-sm:inset-x-2 max-sm:top-28 max-sm:w-auto absolute top-full left-0 mt-2 w-60 p-3 rounded-2xl bg-slate-950/95 border border-yellow-500/60 shadow-2xl backdrop-blur-xl z-50 text-xs space-y-2 animate-fade-in">
             <div className="font-bold text-yellow-300 flex items-center justify-between pb-1 border-b border-slate-800">
               <span>Riqueza Mineral & Forja</span>
               <span className="text-[10px] text-slate-400">{activeGatherers.gold} mineradores</span>
@@ -319,7 +327,7 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
               <span className="text-[11px] text-slate-400">Pedra bruta</span>
               <span className="font-mono font-bold text-slate-200">
                 {Math.floor(resources.stone)}{' '}
-                <span className="text-[10px] text-slate-500">({activeGatherers.stone} pedreiros)</span>
+                <span className="text-[10px] text-slate-400">({activeGatherers.stone} pedreiros)</span>
               </span>
             </div>
 
@@ -379,7 +387,7 @@ export const ResourceNavMenu: React.FC<ResourceNavMenuProps> = ({
           <button
             type="button"
             onClick={onSelectIdleVillager}
-            className="ml-1 px-1.5 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-[10px] font-bold text-amber-300 flex items-center gap-1 animate-pulse"
+            className="ml-1 px-2 py-1 min-h-6 max-sm:min-h-8 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-[10px] font-bold text-amber-300 flex items-center gap-1"
             title="Selecionar Aldeão Ocioso"
           >
             <span>{idleVillagersCount} Ocioso</span>

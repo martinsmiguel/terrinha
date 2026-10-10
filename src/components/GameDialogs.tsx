@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import type { ChatMessage } from '../game/multiplayer';
 import { soundManager } from '../game/audio';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 
 interface ActiveWorkZone {
   id: string;
@@ -61,6 +62,8 @@ export function GameDialogs({
   isStrictZoneLeash, setIsStrictZoneLeash, onApplyRadiusToAllWorkingVillagers, activeWorkZones,
   onFocusZone, onPointerEnterUI, onPointerLeaveUI, notification,
 }: GameDialogsProps) {
+  const controlsRef = useDialogFocus<HTMLDivElement>(showControlsModal);
+  const workZoneRef = useDialogFocus<HTMLDivElement>(isWorkZoneModalOpen);
   return (
     <>
       {/* LAN CHAT MODAL / DRAWER */}
@@ -81,7 +84,7 @@ export function GameDialogs({
 
           <div className="flex-1 overflow-y-auto py-3 space-y-2 text-xs">
             {chatMessages.length === 0 ? (
-              <div className="text-center text-slate-500 py-10">Nenhuma mensagem ainda.</div>
+              <div className="text-center text-slate-400 py-10">Nenhuma mensagem ainda.</div>
             ) : (
               chatMessages.map((msg, idx) => (
                 <div key={idx} className="bg-slate-900/80 p-2 rounded-xl border border-slate-800/80">
@@ -113,11 +116,11 @@ export function GameDialogs({
       {/* TACTICAL CONTROLS & SHORTCUTS GUIDE MODAL */}
       {showControlsModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
-          <div className="bg-slate-900/95 border border-slate-700/80 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+          <div ref={controlsRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="controls-title" className="max-h-[calc(100dvh-2rem)] overflow-y-auto bg-slate-900/95 border border-slate-700/80 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 outline-none">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2 text-amber-400 font-bold text-base">
                 <Info className="w-5 h-5 text-cyan-400" />
-                <span>Guia de Navegação e Controles RTS</span>
+                <span id="controls-title">Guia de Navegação e Controles RTS</span>
               </div>
               <button
                 type="button"
@@ -224,9 +227,14 @@ export function GameDialogs({
       {isWorkZoneModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
           <div
+            ref={workZoneRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="work-zone-title"
             onMouseEnter={() => onPointerEnterUI()}
             onMouseLeave={() => onPointerLeaveUI()}
-            className="bg-slate-900/95 border border-emerald-500/40 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 text-slate-200"
+            className="max-h-[calc(100dvh-2rem)] overflow-y-auto outline-none bg-slate-900/95 border border-emerald-500/40 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 text-slate-200"
           >
             {/* Header */}
             <div className="flex items-start justify-between pb-3 border-b border-slate-800">
@@ -235,7 +243,7 @@ export function GameDialogs({
                   <Target className="w-6 h-6 animate-pulse" />
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <h2 id="work-zone-title" className="text-base font-bold text-white flex items-center gap-2">
                     Configurador de Zonas de Trabalho
                   </h2>
                   <p className="text-xs text-slate-400">
@@ -352,7 +360,7 @@ export function GameDialogs({
               </div>
 
               {activeWorkZones.length === 0 ? (
-                <p className="text-xs text-slate-500 italic p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 text-center">
+                <p className="text-xs text-slate-400 italic p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 text-center">
                   Nenhuma zona de trabalho ativa no momento. Envie aldeões para colher um recurso para criar uma zona automaticamente!
                 </p>
               ) : (
@@ -394,9 +402,14 @@ export function GameDialogs({
         </div>
       )}
 
+      {/* Região viva sempre montada: leitores de tela anunciam cada mensagem do toast. */}
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {notification?.message ?? ''}
+      </div>
+
       {/* TACTICAL TOAST NOTIFICATIONS */}
       {notification && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-300 animate-in fade-in slide-in-from-top-3">
+        <div aria-hidden="true" className="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-300 animate-in fade-in slide-in-from-top-3">
           <div
             className={`px-4 py-2.5 rounded-2xl backdrop-blur-xl border shadow-2xl flex items-center gap-2.5 text-xs font-semibold ${
               notification.type === 'success'

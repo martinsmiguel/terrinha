@@ -1,5 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BUILDING_CATALOG } from '../../src/game/buildingDefs';
+import { BUILDING_CATALOG } from '../../src/game/buildingCatalog';
 
 
 describe('BUILDING_CATALOG', () => {
@@ -43,3 +44,33 @@ describe('BUILDING_CATALOG', () => {
     }
   });
 });
+
+it('preserva os atributos mecânicos do catálogo anterior à extração pura #51', () => {
+  const before = JSON.parse(readFileSync('tests/fixtures/building-catalog-before-51.json', 'utf8'));
+  const mechanics = (catalog: Record<string, object>) => Object.fromEntries(
+    Object.entries(catalog).map(([id, definition]) => [id, Object.fromEntries(
+      Object.entries(definition).filter(([key]) => !['name', 'description', 'benefit'].includes(key))
+    )])
+  );
+  expect(mechanics(BUILDING_CATALOG)).toEqual(mechanics(before));
+});
+
+describe('fronteira do catálogo de edifícios', () => {
+  const source = (file: string) => readFileSync(new URL(`../../src/game/${file}`, import.meta.url), 'utf8');
+
+  it('o catálogo não importa Three, React nem DOM', () => {
+    const code = source('buildingCatalog.ts');
+    expect(code).not.toMatch(/from\s+['"](three|react)/);
+    expect(code).not.toMatch(/\b(window|document|HTMLElement)\b/);
+  });
+
+  it('os meshes dependem do catálogo e o catálogo não depende dos meshes', () => {
+    expect(source('buildingScaffold.ts')).toMatch(/from\s+'\.\/buildingCatalog'/);
+    expect(source('buildingCatalog.ts')).not.toMatch(/buildingScaffold/);
+  });
+
+  it('não sobra segunda cópia do catálogo fora de buildingCatalog.ts', () => {
+    expect(source('buildingScaffold.ts')).not.toMatch(/export const BUILDING_CATALOG/);
+  });
+});
+

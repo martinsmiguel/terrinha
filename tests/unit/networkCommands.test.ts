@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isAuthorizedPlayerCommand, isValidJoinRequest, isValidNetworkCommand, roomJoinError, soloMatchSlots } from '../../src/game/networkCommands';
-import { BUILDING_CATALOG } from '../../src/game/buildingDefs';
+import { BUILDING_CATALOG } from '../../src/game/buildingCatalog';
 import { createTechState } from '../../src/game/tech';
 import type { GameState } from '../../src/game/engine';
 
@@ -70,6 +70,12 @@ describe('network command validation', () => {
     expect(isAuthorizedPlayerCommand(state, { type: 'attack', unitId: 'villager-1', targetId: 'town-center-1' }, 'player1')).toBe(false);
     expect(isAuthorizedPlayerCommand(state, { type: 'gather', unitId: 'villager-1', targetId: 'tree-1' }, 'player1')).toBe(true);
     expect(isAuthorizedPlayerCommand(state, { type: 'gather', unitId: 'villager-1', targetId: 'missing-node' }, 'player1')).toBe(false);
+  });
+
+  it('rejects attack orders forged for civilian boats', () => {
+    const boat = { ...state.units[0], id: 'civil-boat', type: 'trade_boat' as const };
+    expect(isAuthorizedPlayerCommand({ ...state, units: [...state.units, boat] },
+      { type: 'attack', unitId: boat.id, targetId: 'soldier-2' }, 'player1')).toBe(false);
   });
 
   it('rejects building orders with a forged owner or insufficient resources', () => {

@@ -5,8 +5,8 @@ import {
   Users, Wrench, X,
 } from 'lucide-react';
 import { isBoatUnit, type Building, type GameState, type PlayerResources, type ResourceNode, type Unit, type UnitType } from '../game/engine';
-import type { BuildingType } from '../game/buildingDefs';
-import { BUILDING_CATALOG } from '../game/buildingDefs';
+import type { BuildingType } from '../game/buildingCatalog';
+import { BUILDING_CATALOG } from '../game/buildingCatalog';
 import type { PlayerSlot } from '../game/networkCommands';
 import type { MultiplayerManager } from '../game/multiplayer';
 import { soundManager } from '../game/audio';
@@ -463,7 +463,7 @@ export function SelectionPanel(props: SelectionPanelProps) {
                         <Anchor className="w-3.5 h-3.5" /> Desembarcar
                       </button>
                     ) : (
-                      <span className="text-[10px] text-slate-500">
+                      <span className="text-[10px] text-slate-400">
                         {boatCapacity(selectedUnit.type) === 0 ? 'Não transporta' : 'Selecione unidades e clique com o botão direito no barco'}
                       </span>
                     )}
@@ -819,7 +819,7 @@ export function SelectionPanel(props: SelectionPanelProps) {
                               {selectedBuilding.trainingQueue.length}/5 na fila
                             </span>
                           ) : (
-                            <span className="text-slate-500 font-medium normal-case">0/5 vagas ocupadas</span>
+                            <span className="text-slate-400 font-medium normal-case">0/5 vagas ocupadas</span>
                           )}
                         </div>
 
@@ -1053,7 +1053,7 @@ export function SelectionPanel(props: SelectionPanelProps) {
                               canAfford(myResources, UNIT_COSTS.cavalry) &&
                               selectedBuilding.trainingQueue.length < 5 &&
                               myResources.pop + totalQueuedForPlayer < myResources.maxPop
-                                ? 'bg-amber-700 hover:bg-amber-600 text-white font-bold border-amber-500 shadow-md shadow-amber-700/10 hover:scale-[1.01]'
+                                ? 'bg-amber-700 hover:bg-amber-800 text-white font-bold border-amber-500 shadow-md shadow-amber-700/10 hover:scale-[1.01]'
                                 : 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed'
                             }`}
                           >

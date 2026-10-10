@@ -1,7 +1,7 @@
 # Referência: unidades, edifícios e recursos
 
 > Quadrante **Referência** — dados exatos. Fontes: `src/game/economy.ts`
-> (`UNIT_COSTS`, taxas do Mercadão, refino de tábuas), `src/game/buildingDefs.ts`
+> (`UNIT_COSTS`, taxas do Mercadão, refino de tábuas), `src/game/buildingCatalog.ts`
 > (catálogo), `src/game/engine.ts` (tipos), `src/game/proceduralMap.ts` (pedreiras).
 
 > **Estado ≠ contrato.** Esta página descreve o **código atual**, não a entrega
@@ -53,7 +53,7 @@
 | Mineradora & Pedreira | T | 130 madeira + 25 ouro | 14 s | +40% coleta de ouro **e pedra** |
 | Mercadão do Império | Y | 150 madeira + 50 ouro | 16 s | +1 ouro/s; compra/venda (madeira/comida/pedra) |
 | Fazenda & Granja | F | 75 madeira | 9 s | +2 comida/s |
-| Cais & Doca Naval | B | 140 madeira | 15 s | Treina barcos; só em margem |
+| Cais & Doca Naval | B | 140 madeira | 15 s | Treina barcos; só em margem do oceano navegável |
 
 Centro da Vila (Town Center): 2400 HP, criado no início da partida; não
 consta no catálogo de construção.

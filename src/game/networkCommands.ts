@@ -1,6 +1,7 @@
-import type { Building, BuildingType, GameState, PlayerResources, ResourceNode, Unit, UnitType } from './engine';
-import { BOAT_CAPACITY, isBoatUnit } from './engine';
-import { BUILDING_CATALOG } from './buildingDefs';
+import type { Building, BuildingType, GameState, PlayerResources, ResourceNode, Unit, UnitType } from './model';
+import { BOAT_CAPACITY, isBoatUnit } from './model';
+import { UNIT_ATTRIBUTES } from './unitAttributes';
+import { BUILDING_CATALOG } from './buildingCatalog';
 import { researchBlock } from './tech';
 import { UNIT_COSTS, tradeResource, type MarketResourceType } from './economy';
 
@@ -258,6 +259,7 @@ export function isAuthorizedPlayerCommand(
     case 'attack': {
       const attacker = ownsUnit(state, value.unitId, owner);
       if (!attacker) return false;
+      if (!UNIT_ATTRIBUTES[attacker.type].canAttack) return false;
       const targetId = value.targetId;
       const targetUnit = state.units.find((unit) => unit.id === targetId);
       const targetBuilding = state.buildings.find((building) => building.id === targetId);
