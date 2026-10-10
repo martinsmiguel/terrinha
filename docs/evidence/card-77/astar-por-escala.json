@@ -1,0 +1,42 @@
+{
+  "size-60": {
+    "size": 60,
+    "samples": 17,
+    "arrived": 17,
+    "partial": 0,
+    "p50": 0.073,
+    "p95": 0.313,
+    "p99": 0.313,
+    "meanLengthRatio": 1.048
+  },
+  "size-192": {
+    "size": 192,
+    "samples": 106,
+    "arrived": 106,
+    "partial": 0,
+    "p50": 0.222,
+    "p95": 0.825,
+    "p99": 2.144,
+    "meanLengthRatio": 1.055
+  },
+  "size-384": {
+    "size": 384,
+    "samples": 113,
+    "arrived": 113,
+    "partial": 0,
+    "p50": 0.46,
+    "p95": 1.504,
+    "p99": 2.662,
+    "meanLengthRatio": 1.056
+  },
+  "size-768": {
+    "size": 768,
+    "samples": 119,
+    "arrived": 119,
+    "partial": 0,
+    "p50": 1.068,
+    "p95": 3.258,
+    "p99": 5.18,
+    "meanLengthRatio": 1.056
+  }
+}
