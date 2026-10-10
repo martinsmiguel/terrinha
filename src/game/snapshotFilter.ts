@@ -28,5 +28,7 @@ export function filterSnapshotFor(state: GameState, owner: string, vision: Owner
     ...(state.techs ? { techs: pick(state.techs) } : {}),
     ...(state.foundationKits ? { foundationKits: pick(state.foundationKits) } : {}),
     ...(state.localStocks ? { localStocks: pick(state.localStocks) } : {}),
+    // XP só do próprio dono, sem o registro de eventos já creditados (é só do host e pesaria em todo snapshot).
+    ...(state.mastery ? { mastery: owner in state.mastery ? { [owner]: { ...state.mastery[owner], credited: {} } } : {} } : {}),
   };
 }
