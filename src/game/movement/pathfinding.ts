@@ -148,7 +148,8 @@ export const findPath = (
   open.push(startIndex, octile(Math.abs(goalX - startX), Math.abs(goalZ - startZ)));
 
   // dx, dz, custo
-  const NEIGHBORS: number[] = [1, 0, 1, -1, 0, 1, -1, 0, 1, 1, 1, -1, -1, 1, -1, -1];
+  // Os 8 vizinhos distintos. (A lista antiga repetia (1,-1) e omitia (0,-1): o A* nunca andava para -z em linha reta.)
+  const NEIGHBORS: number[] = [1, 0, -1, 0, 0, 1, 0, -1, 1, 1, 1, -1, -1, 1, -1, -1];
 
   let expanded = 0;
   let found = false;

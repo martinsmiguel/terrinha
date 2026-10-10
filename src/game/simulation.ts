@@ -50,6 +50,8 @@ export interface SimulationBuildingDefinition {
 export interface SimulationPath {
   goal: { x: number; z: number };
   path: { x: number; z: number }[];
+  /** Versão da superfície em que a rota foi calculada: ponte ou revisão do terreno a invalida. */
+  version?: number;
 }
 
 export type SimulationPathCache = Map<string, SimulationPath>;
@@ -65,6 +67,8 @@ export interface SimulationContext {
   map?: SimulationMap;
   nearestOceanCell?(x: number, z: number, maxRadius?: number): { x: number; z: number };
   pathCache?: SimulationPathCache;
+  /** Versão da superfície do mundo. Ao mudar (ponte erguida ou destruída, revisão de regras), as rotas em cache caducam. */
+  surfaceVersion?: number;
   activeSlots?: string[];
   gatherRadiusLimit: number;
   sustainableForestryEnabled: boolean;
@@ -165,6 +169,14 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
   const playerSlot = context.playerSlot;
   const pMap = context.map;
   const pathCache: SimulationPathCache = context.pathCache ?? new Map<string, SimulationPath>();
+  const surfaceVersion = context.surfaceVersion ?? 0;
+  // Rota em cache só vale na versão da superfície em que foi calculada.
+  const cachedRoute = (id: string): SimulationPath | undefined => {
+    const entry = pathCache.get(id);
+    return entry && (entry.version ?? 0) === surfaceVersion ? entry : undefined;
+  };
+  const storeRoute = (id: string, goal: { x: number; z: number }, path: { x: number; z: number }[]) =>
+    pathCache.set(id, { goal: { x: goal.x, z: goal.z }, path, version: surfaceVersion });
   const activeSlots = context.activeSlots ?? [playerSlot];
 
   let updatedUnits: Unit[] = state.units.map((unit) => ({
@@ -204,7 +216,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     const speed = unitAttribute(unit.type, 'movePerTick', ruleSettings);
     if (!pMap) return stepToward(unit.type, unit.position, goal, speed, undefined);
 
-    const cached = pathCache.get(unit.id);
+    const cached = cachedRoute(unit.id);
     const followingRoute = Boolean(cached && cached.goal.x === goal.x && cached.goal.z === goal.z && cached.path.length > 0);
     if (!followingRoute) {
       const direct = stepToward(unit.type, unit.position, goal, speed, pMap);
@@ -214,12 +226,12 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     const pathFor = (from: { x: number; z: number }) =>
       routeFrom(from, goal, blockedFor(unit.type, pMap), mapSize, costFor(unit.type, pMap));
     if (!cached || cached.goal.x !== goal.x || cached.goal.z !== goal.z) {
-      pathCache.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: pathFor(unit.position) });
+      storeRoute(unit.id, goal, pathFor(unit.position));
     }
-    const before = pathCache.get(unit.id)?.path ?? [];
+    const before = cachedRoute(unit.id)?.path ?? [];
     let route = consumeReachedWaypoints(unit.position, before);
     if (before.length > 0 && route.length === 0) route = pathFor(unit.position);
-    if (route !== before) pathCache.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: route });
+    if (route !== before) storeRoute(unit.id, goal, route);
     if (route.length === 0) return null;
     return stepToward(unit.type, unit.position, route[0], speed, pMap);
   };
@@ -243,16 +255,16 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         const pathFor = (from: { x: number; z: number }) =>
           routeFrom(from, goal, blockedFor(unit.type, pMap), mapSize, costFor(unit.type, pMap));
 
-        const cached = pathCache.get(unit.id);
+        const cached = cachedRoute(unit.id);
         if (!cached || cached.goal.x !== goal.x || cached.goal.z !== goal.z) {
-          pathCache.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: pathFor(unit.position) });
+          storeRoute(unit.id, goal, pathFor(unit.position));
         }
 
-        const before = pathCache.get(unit.id)?.path ?? [];
+        const before = cachedRoute(unit.id)?.path ?? [];
         let cachedPath = consumeReachedWaypoints(unit.position, before);
         // Fim de uma rota parcial: calcula o trecho seguinte a partir daqui.
         if (before.length > 0 && cachedPath.length === 0) cachedPath = pathFor(unit.position);
-        if (cachedPath !== before) pathCache.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: cachedPath });
+        if (cachedPath !== before) storeRoute(unit.id, goal, cachedPath);
 
         const waypoint = cachedPath.length > 0 ? cachedPath[0] : null;
         heading = waypoint ?? goal;
