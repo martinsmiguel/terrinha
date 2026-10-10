@@ -115,6 +115,8 @@ export interface GameState {
   mapSize?: number;
   /** Kit de fundacao reservado por jogador ate a capital ser fundada (separado do suprimento). */
   foundationKits?: Record<string, { wood: number; stone: number }>;
+  /** Talentos comprados por dono (IDs únicos; sem respec). */
+  talents?: Record<string, string[]>;
   /** Maestrias e pontos por dono (XP só do host, por eventos autoritativos; só desta sessão). */
   mastery?: Record<string, import('./mastery').MasteryState>;
   /** Estoques das localidades coloniais (dono → ilha). A metrópole usa `playerResources`. */

@@ -76,6 +76,7 @@ import {
 import { FACTION_COLORS } from './game/factions';
 import { pickFrontMostCandidate, resolveClickSelection } from './game/entitySelection';
 import { applyEmbarkOrder, boatCapacity } from './game/navalTransport';
+import { buyTalent, effectiveBuildCost, talentById } from './game/talents';
 import { findBerth, routeAlerts } from './game/tradeRoutes';
 import { assignRoute, cancelRoute, pauseRoute, redirectRoute, resumeRoute } from './game/tradeRoutes';
 import { localityLabel } from './game/colonialTransport';
@@ -1202,6 +1203,11 @@ export default function App() {
       }
       setGameState(next);
       triggerNotification(cmd.type === 'load_kit' ? 'Kit de colonização embarcado.' : 'Carga embarcada.', 'success');
+    } else if (cmd.type === 'buy_talent') {
+      const bought = buyTalent(gameStateRef.current, commandOwner, cmd.id);
+      if (!bought.check.ok) { triggerNotification(bought.check.message ?? 'Talento recusado.', 'warning'); return; }
+      setGameState((prev) => buyTalent(prev, commandOwner, cmd.id).state);
+      triggerNotification(`Talento adquirido: ${talentById(cmd.id)?.name}.`, 'success');
     } else if (cmd.type === 'set_route') {
       const result = assignRoute(gameStateRef.current, cmd.boatId, cmd);
       if (result.problems.length > 0) { triggerNotification(result.problems[0], 'warning'); return; }
@@ -1330,7 +1336,7 @@ export default function App() {
         trainingQueue: [],
       };
       setGameState((prev) => applyBuildingFoundation(
-        prev, newBuilding, def.cost, cmd.builderIds ?? [],
+        prev, newBuilding, effectiveBuildCost(prev, cmd.owner, cmd.buildingType, def.cost), cmd.builderIds ?? [],
         (current) => checkBuildingPlacementValid(
           cmd.buildingType, cmd.position.x, cmd.position.z,
           current.buildings, current.resourceNodes, worldSizeRef.current,

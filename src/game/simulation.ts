@@ -1,6 +1,8 @@
 import { healUnitsInTerritory } from './colonies';
 import { cargoTotal, disembarkStep } from './colonialTransport';
+import { BLESSING_FARM, BRISA_SPEED, hasTalent } from './talents';
 import { creditAll, type XpEvent } from './mastery';
+import { isExploredBy } from './visionAuthority';
 import { stepRoute } from './tradeRoutes';
 import { HOME, productionPaused, reconcileDepots, refineAt, type LocalityResolver } from './depots';
 import { isBoatUnit, worldSizeOf } from './model';
@@ -220,13 +222,21 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
   const updatedTechs: Record<string, TechState> = { ...(state.techs ?? {}) };
   const ruleSettings = context.ruleSettings ?? state.ruleSettings;
 
+  // Velocidade: atributo base (com regras da sessão) e, para barcos com o talento Brisa em mar já conhecido, +15% pelo mesmo pipeline.
+  const speedOf = (unit: Unit): number => {
+    const base = unitAttribute(unit.type, 'movePerTick', ruleSettings);
+    if (!isBoatUnit(unit.type) || !hasTalent(state, unit.owner, 'brisa')) return base;
+    const known = !context.vision || isExploredBy(context.vision, unit.owner, unit.position.x, unit.position.z);
+    return known ? effectiveAttribute(base, [], [BRISA_SPEED - 1]) : base;
+  };
+
   /**
    * Próximo passo de uma unidade rumo a `goal` nas ações de aproximação (coleta, obra, reparo e perseguição): segue em
    * linha reta enquanto o passo é legal e, quando o terreno bloqueia, segue a rota do A* (lago e rio entre a unidade e o
    * alvo não podem impedir a coleta). `null` quando não existe passo legal nem rota.
    */
   const routeStep = (unit: Unit, goal: { x: number; z: number }): { x: number; z: number } | null => {
-    const speed = unitAttribute(unit.type, 'movePerTick', ruleSettings);
+    const speed = speedOf(unit);
     if (!pMap) return stepToward(unit.type, unit.position, goal, speed, undefined);
 
     const cached = cachedRoute(unit.id);
@@ -261,7 +271,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         return { ...unit, targetPosition: null, state: 'idle' as const };
       }
 
-      const speed = unitAttribute(unit.type, 'movePerTick', ruleSettings);
+      const speed = speedOf(unit);
 
       let heading = goal;
       if (pMap) {
@@ -734,7 +744,8 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       (building) => building.owner === slot && building.type === 'farm' && building.isComplete && building.health > 0
     );
     // Cada fazenda rende 0,1 por passo vezes a fertilidade declarada da ilha onde está.
-    for (const farm of completedFarms) res.food += 0.1 * (context.fertilityAt?.(farm.position.x, farm.position.z) ?? 1);
+    const blessing = hasTalent(state, slot, 'bencao') ? BLESSING_FARM : 1;
+    for (const farm of completedFarms) res.food += 0.1 * blessing * (context.fertilityAt?.(farm.position.x, farm.position.z) ?? 1);
 
     const completedMarkets = updatedBuildings.filter(
       (building) => building.owner === slot && building.type === 'market' && building.isComplete && building.health > 0
