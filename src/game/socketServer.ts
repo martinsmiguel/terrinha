@@ -114,6 +114,7 @@ export function registerGameSocketHandlers(io: Server): void {
           id: socket.id,
           playerName: socket.data.playerName,
           playerSlot: socket.data.playerSlot,
+          isHost: socket.data.isHost === true,
           playerCount,
         });
       }

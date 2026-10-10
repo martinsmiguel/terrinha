@@ -17,7 +17,7 @@ export class MultiplayerManager {
   onStateUpdate?: (state: any) => void;
   onCommand?: (cmd: NetworkCommand) => void;
   onPlayerJoined?: (data: { id: string; playerName: string; playerCount: number; playerSlot?: string }) => void;
-  onPlayerLeft?: (data: { id: string; playerName: string; playerCount: number; playerSlot?: string }) => void;
+  onPlayerLeft?: (data: { id: string; playerName: string; playerCount: number; playerSlot?: string; isHost?: boolean }) => void;
   onChatMessage?: (chat: ChatMessage) => void;
   onConnectionStatus?: (connected: boolean) => void;
   onJoinError?: (message: string) => void;

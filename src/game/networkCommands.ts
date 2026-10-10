@@ -357,3 +357,11 @@ export function isAuthorizedPlayerCommand(
       return false;
   }
 }
+
+/**
+ * Convidados não sustentam a partida: se quem saiu era o host, a sessão termina para todos.
+ * Quando o convidado sai, o host conserva as últimas ordens dele, sem IA nem retomada automática.
+ */
+export function hostLeftSessionMessage(role: 'host' | 'client' | 'single', leaver: { isHost?: boolean }): string | null {
+  return role === 'client' && leaver.isHost === true ? 'O host saiu da partida. A sessão foi encerrada.' : null;
+}

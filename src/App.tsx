@@ -52,7 +52,7 @@ import {
   UNIT_COSTS,
   halfCost,
 } from './game/economy';
-import { PLAYER_SLOTS, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, soloMatchSlots, type PlayerSlot } from './game/networkCommands';
+import { PLAYER_SLOTS, hostLeftSessionMessage, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, soloMatchSlots, type PlayerSlot } from './game/networkCommands';
 import { localOutcome, type LocalOutcome } from './game/victory';
 import {
   createTechState,
@@ -93,6 +93,7 @@ export default function App() {
   const [lanIps, setLanIps] = useState<string[]>([]);
   const [copiedIp, setCopiedIp] = useState(false);
   const [, setConnectedPlayers] = useState(1);
+  const [sessionEndedMessage, setSessionEndedMessage] = useState<string | null>(null);
 
   // Participantes da partida: no solo vem do tamanho escolhido (2..4),
   // no multiplayer e o host mais quem entrar na sala.
@@ -582,6 +583,10 @@ export default function App() {
         setIsGameStarted(false);
       };
 
+      multi.onConnectionStatus = (connected) => {
+        if (!connected && role === 'client') setSessionEndedMessage('Conexão com o host perdida. A sessão foi encerrada.');
+      };
+
       multi.onPlayerJoined = (data) => {
         setConnectedPlayers(data.playerCount);
         const joinedSlot = isPlayerSlot(data.playerSlot) ? data.playerSlot : null;
@@ -600,6 +605,8 @@ export default function App() {
 
       multi.onPlayerLeft = (data) => {
         setConnectedPlayers(data.playerCount);
+        const ended = hostLeftSessionMessage(role, data);
+        if (ended) setSessionEndedMessage(ended);
         const leftSlot = isPlayerSlot(data.playerSlot) ? data.playerSlot : null;
         if (leftSlot && role === 'host') {
           activeSlotsRef.current = activeSlotsRef.current.filter((slot) => slot !== leftSlot);
@@ -2726,6 +2733,7 @@ export default function App() {
         setMatchSize={setMatchSize}
         onStartGame={(nextRole) => {
           setLobbyError(null);
+          setSessionEndedMessage(null);
           setRole(nextRole);
           setIsGameStarted(true);
         }}
@@ -3216,6 +3224,22 @@ export default function App() {
 
       {/* TUTORIAL DE PRIMEIRA PARTICIDA */}
       {showTutorial && <Tutorial onClose={closeTutorial} />}
+      {sessionEndedMessage && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/90 p-4 pointer-events-auto">
+          <div role="alertdialog" aria-modal="true" aria-labelledby="session-ended-title" className="w-full max-w-sm rounded-3xl border border-red-500/40 bg-slate-900 p-6 text-center shadow-2xl">
+            <h2 id="session-ended-title" className="text-lg font-bold text-white">Sessão encerrada</h2>
+            <p className="mt-2 text-sm text-slate-300">{sessionEndedMessage}</p>
+            <button
+              type="button"
+              autoFocus
+              onClick={() => window.location.reload()}
+              className="mt-4 rounded-xl bg-amber-700 px-4 py-2 text-sm font-bold text-white hover:bg-amber-800"
+            >
+              Voltar ao lobby
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* TECH PANEL MODAL */}
       {isTechPanelOpen && (

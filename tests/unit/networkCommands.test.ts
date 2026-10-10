@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAuthorizedPlayerCommand, isValidJoinRequest, isValidNetworkCommand, roomJoinError, soloMatchSlots } from '../../src/game/networkCommands';
+import { hostLeftSessionMessage, isAuthorizedPlayerCommand, isValidJoinRequest, isValidNetworkCommand, roomJoinError, soloMatchSlots } from '../../src/game/networkCommands';
 import { BUILDING_CATALOG } from '../../src/game/buildingCatalog';
 import { createTechState } from '../../src/game/tech';
 import type { GameState } from '../../src/game/engine';
@@ -438,3 +438,17 @@ describe('found_capital command', () => {
     expect(isValidNetworkCommand(trainWagon)).toBe(false);
   });
 });
+
+describe('saída de jogadores', () => {
+  it('só encerra a sessão do convidado quando quem saiu é o host', () => {
+    expect(hostLeftSessionMessage('client', { isHost: true })).toMatch(/sessão foi encerrada/);
+    expect(hostLeftSessionMessage('client', { isHost: false })).toBeNull();
+    expect(hostLeftSessionMessage('client', {})).toBeNull();
+  });
+  it('o host e o modo solo nunca são encerrados por uma saída', () => {
+    expect(hostLeftSessionMessage('host', { isHost: false })).toBeNull();
+    expect(hostLeftSessionMessage('host', { isHost: true })).toBeNull();
+    expect(hostLeftSessionMessage('single', { isHost: true })).toBeNull();
+  });
+});
+
