@@ -402,9 +402,14 @@ export function GameDialogs({
         </div>
       )}
 
+      {/* Região viva sempre montada: leitores de tela anunciam cada mensagem do toast. */}
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {notification?.message ?? ''}
+      </div>
+
       {/* TACTICAL TOAST NOTIFICATIONS */}
       {notification && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-300 animate-in fade-in slide-in-from-top-3">
+        <div aria-hidden="true" className="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-300 animate-in fade-in slide-in-from-top-3">
           <div
             className={`px-4 py-2.5 rounded-2xl backdrop-blur-xl border shadow-2xl flex items-center gap-2.5 text-xs font-semibold ${
               notification.type === 'success'
