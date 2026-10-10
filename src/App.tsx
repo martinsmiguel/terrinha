@@ -77,6 +77,7 @@ import {
 import { FACTION_COLORS } from './game/factions';
 import { pickFrontMostCandidate, resolveClickSelection } from './game/entitySelection';
 import { applyEmbarkOrder, boatCapacity } from './game/navalTransport';
+import { stormAlertFor } from './game/storms';
 import { flowRows, pushSample, sampleFlows, type FlowSample } from './game/flows';
 import { RELIC_REACH, applyRelicAction, checkRelicAction, generateRelics } from './game/mysticism';
 import { isExploredBy } from './game/visionAuthority';
@@ -329,6 +330,8 @@ export default function App() {
       player4: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 3, maxPop: 15 },
     },
   });
+
+  const stormAlert = stormAlertFor(gameState.storm, gameState.elapsed ?? 0, playerSlot, gameState.units, (x, z) => isExploredAt(visionGridRef.current, Math.round(x), Math.round(z)));
 
   // Fluxo líquido por minuto: amostra o estado real a cada segundo simulado (janela de 60 s).
   useEffect(() => {
@@ -3415,6 +3418,17 @@ export default function App() {
         className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4 flex flex-col sm:flex-row items-end justify-between gap-3 pointer-events-none z-20"
       >
         {/* Alertas de rotas comerciais próprias: localizam o próprio barco, sem revelar nada do inimigo */}
+        {stormAlert && (
+          <div role="alert" className="pointer-events-auto absolute bottom-full left-0 mb-14 max-w-xs">
+            <button
+              type="button"
+              onClick={() => engineRef.current?.setCameraTarget(stormAlert.focus.x, stormAlert.focus.z)}
+              className="rounded-lg border border-rose-600/70 bg-slate-950/90 px-2.5 py-1.5 text-left text-[11px] text-rose-200 hover:bg-slate-900"
+            >
+              <span className="font-bold">{stormAlert.phase === 'warning' ? 'Aviso de tempestade' : 'Tempestade'}</span>: {stormAlert.text} <span className="underline">Localizar</span>
+            </button>
+          </div>
+        )}
         {routeAlerts(gameState.units, playerSlot).length > 0 && (
           <div role="alert" className="pointer-events-auto absolute bottom-full left-0 mb-2 flex max-w-xs flex-col gap-1">
             {routeAlerts(gameState.units, playerSlot).map((alert) => (

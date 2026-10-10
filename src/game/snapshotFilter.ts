@@ -29,6 +29,9 @@ export function filterSnapshotFor(state: GameState, owner: string, vision: Owner
     ...(state.foundationKits ? { foundationKits: pick(state.foundationKits) } : {}),
     // Relíquias: só as de células já exploradas pelo destinatário.
     ...(state.relics ? { relics: hasVision ? state.relics.filter((relic) => isExploredBy(vision, owner, relic.position.x, relic.position.z)) : [] } : {}),
+    // Tempestade: só se a região é conhecida do destinatário ou se ele tem barco por perto (nada de pista sobre frotas alheias).
+    ...(state.storm && hasVision && (isExploredBy(vision, owner, state.storm.center.x, state.storm.center.z)
+      || state.units.some((u) => u.owner === owner && Math.hypot(u.position.x - state.storm!.center.x, u.position.z - state.storm!.center.z) <= state.storm!.radius + 25)) ? { storm: state.storm } : { storm: undefined }),
     ...(state.talents ? { talents: pick(state.talents) } : {}),
     ...(state.localStocks ? { localStocks: pick(state.localStocks) } : {}),
     // XP só do próprio dono, sem o registro de eventos já creditados (é só do host e pesaria em todo snapshot).
