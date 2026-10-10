@@ -65,7 +65,7 @@ import {
 import { FACTION_COLORS } from './game/factions';
 import { pickFrontMostCandidate, resolveClickSelection } from './game/entitySelection';
 import { applyEmbarkOrder, boatCapacity } from './game/navalTransport';
-import { deliverCargo } from './game/colonialTransport';
+import { deliverCargo, loadCargo, loadKit, previewDisembark, previewKit, previewLoad } from './game/colonialTransport';
 import { tickGameState } from './game/simulation';
 import { applyBuildingFoundation } from './game/buildingOrders';
 import { useSceneSynchronization } from './hooks/useSceneSynchronization';
@@ -1107,6 +1107,23 @@ export default function App() {
         triggerNotification('Capacidade do barco cheia!', 'warning');
       }
       soundManager.playClickSound();
+    } else if (cmd.type === 'load_cargo' || cmd.type === 'load_kit') {
+      // O host revalida posse, estoque, capacidade e apoio; a confirmação só debita se a prévia ainda vale.
+      const map = proceduralMapRef.current;
+      const boat = gameStateRef.current.units.find((u) => u.id === cmd.boatId);
+      if (!map || !boat) return;
+      const locality = map.localityOf(boat.owner, boat.position);
+      const current = gameStateRef.current;
+      const next = cmd.type === 'load_kit'
+        ? loadKit(current, cmd.boatId, locality, map.localityOf)
+        : loadCargo(current, cmd.boatId, locality, cmd.cargo, map.localityOf);
+      if (!next) {
+        const preview = cmd.type === 'load_kit' ? previewKit(current, cmd.boatId, locality, map.localityOf) : previewLoad(current, cmd.boatId, locality, cmd.cargo, map.localityOf);
+        triggerNotification(preview.reasons[0] ?? 'Não foi possível carregar.', 'warning');
+        return;
+      }
+      setGameState(next);
+      triggerNotification(cmd.type === 'load_kit' ? 'Kit de colonização embarcado.' : 'Carga embarcada.', 'success');
     } else if (cmd.type === 'disembark') {
       const map = proceduralMapRef.current;
       if (!map) return;
@@ -3241,6 +3258,22 @@ export default function App() {
           handleDemolishBuilding={handleDemolishBuilding}
           handleDisembark={(boatId) => {
             const cmd = { type: 'disembark', boatId };
+            if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+            else multiRef.current?.sendToHost(cmd);
+          }}
+          holdPreview={(boat, cargo) => {
+            const map = proceduralMapRef.current;
+            if (!map) return { ok: false, reasons: ['Mapa indisponível.'], origin: HOME };
+            const locality = map.localityOf(boat.owner, boat.position);
+            return cargo ? previewLoad(gameState, boat.id, locality, cargo, map.localityOf) : previewKit(gameState, boat.id, locality, map.localityOf);
+          }}
+          disembarkPreview={(boat) => {
+            const map = proceduralMapRef.current;
+            return map ? previewDisembark(gameState, boat.id, map, map.localityOf(boat.owner, boat.position))
+              : { ok: false, reason: 'Mapa indisponível.', passengers: 0, cargo: false, destination: '' };
+          }}
+          handleLoadCargo={(boatId, cargo) => {
+            const cmd = cargo ? { type: 'load_cargo', boatId, cargo } : { type: 'load_kit', boatId };
             if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
             else multiRef.current?.sendToHost(cmd);
           }}

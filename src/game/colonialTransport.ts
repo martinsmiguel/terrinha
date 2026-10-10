@@ -1,7 +1,7 @@
-import { HOME, creditAt, debitAt, depotsIn, type LocalityResolver } from './depots';
+import { HOME, creditAt, debitAt, depotsIn, stockAt, type LocalityResolver } from './depots';
 import { findLandingCells, type NavalMap } from './navalTransport';
 import type { GameState, Unit, UnitType } from './model';
-import { worldSizeOf } from './model';
+import { BOAT_CAPACITY, worldSizeOf } from './model';
 import { applyPopDelta } from './population';
 
 /** Dados revisados do transporte colonial e do porão. */
@@ -48,15 +48,82 @@ function hasAnchorNear(state: GameState, boat: Unit, locality: string, resolve: 
   return depotsIn(state.buildings, boat.owner, locality, resolve, false).some((b) => distance(b.position, boat.position) <= COLONIAL_TRANSPORT.loadRange);
 }
 
-/** Carrega recursos no porão, debitando o estoque do posto uma vez; recusa excesso de capacidade ou saldo, sem efeito parcial. */
+/** Nome legível de uma localidade para a interface. */
+export const localityLabel = (locality: string): string => (locality === HOME ? 'Metrópole' : `Colônia (ilha ${locality})`);
+
+export interface Hold {
+  kind: 'colonial' | 'merchant' | 'other';
+  passengers: number;
+  passengerCapacity: number;
+  cargo: number;
+  kitOnBoard: boolean;
+  /** Ocupação do porão (carga mais o kit) e sua capacidade. */
+  used: number;
+  capacity: number;
+}
+
+/** Estado real do porão para a interface: passageiros, carga, kit e capacidade (200 colonial, 100/125 mercante). */
+export function holdOf(boat: Unit, talent = false): Hold {
+  const kit = boat.kit ? cargoTotal(COLONIAL_TRANSPORT.kit) : 0;
+  return {
+    kind: boat.type === 'colonial_transport' ? 'colonial' : boat.type === 'trade_boat' ? 'merchant' : 'other',
+    passengers: boat.passengers?.length ?? 0,
+    passengerCapacity: BOAT_CAPACITY[boat.type],
+    cargo: cargoTotal(boat.cargo),
+    kitOnBoard: Boolean(boat.kit),
+    used: cargoTotal(boat.cargo) + kit,
+    capacity: cargoCapacity(boat.type, talent),
+  };
+}
+
+export interface LoadPreview {
+  ok: boolean;
+  /** Motivos de recusa, em português, para a interface. Vazio quando ok. */
+  reasons: string[];
+  /** Localidade (estoque) que pagaria o carregamento. */
+  origin: string;
+}
+
+const NAMES: Record<(typeof KEYS)[number], string> = { wood: 'madeira', food: 'comida', gold: 'ouro', stone: 'pedra', planks: 'tábuas' };
+
+function previewPayload(
+  state: GameState, boatId: string, locality: string, payload: Partial<Cargo>, resolve: LocalityResolver, talent: boolean, requireKitBoat: boolean
+): LoadPreview {
+  const reasons: string[] = [];
+  const boat = boatOf(state, boatId);
+  if (!boat) return { ok: false, reasons: ['Barco indisponível.'], origin: locality };
+  if (requireKitBoat && (boat.type !== 'colonial_transport' || boat.kit)) {
+    reasons.push(boat.kit ? 'O kit já está a bordo.' : 'Só o transporte colonial leva o kit.');
+  }
+  if (!hasAnchorNear(state, boat, locality, resolve)) reasons.push('O barco está longe de um posto ou cais próprio para carregar.');
+  const amount = cargoTotal(payload);
+  if (amount <= 0 || KEYS.some((key) => (payload[key] ?? 0) < 0)) reasons.push('Quantidade inválida.');
+  const hold = holdOf(boat, talent);
+  if (hold.capacity === 0) reasons.push('Este barco não tem porão.');
+  else if (hold.used + amount > hold.capacity) reasons.push(`Porão cheio: ${hold.used + amount} acima da capacidade de ${hold.capacity}.`);
+  const stock = stockAt(state, boat.owner, locality);
+  for (const key of KEYS) {
+    const missing = (payload[key] ?? 0) - stock[key];
+    if (missing > 0) reasons.push(`Falta ${Math.ceil(missing)} de ${NAMES[key]} no estoque de ${localityLabel(locality)}.`);
+  }
+  return { ok: reasons.length === 0, reasons, origin: locality };
+}
+
+/** Pré-visualização do carregamento: não altera nada; a confirmação do host revalida com os mesmos critérios. */
+export function previewLoad(state: GameState, boatId: string, locality: string, cargo: Partial<Cargo>, resolve: LocalityResolver, talent = false): LoadPreview {
+  return previewPayload(state, boatId, locality, cargo, resolve, talent, false);
+}
+
+export function previewKit(state: GameState, boatId: string, locality: string, resolve: LocalityResolver): LoadPreview {
+  return previewPayload(state, boatId, locality, COLONIAL_TRANSPORT.kit, resolve, false, true);
+}
+
+/** Carrega recursos no porão, debitando o estoque do posto uma vez; recusa por qualquer motivo da prévia, sem efeito parcial. */
 export function loadCargo(
   state: GameState, boatId: string, locality: string, cargo: Partial<Cargo>, resolve: LocalityResolver, talent = false
 ): GameState | null {
-  const boat = boatOf(state, boatId);
-  if (!boat || !hasAnchorNear(state, boat, locality, resolve)) return null;
-  const amount = cargoTotal(cargo);
-  if (amount <= 0 || KEYS.some((key) => (cargo[key] ?? 0) < 0)) return null;
-  if (cargoTotal(boat.cargo) + (boat.kit ? cargoTotal(COLONIAL_TRANSPORT.kit) : 0) + amount > cargoCapacity(boat.type, talent)) return null;
+  if (!previewLoad(state, boatId, locality, cargo, resolve, talent).ok) return null;
+  const boat = boatOf(state, boatId)!;
   const debited = debitAt(state, boat.owner, locality, cargo);
   if (!debited) return null;
   const next = emptyCargo();
@@ -66,11 +133,26 @@ export function loadCargo(
 
 /** Embarca o kit de colonização (uma vez por transporte colonial), debitando o posto uma só vez. */
 export function loadKit(state: GameState, boatId: string, locality: string, resolve: LocalityResolver): GameState | null {
-  const boat = boatOf(state, boatId);
-  if (!boat || boat.type !== 'colonial_transport' || boat.kit || !hasAnchorNear(state, boat, locality, resolve)) return null;
-  if (cargoTotal(boat.cargo) + cargoTotal(COLONIAL_TRANSPORT.kit) > COLONIAL_TRANSPORT.cargoCapacity) return null;
+  if (!previewKit(state, boatId, locality, resolve).ok) return null;
+  const boat = boatOf(state, boatId)!;
   const debited = debitAt(state, boat.owner, locality, COLONIAL_TRANSPORT.kit);
   return debited ? replaceUnit(debited, { ...boat, kit: true }) : null;
+}
+
+export interface DisembarkPreview { ok: boolean; reason?: string; passengers: number; cargo: boolean; destination: string }
+
+/** Prévia do desembarque: explica praia bloqueada ou falta de passageiros, sem alterar o estado. */
+export function previewDisembark(state: GameState, boatId: string, map: NavalMap, locality: string): DisembarkPreview {
+  const boat = boatOf(state, boatId);
+  const passengers = boat?.passengers?.length ?? 0;
+  const cargo = Boolean(boat && (cargoTotal(boat.cargo) > 0 || boat.kit));
+  const base = { passengers, cargo, destination: localityLabel(locality) };
+  if (!boat) return { ...base, ok: false, reason: 'Barco indisponível.' };
+  if (passengers === 0 && !cargo) return { ...base, ok: false, reason: 'Não há passageiros nem carga a bordo.' };
+  if (passengers > 0 && findLandingCells(map, state.buildings, state.units, boat.position, 1, worldSizeOf(state)).length === 0) {
+    return { ...base, ok: false, reason: 'Praia bloqueada: não há terreno livre perto do barco; passageiros e carga ficam a bordo.' };
+  }
+  return { ...base, ok: true };
 }
 
 export interface DisembarkStep { state: GameState; released: Unit | null; blocked: boolean }
