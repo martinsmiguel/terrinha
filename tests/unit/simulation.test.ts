@@ -440,5 +440,97 @@ describe('simulation performance', () => {
       expect(marching(visionFor(state))).toBeGreaterThan(0);
     });
   });
+
+  describe('renovação de cardume, coleta final e fertilidade', () => {
+    const fishState = (remaining: number) => createState({
+      units: [createUnit({ id: 'boat', type: 'fishing_boat', position: { x: 10, z: 10 }, targetEntityId: 'fish', state: 'gathering' })],
+      resourceNodes: [{ id: 'fish', type: 'fish_school', position: { x: 10.5, z: 10 }, remaining }],
+    });
+
+    it('o cardume renova 600 ao esgotar sem crédito extra: a última coleta rende só o que restava', () => {
+      const result = tickGameState(fishState(0.4), context()).state;
+      expect(result.playerResources.player1.food).toBeCloseTo(100 + 0.4, 6);
+      expect(result.resourceNodes.find((node) => node.id === 'fish')!.remaining).toBe(600);
+    });
+
+    it('um cardume cheio rende a taxa cheia e não renova antes de acabar', () => {
+      const result = tickGameState(fishState(600), context()).state;
+      expect(result.playerResources.player1.food).toBeCloseTo(101, 6);
+      expect(result.resourceNodes.find((node) => node.id === 'fish')!.remaining).toBeCloseTo(599, 6);
+    });
+
+    it('a coleta final conserva min(taxa, restante) também com bônus de edifício', () => {
+      const sawmill = createBuilding({ id: 'saw', type: 'sawmill', owner: 'player1', position: { x: 30, z: 30 }, isComplete: true });
+      const tree = createState({
+        units: [createUnit({ position: { x: 10, z: 10 }, targetEntityId: 'tree', state: 'gathering' })],
+        resourceNodes: [{ id: 'tree', type: 'tree', position: { x: 10.5, z: 10 }, remaining: 0.2 }],
+        buildings: [sawmill],
+      });
+      const result = tickGameState(tree, context()).state;
+      // Taxa 0,675 com bônus, mas só restavam 0,2. A serralheria concluída refina madeira em tábuas
+      // (2 madeiras por tábua), então o total em madeira equivalente é o que prova o crédito.
+      const resources = result.playerResources.player1;
+      expect(resources.wood + resources.planks * 2).toBeCloseTo(100 + 0.2, 6);
+
+      const mine = createBuilding({ id: 'mine', type: 'mine', owner: 'player1', position: { x: 30, z: 30 }, isComplete: true });
+      const stone = createState({
+        units: [createUnit({ position: { x: 10, z: 10 }, targetEntityId: 'ore', state: 'gathering' })],
+        resourceNodes: [{ id: 'ore', type: 'stone', position: { x: 10.5, z: 10 }, remaining: 0.1 }],
+        buildings: [mine],
+      });
+      expect(tickGameState(stone, context()).state.playerResources.player1.stone).toBeCloseTo(0.1, 6);
+    });
+
+    it('a fazenda rende 0,1 por passo vezes a fertilidade do solo onde está', () => {
+      const farm = (id: string, x: number) => createBuilding({ id, type: 'farm', owner: 'player1', position: { x, z: 10 }, isComplete: true });
+      const state = createState({ buildings: [farm('rich', 10), farm('barren', 40)] });
+      const fertility = (x: number) => (x < 30 ? 1.2 : 0.4);
+      const gain = (ctx: SimulationContext) => tickGameState(state, ctx).state.playerResources.player1.food - 100;
+      expect(gain(context({ fertilityAt: fertility }))).toBeCloseTo(0.1 * 1.2 + 0.1 * 0.4, 6);
+      expect(gain(context())).toBeCloseTo(0.2, 6); // sem informação de solo: fertilidade 1
+    });
+  });
+
+  describe('aproximação por rota (regressão do #66)', () => {
+    const resourceState = (position: { x: number; z: number }) => createState({
+      units: [createUnit({ id: 'worker', position, targetEntityId: 'ore', state: 'gathering', gatherRadiusLimit: 999 })],
+      resourceNodes: [{ id: 'ore', type: 'gold_mine', position: { x: 24, z: 17.5 }, remaining: 900 }],
+    });
+    const run = (state: GameState, map: SimulationContext['map'], ticks: number) => {
+      let current = state;
+      // O App mantém o cache de rotas entre os passos; os testes fazem o mesmo.
+      const ctx = context({ map, pathCache: new Map() });
+      for (let tick = 0; tick < ticks; tick += 1) current = tickGameState(current, ctx).state;
+      return current;
+    };
+
+    it('o coletor contorna um lago entre ele e o recurso em vez de desistir na margem', () => {
+      // Lago de 4 de largura que corta a linha reta; o contorno existe por cima (z > 22).
+      const lake = (x: number, z: number) => x >= 18 && x < 22 && z < 22;
+      const map = { isWaterAt: lake, isImpassableAt: lake, isOceanAt: () => false };
+      const result = run(resourceState({ x: 12, z: 17.5 }), map, 900);
+      expect(result.playerResources.player1.gold).toBeGreaterThan(50); // coletou ouro de verdade (começa com 50)
+      expect(result.units[0].state).toBe('gathering');
+    });
+
+    it('unidade de pé na borda de uma célula de centro intransitável ainda recebe rota', () => {
+      // Poça minúscula no centro da célula (20,17): o ponto (20,15; 17,44) é legal, mas o centro 20,5; 17,5 não é.
+      const pond = (x: number, z: number) => Math.hypot(x - 20.5, z - 17.5) < 0.3;
+      const wall = (x: number, z: number) => pond(x, z) || (x >= 22 && x < 23 && z < 20);
+      const map = { isWaterAt: wall, isImpassableAt: wall, isOceanAt: () => false };
+      expect(pond(20.15, 17.44)).toBe(false);
+      const result = run(resourceState({ x: 20.15, z: 17.44 }), map, 600);
+      expect(result.playerResources.player1.gold).toBeGreaterThan(50);
+    });
+
+    it('sem rota nenhuma a coleta ainda é abandonada, sem andar para dentro do obstáculo', () => {
+      const sealed = (x: number) => x >= 18 && x < 22;
+      const map = { isWaterAt: sealed, isImpassableAt: sealed, isOceanAt: () => false };
+      const result = run(resourceState({ x: 12, z: 17.5 }), map, 400);
+      expect(result.units[0].state).toBe('idle');
+      expect(result.units[0].position.x).toBeLessThan(18);
+      expect(result.playerResources.player1.gold).toBe(50);
+    });
+  });
 });
 
