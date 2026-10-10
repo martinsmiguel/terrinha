@@ -64,7 +64,8 @@ import {
 } from './game/tech';
 import { FACTION_COLORS } from './game/factions';
 import { pickFrontMostCandidate, resolveClickSelection } from './game/entitySelection';
-import { applyEmbarkOrder, boatCapacity, disembarkPassengers } from './game/navalTransport';
+import { applyEmbarkOrder, boatCapacity } from './game/navalTransport';
+import { deliverCargo } from './game/colonialTransport';
 import { tickGameState } from './game/simulation';
 import { applyBuildingFoundation } from './game/buildingOrders';
 import { useSceneSynchronization } from './hooks/useSceneSynchronization';
@@ -1109,17 +1110,21 @@ export default function App() {
     } else if (cmd.type === 'disembark') {
       const map = proceduralMapRef.current;
       if (!map) return;
-      const result = disembarkPassengers(gameStateRef.current, cmd.boatId, map);
-      setGameState(result.state);
-      if (result.placed.length > 0) {
-        triggerNotification(
-          `${result.placed.length} unidade(s) desembarcada(s) na ilha.` +
-            (result.remaining > 0 ? ` ${result.remaining} continuam a bordo.` : ''),
-          'success'
-        );
-      } else {
-        triggerNotification('Não há terreno válido perto do barco para desembarcar!', 'warning');
+      // Desembarque gradual (um por intervalo, no tick); a carga e o kit passam ao posto próprio ao alcance, uma vez.
+      const boatNow = gameStateRef.current.units.find((u) => u.id === cmd.boatId);
+      if (!boatNow || (boatNow.passengers?.length ?? 0) === 0) {
+        if (boatNow && (boatNow.cargo || boatNow.kit)) {
+          setGameState((prev) => deliverCargo(prev, cmd.boatId, map.localityOf(boatNow.owner, boatNow.position), map.localityOf));
+          return;
+        }
+        triggerNotification('Não há passageiros a bordo.', 'warning');
+        return;
       }
+      setGameState((prev) => {
+        const delivered = deliverCargo(prev, cmd.boatId, map.localityOf(boatNow.owner, boatNow.position), map.localityOf);
+        return { ...delivered, units: delivered.units.map((u) => (u.id === cmd.boatId ? { ...u, disembarkCooldown: 0 } : u)) };
+      });
+      triggerNotification(`Desembarcando ${boatNow.passengers!.length} unidade(s), uma a cada meio segundo.`, 'info');
       soundManager.playClickSound();
     } else if (cmd.type === 'trade') {
       setGameState((prev) => {

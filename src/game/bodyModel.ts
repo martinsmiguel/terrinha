@@ -28,7 +28,8 @@ export function bodyOf(type: UnitType): BodyId | 'boat' {
     case 'wagon': return 'cart';
     case 'fishing_boat':
     case 'trade_boat':
-    case 'warship': return 'boat';
+    case 'warship':
+    case 'colonial_transport': return 'boat';
     default: return 'human';
   }
 }

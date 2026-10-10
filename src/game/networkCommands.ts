@@ -16,7 +16,7 @@ export type PlayerSlot = (typeof PLAYER_SLOTS)[number];
 const MAP_LIMIT = 60;
 const MAX_ID_LENGTH = 128;
 const BUILDING_TYPES = Object.keys(BUILDING_CATALOG).filter((type) => type !== 'town_center');
-const UNIT_TYPES = ['villager', 'soldier', 'cavalry', 'fishing_boat', 'trade_boat', 'warship'];
+const UNIT_TYPES = ['villager', 'soldier', 'cavalry', 'fishing_boat', 'trade_boat', 'warship', 'colonial_transport'];
 const RESOURCE_KEYS = ['wood', 'food', 'gold', 'stone', 'planks'] as const;
 
 export function canAffordResources(resources: PlayerResources, cost: Partial<PlayerResources>): boolean {

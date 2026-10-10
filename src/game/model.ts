@@ -2,10 +2,10 @@ import type { MatchStatus } from './victory';
 import type { TechState } from './tech';
 import type { RuleSettings } from './unitAttributes';
 
-export type UnitType = 'villager' | 'soldier' | 'cavalry' | 'fishing_boat' | 'trade_boat' | 'warship' | 'wagon';
+export type UnitType = 'villager' | 'soldier' | 'cavalry' | 'fishing_boat' | 'trade_boat' | 'warship' | 'wagon' | 'colonial_transport';
 
 /** Unidades navais: navegam apenas na agua e enfrentam outras embarcacoes. */
-export const BOAT_UNIT_TYPES: readonly UnitType[] = ['fishing_boat', 'trade_boat', 'warship'];
+export const BOAT_UNIT_TYPES: readonly UnitType[] = ['fishing_boat', 'trade_boat', 'warship', 'colonial_transport'];
 
 export const isBoatUnit = (type: UnitType): boolean => BOAT_UNIT_TYPES.includes(type);
 
@@ -17,6 +17,7 @@ export const BOAT_CAPACITY: Record<UnitType, number> = {
   trade_boat: 4,
   warship: 0,
   wagon: 0,
+  colonial_transport: 6,
 };
 export type BuildingType =
   | 'town_center'
@@ -49,6 +50,12 @@ export interface Unit {
   gatherShiftSecondsRemaining?: number; // Real-time remaining seconds for current gathering shift
   passengers?: Unit[];
   embarkTargetId?: string;
+  /** Carga do porão (barcos): recursos retirados do estoque de um posto. */
+  cargo?: { wood: number; food: number; gold: number; stone: number; planks: number };
+  /** Kit de colonização a bordo do transporte colonial (150 madeira e 50 pedra). */
+  kit?: boolean;
+  /** Segundos até o próximo passageiro poder desembarcar; ausente = sem desembarque em curso. */
+  disembarkCooldown?: number;
 }
 
 export interface Building {

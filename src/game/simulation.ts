@@ -1,4 +1,5 @@
 import { healUnitsInTerritory } from './colonies';
+import { disembarkStep } from './colonialTransport';
 import { HOME, productionPaused, reconcileDepots, refineAt, type LocalityResolver } from './depots';
 import { isBoatUnit, worldSizeOf } from './model';
 import { boardArrivedPassengers } from './navalTransport';
@@ -870,6 +871,19 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         const pos = movedPositions.get(unit.id);
         return pos ? { ...unit, position: pos } : unit;
       });
+    }
+  }
+
+  // Desembarque em curso: um passageiro por intervalo, só em terreno válido; sem terreno, mantém passageiros e carga.
+  if (pMap) {
+    for (const boat of updatedUnits.filter((unit) => unit.disembarkCooldown !== undefined && (unit.passengers?.length ?? 0) > 0 && unit.health > 0)) {
+      const step = disembarkStep({ ...state, units: updatedUnits, buildings: updatedBuildings }, boat.id, pMap, TICK_SECONDS);
+      if (step.blocked) {
+        updatedUnits = updatedUnits.map((unit) => (unit.id === boat.id ? { ...unit, disembarkCooldown: undefined } : unit));
+        if (boat.owner === playerSlot) effects.push({ type: 'notification', message: 'Sem terreno válido para desembarcar: passageiros e carga continuam a bordo.', level: 'warning' });
+      } else {
+        updatedUnits = step.state.units;
+      }
     }
   }
 

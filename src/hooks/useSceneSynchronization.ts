@@ -425,7 +425,7 @@ export function useSceneSynchronization({
           sail.position.set(0.18, 0.8, 0.05);
           sail.rotation.z = Math.PI / 8;
           group.add(sail);
-        } else if (unit.type === 'trade_boat') {
+        } else if (unit.type === 'trade_boat' || unit.type === 'colonial_transport') {
           // Barco Mercante (Merchant trade vessel with dual sails and cargo)
           const hull = new THREE.Mesh(
             new THREE.BoxGeometry(0.9, 0.45, 2.0),
