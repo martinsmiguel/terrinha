@@ -10,7 +10,7 @@ import { GameEngine, GameState, MAP_SIZE } from '../game/engine';
 import { VISION_EXPLORED, VISION_VISIBLE, visionAt } from '../game/visibility';
 import { IslandProfile, coastRadiusAt, computeArchipelago } from '../game/archipelago';
 import { MINIMAP_PIXEL_SIZE, worldToMapPixel } from '../game/mapProjection';
-import { minimapClickTarget } from '../game/worldMap';
+import { minimapClickTarget, resolveNavigationTarget } from '../game/worldMap';
 import { Eye, EyeOff, Home, Compass, Lock, Unlock, ChevronDown, ChevronUp, Map } from 'lucide-react';
 import { WorldMapModal } from './WorldMapModal';
 
@@ -82,6 +82,7 @@ export const Minimap: React.FC<MinimapProps> = ({
   // A nevoa e sempre aplicada; revelar tudo e exclusivo do modo desenvolvedor.
   const revealAll = developerToolsEnabled && developerRevealAll;
   const [coordinates, setCoordinates] = useState<{ x: number; z: number } | null>(null);
+  const [navHint, setNavHint] = useState<string | null>(null);
 
   // Canvas pixel size (compact on mobile screens)
   const SIZE = MINIMAP_PIXEL_SIZE;
@@ -433,7 +434,14 @@ export const Minimap: React.FC<MinimapProps> = ({
     const cy = e.clientY - rect.top;
 
     const world = canvasToWorld(cx, cy);
-    engine.setCameraTarget(world.x, world.z);
+    // Regra única de destino: a câmera nunca salta para célula desconhecida.
+    const result = resolveNavigationTarget({ kind: 'point', x: world.x, z: world.z }, { mapSize, visibility: visionGrid, revealAll });
+    if (!result.ok) {
+      setNavHint(result.message);
+      return;
+    }
+    setNavHint(null);
+    engine.setCameraTarget(result.target.x, result.target.z);
     setCoordinates({ x: Math.round(world.x), z: Math.round(world.z) });
   };
 
@@ -593,6 +601,7 @@ export const Minimap: React.FC<MinimapProps> = ({
       }}
       className="bg-slate-950/95 backdrop-blur-xl border-2 border-amber-600/40 rounded-3xl p-3 sm:p-3.5 shadow-2xl shadow-black/80 flex flex-col gap-2.5 text-slate-200 select-none pointer-events-auto transition-all max-w-[240px]"
     >
+      <p role="status" aria-live="polite" className="px-1 text-[10px] text-amber-300 empty:hidden">{navHint}</p>
       {/* Minimap Header */}
       <div className="flex items-center justify-between text-xs px-1 font-semibold">
         <div className="flex items-center gap-1.5 text-amber-400">

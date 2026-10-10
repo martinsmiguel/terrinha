@@ -91,3 +91,54 @@ export function isIslandDiscovered(island: IslandSpec, query: MapDiscoveryQuery)
   }
   return false;
 }
+
+export type NavigationRequest =
+  | { kind: 'point'; x: number; z: number }
+  | { kind: 'island'; island: IslandSpec };
+
+export type NavigationResult =
+  | { ok: true; target: { x: number; z: number }; adjusted: boolean }
+  | { ok: false; reason: 'unknown-point' | 'unknown-island'; message: string };
+
+/**
+ * Regra única de destino de navegação da câmera (canvas do mapa-múndi, minimapa, lista de ilhas e futura paleta ou
+ * busca). Nunca leva a câmera a célula desconhecida: ponto desconhecido é recusado; uma ilha vista só pela borda leva ao
+ * ponto explorado mais próximo do centro; ilha totalmente desconhecida explica a indisponibilidade. No modo
+ * desenvolvedor (`revealAll`) tudo é permitido.
+ */
+export function resolveNavigationTarget(request: NavigationRequest, query: MapDiscoveryQuery): NavigationResult {
+  if (request.kind === 'point') {
+    const cell = worldToCell(request.x, request.z, query.mapSize);
+    if (!isMapCellKnown(cell.x, cell.z, query)) {
+      return { ok: false, reason: 'unknown-point', message: 'Região ainda não explorada: escolha uma área descoberta.' };
+    }
+    return { ok: true, target: { x: request.x, z: request.z }, adjusted: false };
+  }
+
+  const { island } = request;
+  const centerCell = worldToCell(island.center.x, island.center.z, query.mapSize);
+  if (isMapCellKnown(centerCell.x, centerCell.z, query)) {
+    return { ok: true, target: { x: island.center.x, z: island.center.z }, adjusted: false };
+  }
+
+  // Centro desconhecido: vai ao ponto explorado da ilha mais próximo do centro.
+  let best: { x: number; z: number } | null = null;
+  let bestDistance = Infinity;
+  const minX = Math.max(0, Math.floor(island.center.x - island.baseRadius));
+  const maxX = Math.min(query.mapSize - 1, Math.ceil(island.center.x + island.baseRadius));
+  const minZ = Math.max(0, Math.floor(island.center.z - island.baseRadius));
+  const maxZ = Math.min(query.mapSize - 1, Math.ceil(island.center.z + island.baseRadius));
+  for (let x = minX; x <= maxX; x += 1) {
+    for (let z = minZ; z <= maxZ; z += 1) {
+      if (!isMapCellKnown(x, z, query)) continue;
+      const distance = Math.hypot(x + 0.5 - island.center.x, z + 0.5 - island.center.z);
+      if (distance > island.baseRadius || distance >= bestDistance) continue;
+      bestDistance = distance;
+      best = { x: x + 0.5, z: z + 0.5 };
+    }
+  }
+  if (!best) {
+    return { ok: false, reason: 'unknown-island', message: 'Ilha ainda não explorada: descubra-a antes de navegar até ela.' };
+  }
+  return { ok: true, target: best, adjusted: true };
+}

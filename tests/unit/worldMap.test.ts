@@ -7,7 +7,7 @@ import {
   worldToCell,
   worldToMapPixel,
 } from '../../src/game/mapProjection';
-import { isIslandDiscovered, minimapClickTarget, worldMapClickTarget } from '../../src/game/worldMap';
+import { isIslandDiscovered, isMapCellKnown, minimapClickTarget, resolveNavigationTarget, worldMapClickTarget } from '../../src/game/worldMap';
 import { VISION_VISIBLE, createVisionGrid, revealVision } from '../../src/game/visibility';
 
 const MAP = 60;
@@ -120,5 +120,67 @@ describe('ilhas descobertas', () => {
   it('revela todas as ilhas em modo desenvolvedor', () => {
     const query = { mapSize: MAP, visibility: createVisionGrid({ size: MAP }), revealAll: true };
     expect(layout.islands.every((island) => isIslandDiscovered(island, query))).toBe(true);
+  });
+});
+
+describe('destino único de navegação (canvas, lista, busca e paleta)', () => {
+  const layout = computeArchipelago(MAP, 24680);
+  const island = layout.islands[0];
+  const emptyQuery = () => ({ mapSize: MAP, visibility: createVisionGrid({ size: MAP }) });
+  const revealAt = (x: number, z: number, radius: number) => ({
+    mapSize: MAP,
+    visibility: revealVision(createVisionGrid({ size: MAP }), [{ x, z, radius }]),
+  });
+
+  it('ilha totalmente desconhecida: recusa e explica a indisponibilidade, sem saltar a câmera', () => {
+    const result = resolveNavigationTarget({ kind: 'island', island }, emptyQuery());
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('unknown-island');
+      expect(result.message).toMatch(/não explorada/);
+    }
+  });
+
+  it('só a borda da ilha descoberta: leva ao ponto explorado mais próximo do centro, nunca ao centro desconhecido', () => {
+    const edgeX = island.center.x + island.baseRadius - 1;
+    const query = revealAt(edgeX, island.center.z, 2.5);
+    expect(isIslandDiscovered(island, query)).toBe(true);
+    const result = resolveNavigationTarget({ kind: 'island', island }, query);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.adjusted).toBe(true);
+      expect(result.target).not.toEqual({ x: island.center.x, z: island.center.z });
+      const cell = { x: Math.floor(result.target.x), z: Math.floor(result.target.z) };
+      expect(isMapCellKnown(cell.x, cell.z, query)).toBe(true);
+      expect(Math.hypot(result.target.x - island.center.x, result.target.z - island.center.z)).toBeLessThanOrEqual(island.baseRadius);
+    }
+  });
+
+  it('centro conhecido: navega ao centro da ilha sem ajuste', () => {
+    const result = resolveNavigationTarget({ kind: 'island', island }, revealAt(island.center.x, island.center.z, 3));
+    expect(result).toEqual({ ok: true, target: { x: island.center.x, z: island.center.z }, adjusted: false });
+  });
+
+  it('ponto: célula conhecida navega, desconhecida é recusada com mensagem', () => {
+    const query = revealAt(10, 10, 3);
+    expect(resolveNavigationTarget({ kind: 'point', x: 10.5, z: 10.5 }, query)).toEqual({ ok: true, target: { x: 10.5, z: 10.5 }, adjusted: false });
+    const unknown = resolveNavigationTarget({ kind: 'point', x: 50.5, z: 50.5 }, query);
+    expect(unknown.ok).toBe(false);
+    if (!unknown.ok) expect(unknown.reason).toBe('unknown-point');
+  });
+
+  it('modo desenvolvedor permite qualquer destino, inclusive o centro de uma ilha desconhecida', () => {
+    const query = { ...emptyQuery(), revealAll: true };
+    expect(resolveNavigationTarget({ kind: 'island', island }, query)).toEqual({ ok: true, target: { x: island.center.x, z: island.center.z }, adjusted: false });
+    expect(resolveNavigationTarget({ kind: 'point', x: 50.5, z: 50.5 }, query).ok).toBe(true);
+  });
+
+  it('a mesma regra vale em mundos grandes', () => {
+    const big = 192;
+    const bigIsland = computeArchipelago(big, 24680).islands[1];
+    const query = { mapSize: big, visibility: revealVision(createVisionGrid({ size: big }), [{ x: bigIsland.center.x - bigIsland.baseRadius + 1, z: bigIsland.center.z, radius: 3 }]) };
+    const result = resolveNavigationTarget({ kind: 'island', island: bigIsland }, query);
+    expect(result.ok && result.adjusted).toBe(true);
+    expect(resolveNavigationTarget({ kind: 'point', x: 5, z: 5 }, query).ok).toBe(false);
   });
 });
