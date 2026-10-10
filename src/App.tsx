@@ -3112,6 +3112,14 @@ export default function App() {
         </div>
 
         <SelectionPanel
+          getCapitalSites={(wagon) =>
+            capitalSitesFor(gameState, wagon).map(({ x, z }) => ({
+              x,
+              z,
+              report: evaluateCapitalSite({ x, z }, capitalTerrainFor(gameState), { from: wagon.position, kit: gameState.foundationKits?.[wagon.owner] }),
+            }))
+          }
+          focusPoint={(x, z) => engineRef.current?.setCameraTarget(x, z)}
           gameState={gameState}
           playerSlot={playerSlot}
           role={role}
