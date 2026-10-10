@@ -8,7 +8,7 @@ import {
   type ProceduralMapResult,
 } from '../../src/game/proceduralMap';
 import { applyBuildingFoundation } from '../../src/game/buildingOrders';
-import { BUILDING_CATALOG } from '../../src/game/buildingDefs';
+import { BUILDING_CATALOG } from '../../src/game/buildingCatalog';
 import { isAuthorizedPlayerCommand, isValidNetworkCommand } from '../../src/game/networkCommands';
 import { tickGameState, type SimulationContext } from '../../src/game/simulation';
 

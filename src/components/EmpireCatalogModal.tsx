@@ -18,7 +18,7 @@ import {
   Store,
   Compass,
 } from 'lucide-react';
-import { BUILDING_CATALOG, BuildingType } from '../game/buildingDefs';
+import { BUILDING_CATALOG, BuildingType } from '../game/buildingCatalog';
 import { PlayerResources } from '../game/engine';
 import {
   MarketResourceType,

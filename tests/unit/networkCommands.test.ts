@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isAuthorizedPlayerCommand, isValidJoinRequest, isValidNetworkCommand, roomJoinError, soloMatchSlots } from '../../src/game/networkCommands';
-import { BUILDING_CATALOG } from '../../src/game/buildingDefs';
+import { BUILDING_CATALOG } from '../../src/game/buildingCatalog';
 import { createTechState } from '../../src/game/tech';
 import type { GameState } from '../../src/game/engine';
 

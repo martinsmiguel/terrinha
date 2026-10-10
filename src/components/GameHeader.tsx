@@ -2,8 +2,8 @@ import type { Dispatch, SetStateAction } from 'react';
 import {
   Eye, EyeOff, Info, Layers, Lock, Maximize2, MessageSquare, Sparkles, Sprout, Target, Unlock, Volume2, VolumeX,
 } from 'lucide-react';
-import type { BuildingType } from '../game/buildingDefs';
-import { BUILDING_CATALOG } from '../game/buildingDefs';
+import type { BuildingType } from '../game/buildingCatalog';
+import { BUILDING_CATALOG } from '../game/buildingCatalog';
 import { soundManager } from '../game/audio';
 import type { PlayerResources } from '../game/engine';
 import type { ChatMessage } from '../game/multiplayer';
