@@ -1,3 +1,4 @@
+import { hasTalent } from './talents';
 import { cargoCapacity, cargoTotal, type Cargo } from './colonialTransport';
 import { HOME, creditAt, debitAt, depotsIn, stockAt, type LocalityResolver } from './depots';
 import type { Building, GameState, Unit } from './model';
@@ -65,7 +66,7 @@ export function routeProblems(state: GameState, boatId: string, config: RouteCon
   if ((boat.passengers?.length ?? 0) > 0) problems.push('Há passageiros a bordo: descarregue-os antes de iniciar a rota.');
   if (config.a.buildingId === config.b.buildingId) problems.push('Os dois portos precisam ser diferentes.');
   if (!validPort(state, boat.owner, config.a) || !validPort(state, boat.owner, config.b)) problems.push('Os dois portos devem ser cais próprios e concluídos.');
-  const capacity = cargoCapacity(boat.type, talent);
+  const capacity = cargoCapacity(boat.type, talent || hasTalent(state, boat.owner, 'comboio'));
   for (const leg of [config.outbound, config.back]) {
     if (!leg) continue;
     if (!KEYS.includes(leg.resource) || !Number.isInteger(leg.amount) || leg.amount <= 0) problems.push('Quantidade ou recurso da perna inválido.');
