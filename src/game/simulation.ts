@@ -1,5 +1,6 @@
 import { healUnitsInTerritory } from './colonies';
 import { cargoTotal, disembarkStep } from './colonialTransport';
+import { buildFlowField, followFlowField, type FlowField } from './movement/flowField';
 import { applyStormDamage, stormAt, stormPhase } from './storms';
 import { BLESSING_FARM, BRISA_SPEED, hasTalent } from './talents';
 import { creditAll, type XpEvent } from './mastery';
@@ -173,6 +174,16 @@ function routeFrom(
   return rest.length > 0 ? [best, ...rest] : [];
 }
 
+/** Unidades mínimas em marcha para o mesmo destino para valer um campo de fluxo (abaixo disso o A* individual basta). */
+export const FLOW_GROUP_MIN = 6;
+const FLOW_FIELD_MAX_EXPANDED = 40000;
+const fieldRegistry = new WeakMap<object, Map<string, { field: FlowField | null }>>();
+const fieldsFor = (cache: object): Map<string, { field: FlowField | null }> => {
+  let store = fieldRegistry.get(cache);
+  if (!store) { store = new Map(); fieldRegistry.set(cache, store); }
+  return store;
+};
+
 /** Advances one 20 Hz simulation step without React, Three.js, or external effects. */
 export function tickGameState(state: GameState, context: SimulationContext): SimulationTickResult {
   const effects: SimulationEffect[] = [];
@@ -192,6 +203,25 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
   const storeRoute = (id: string, goal: { x: number; z: number }, path: { x: number; z: number }[]) =>
     pathCache.set(id, { goal: { x: goal.x, z: goal.z }, path, version: surfaceVersion });
   const activeSlots = context.activeSlots ?? [playerSlot];
+  // Grupos de unidades em marcha para a mesma célula, por corpo: base do compartilhamento de gradiente (#78).
+  const goalGroups = new Map<string, { x: number; z: number }[]>();
+  for (const unit of state.units) {
+    if (unit.state !== 'moving' || !unit.targetPosition || unit.health <= 0) continue;
+    const key = `${bodyOf(unit.type)}|${Math.floor(unit.targetPosition.x)},${Math.floor(unit.targetPosition.z)}`;
+    const group = goalGroups.get(key);
+    if (group) group.push(unit.position); else goalGroups.set(key, [unit.position]);
+  }
+  // Campos por (corpo, destino, versão da superfície): nascem uma vez e atendem o grupo; versão nova invalida.
+  const fieldStore = fieldsFor(pathCache);
+  const sharedField = (key: string, goal: { x: number; z: number }, weight: (x: number, z: number) => number, starts: { x: number; z: number }[]): FlowField | null => {
+    const id = `${key}|v${surfaceVersion}`;
+    const hit = fieldStore.get(id);
+    if (hit) return hit.field;
+    for (const stale of fieldStore.keys()) if (!stale.endsWith(`|v${surfaceVersion}`)) fieldStore.delete(stale);
+    const field = buildFlowField({ goal, weight, mapSize, starts, maxExpanded: FLOW_FIELD_MAX_EXPANDED });
+    fieldStore.set(id, { field });
+    return field;
+  };
 
   let updatedUnits: Unit[] = state.units.map((unit) => ({
     ...unit,
@@ -277,8 +307,17 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
 
       let heading = goal;
       if (pMap) {
-        const pathFor = (from: { x: number; z: number }) =>
-          routeFrom(from, goal, weightFor(unit.type, pMap), mapSize);
+        const pathFor = (from: { x: number; z: number }) => {
+          // Grupo grande indo à mesma célula com o mesmo corpo: um campo de fluxo compartilhado em vez de um A* por unidade.
+          const groupKey = `${bodyOf(unit.type)}|${Math.floor(goal.x)},${Math.floor(goal.z)}`;
+          const starts = goalGroups.get(groupKey);
+          if (starts && starts.length >= FLOW_GROUP_MIN) {
+            const field = sharedField(groupKey, goal, weightFor(unit.type, pMap), starts);
+            const viaField = field ? followFlowField(field, from) : [];
+            if (viaField.length > 0) return viaField;
+          }
+          return routeFrom(from, goal, weightFor(unit.type, pMap), mapSize);
+        };
 
         const cached = cachedRoute(unit.id);
         if (!cached || cached.goal.x !== goal.x || cached.goal.z !== goal.z) {
