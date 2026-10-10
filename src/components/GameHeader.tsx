@@ -125,6 +125,7 @@ export function GameHeader({
             setIsHoverPeeking(false);
             onPointerLeaveUI();
           }}
+          style={{ paddingTop: 'env(safe-area-inset-top)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}
           className={`absolute top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 pointer-events-none transition-all duration-300 z-30 ${
             hudMode === 'hidden' && isHoverPeeking ? 'opacity-100 translate-y-0' : ''
           }`}
@@ -219,7 +220,7 @@ export function GameHeader({
               />
 
               {/* Room & Actions Bar */}
-              <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-950/90 backdrop-blur-md px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-2xl border border-slate-800 shadow-2xl pointer-events-auto">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 max-w-full bg-slate-950/90 backdrop-blur-md px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-2xl border border-slate-800 shadow-2xl pointer-events-auto">
                 {/* Camera Auto-Movement Lock Toggle Button */}
                 <button
                   type="button"

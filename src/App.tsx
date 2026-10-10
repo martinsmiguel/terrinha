@@ -118,7 +118,7 @@ export default function App() {
 
   // Collapsible bottom cards & minimap state
   const [isBottomCardCollapsed, setIsBottomCardCollapsed] = useState(false);
-  const [isMinimapCollapsed, setIsMinimapCollapsed] = useState(false);
+  const [isMinimapCollapsed, setIsMinimapCollapsed] = useState(() => window.matchMedia('(max-width: 639px)').matches);
   // O mapa-mundi e controlado aqui para o Esc fechar o mapa sem limpar a selecao.
   const [isWorldMapOpen, setIsWorldMapOpen] = useState(false);
   /**
@@ -2845,7 +2845,7 @@ export default function App() {
             >
               <span>Matriz Tecnológica & Mercadão</span>
             </button>
-            <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">Q, W, E, R, T, Y, F, B</span>
+            <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">Q, W, E, R, T, Y, F, B</span>
           </div>
         </div>
 
@@ -2920,7 +2920,7 @@ export default function App() {
                         );
                       })}
                   </div>
-                  <span className="text-slate-500 text-[9px]">{def.buildTimeSeconds}s</span>
+                  <span className="text-slate-400 text-[9px]">{def.buildTimeSeconds}s</span>
                 </div>
 
                 {!affordable && (
