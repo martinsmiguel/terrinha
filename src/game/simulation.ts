@@ -1,5 +1,6 @@
 import { healUnitsInTerritory } from './colonies';
-import { disembarkStep } from './colonialTransport';
+import { cargoTotal, disembarkStep } from './colonialTransport';
+import { creditAll, type XpEvent } from './mastery';
 import { stepRoute } from './tradeRoutes';
 import { HOME, productionPaused, reconcileDepots, refineAt, type LocalityResolver } from './depots';
 import { isBoatUnit, worldSizeOf } from './model';
@@ -194,6 +195,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     targetPosition: unit.targetPosition ? { ...unit.targetPosition } : null,
     gatherOrigin: unit.gatherOrigin ? { ...unit.gatherOrigin } : undefined,
   }));
+  const xpEvents: { owner: string; event: XpEvent }[] = [];
   let updatedNodes = state.resourceNodes.map((node) => ({ ...node, position: { ...node.position } }));
   let updatedBuildings = state.buildings.map((building) => ({
     ...building,
@@ -203,6 +205,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
   updatedBuildings = updatedBuildings.map((building) => {
     const advanced = advanceFoundation(building);
     if (advanced.isComplete && !building.isComplete) {
+      xpEvents.push({ owner: building.owner, event: { kind: 'foundation', key: building.id } });
       effects.push({ type: 'sound', sound: 'building-completed', buildingType: 'town_center' });
       if (building.owner === playerSlot) {
         effects.push({ type: 'notification', message: 'Capital fundada! O Centro da Vila está pronto.', level: 'success' });
@@ -389,6 +392,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
 
         const gathered = Math.min(gatherRate, targetNode.remaining);
         targetNode.remaining -= gathered;
+        xpEvents.push({ owner: unit.owner, event: { kind: targetNode.type === 'fish_school' ? 'fishing' : 'extraction', amount: gathered } });
 
         const resKey =
           targetNode.type === 'tree'
@@ -522,6 +526,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
           [unitDamageMultiplier(updatedTechs[unit.owner], unit.type) - 1]));
         const prevHealth = target.health;
         target.health = Math.max(0, target.health - damage);
+        xpEvents.push({ owner: unit.owner, event: { kind: 'damage', amount: prevHealth - target.health } });
 
         const isMusket = unit.type === 'soldier';
         effects.push({
@@ -878,7 +883,10 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       findPath(from, to, blockedFor('trade_boat', pMap), { mapSize, maxExpanded: 2400, weight: weightFor('trade_boat', pMap) }).length > 0;
     for (const boat of updatedUnits.filter((unit) => unit.route && unit.health > 0)) {
       const before = boat.route!;
+      const cargoBefore = cargoTotal(boat.cargo);
       routed = stepRoute(routed, boat.id, TICK_SECONDS, pMap.localityOf, reach);
+      const delivered = cargoBefore - cargoTotal(routed.units.find((unit) => unit.id === boat.id)?.cargo);
+      if (delivered > 0) xpEvents.push({ owner: boat.owner, event: { kind: 'freight', amount: delivered } });
       const after = routed.units.find((unit) => unit.id === boat.id)?.route;
       if (after?.status === 'blocked' && before.status !== 'blocked' && boat.owner === playerSlot) {
         effects.push({ type: 'notification', message: `Rota bloqueada: ${after.reason}`, level: 'warning' });
@@ -941,6 +949,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     state: {
       ...state,
       ...(updatedLocalStocks ? { localStocks: updatedLocalStocks } : {}),
+      ...(xpEvents.length > 0 || state.mastery ? { mastery: creditAll(state.mastery, xpEvents) } : {}),
       units: updatedUnits,
       buildings: updatedBuildings,
       resourceNodes: updatedNodes,

@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { creditAll, exploredSectorKeys } from './game/mastery';
 import { filterSnapshotFor } from './game/snapshotFilter';
 import { DeltaReceiver, DeltaSender, rulesRevisionOf } from './game/snapshotDelta';
 import { CommandPalette } from './components/CommandPalette';
@@ -1075,6 +1076,12 @@ export default function App() {
           createId: uuidv4,
         });
         hostVisionRef.current = updateOwnerVision(hostVisionRef.current, result.state, activeSlotsRef.current, worldSizeRef.current);
+        // Descoberta inédita: um crédito por setor de 16x16 explorado, único por chave (reconstruir ou repetir não paga de novo).
+        const discoveries = activeSlotsRef.current.flatMap((slot) => {
+          const grid = hostVisionRef.current?.[slot];
+          return grid ? exploredSectorKeys((x, z) => isExploredAt(grid, x, z), worldSizeRef.current).map((key) => ({ owner: slot, event: { kind: 'discovery' as const, key } })) : [];
+        });
+        if (discoveries.length > 0) result.state = { ...result.state, mastery: creditAll(result.state.mastery, discoveries) };
 
         result.effects.forEach((effect) => {
           if (effect.type === 'hit') {
