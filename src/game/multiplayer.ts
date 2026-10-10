@@ -15,6 +15,7 @@ export class MultiplayerManager {
   playerSlot: PlayerSlot;
   connected: boolean = false;
   onStateUpdate?: (state: any) => void;
+  onResyncRequest?: (slot: string) => void;
   onCommand?: (cmd: NetworkCommand) => void;
   onPlayerJoined?: (data: { id: string; playerName: string; playerCount: number; playerSlot?: string }) => void;
   onPlayerLeft?: (data: { id: string; playerName: string; playerCount: number; playerSlot?: string; isHost?: boolean }) => void;
@@ -78,6 +79,11 @@ export class MultiplayerManager {
       }
     });
 
+    // Host recebe pedidos de ressincronização por convidado
+    this.socket.on('client-resync', (data: { playerSlot?: unknown }) => {
+      if (this.isHost && typeof data?.playerSlot === 'string') this.onResyncRequest?.(data.playerSlot);
+    });
+
     // Host receives commands from Clients
     this.socket.on('client-command', (command: unknown) => {
       if (this.isHost && isValidNetworkCommand(command, this.getMapSize?.())) {
@@ -96,6 +102,11 @@ export class MultiplayerManager {
     if (this.isHost && this.socket.connected) {
       this.socket.compress(true).emit('sync-game-state-to', { slot, state: gameState });
     }
+  }
+
+  // Convidado pede ao host um quadro completo (buraco na sequência, sessão ou regras desconhecidas)
+  requestResync() {
+    if (!this.isHost && this.socket.connected) this.socket.emit('request-resync', {});
   }
 
   // Client sends action to host

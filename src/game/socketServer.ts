@@ -81,6 +81,13 @@ export function registerGameSocketHandlers(io: Server): void {
       target?.compress(true).emit('game-state-update', state);
     });
 
+    socket.on('request-resync', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId || socket.data.isHost) return;
+      const host = [...io.sockets.sockets.values()].find((member) => member.data.roomId === roomId && member.data.isHost);
+      host?.emit('client-resync', { playerSlot: socket.data.playerSlot });
+    });
+
     socket.on('send-command', (command: unknown) => {
       const roomId = socket.data.roomId;
       if (roomId && !socket.data.isHost && isCommandEnvelope(command)) {

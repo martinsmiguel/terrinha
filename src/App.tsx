@@ -4,6 +4,7 @@
  */
 
 import { filterSnapshotFor } from './game/snapshotFilter';
+import { DeltaReceiver, DeltaSender, rulesRevisionOf } from './game/snapshotDelta';
 import { CommandPalette } from './components/CommandPalette';
 import { focusLocality, type PaletteEntry, type PaletteLocality } from './game/commandPalette';
 import { computeArchipelago } from './game/archipelago';
@@ -91,6 +92,10 @@ export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const multiRef = useRef<MultiplayerManager | null>(null);
+  // Deltas sequenciados por destinatário (host) e aplicação ordenada (convidado).
+  const deltaSendersRef = useRef(new Map<string, DeltaSender>());
+  const deltaReceiverRef = useRef(new DeltaReceiver());
+  const sessionIdRef = useRef(`s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`);
 
   // Rota de demonstracao da PoC de interface: abre uma partida solo direto,
   // sem passar pelo lobby, e permite esconder o HUD do proprio jogo para que a
@@ -320,9 +325,12 @@ export default function App() {
   // O host envia a cada convidado o snapshot filtrado pela visão dele (nunca o mundo inteiro).
   useEffect(() => {
     if (role !== 'host' || !multiRef.current) return;
+    const revision = rulesRevisionOf(gameState);
     for (const slot of activeSlotsRef.current) {
       if (slot === playerSlot) continue;
-      multiRef.current.sendStateTo(slot, filterSnapshotFor(gameState, slot, hostVisionRef.current));
+      let sender = deltaSendersRef.current.get(slot);
+      if (!sender) { sender = new DeltaSender(sessionIdRef.current); deltaSendersRef.current.set(slot, sender); }
+      multiRef.current.sendStateTo(slot, sender.next(filterSnapshotFor(gameState, slot, hostVisionRef.current), revision));
     }
   }, [gameState, role, playerSlot]);
 
@@ -688,7 +696,13 @@ export default function App() {
         ]);
       };
 
-      multi.onStateUpdate = (remoteState) => {
+      multi.onResyncRequest = (slot) => { deltaSendersRef.current.get(slot)?.resync(); };
+      multi.onStateUpdate = (packet) => {
+        // O pacote é completo ou delta sequenciado; sem sequência válida pede um quadro completo em vez de adivinhar.
+        const received = deltaReceiverRef.current.apply(packet);
+        if (received.needsResync) multi.requestResync();
+        const remoteState = received.state;
+        if (!remoteState) return;
         if (role === 'client') {
           // Mesma semente do host: cliente e host veem o mesmo arquipelago.
           const hostSeed = remoteState.mapSeed;
