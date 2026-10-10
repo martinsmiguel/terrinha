@@ -8,14 +8,8 @@ import { Compass, Eye, EyeOff, Globe2, MapPin, X } from 'lucide-react';
 import type { GameState } from '../game/engine';
 import { MAP_SIZE } from '../game/engine';
 import { coastRadiusAt, computeArchipelago, type IslandProfile } from '../game/archipelago';
-import {
-  isIslandDiscovered,
-  isMapCellKnown,
-  isMapCellVisible,
-  worldMapClickTarget,
-  type MapDiscoveryQuery,
-} from '../game/worldMap';
-import { worldToCell, worldToMapPixel, WORLD_MAP_PIXEL_SIZE } from '../game/mapProjection';
+import { isIslandDiscovered, isMapCellKnown, isMapCellVisible, type MapDiscoveryQuery, resolveNavigationTarget } from '../game/worldMap';
+import { mapPixelToWorld, worldToCell, worldToMapPixel, WORLD_MAP_PIXEL_SIZE } from '../game/mapProjection';
 
 /** Cores do interior de cada perfil geografico (espelham o minimapa). */
 const PROFILE_COLORS: Record<IslandProfile, string> = {
@@ -61,6 +55,8 @@ export function WorldMapModal({
 }: WorldMapModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hovered, setHovered] = useState<{ x: number; z: number } | null>(null);
+  /** Explica por que um destino de navegação foi recusado (regra única de descoberta). */
+  const [navNotice, setNavNotice] = useState<string | null>(null);
 
   // Dimensão do mundo da sessão (60 no padrão).
   const mapSize = gameState.mapSize ?? MAP_SIZE;
@@ -188,14 +184,19 @@ export function WorldMapModal({
 
   const handleMapClick = (event: MouseEvent<HTMLCanvasElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
-    const target = worldMapClickTarget({
-      pixelX: ((event.clientX - bounds.left) / bounds.width) * WORLD_MAP_PIXEL_SIZE,
-      pixelY: ((event.clientY - bounds.top) / bounds.height) * WORLD_MAP_PIXEL_SIZE,
-      mapSize: mapSize,
-      visibility,
-      revealAll,
-    });
-    if (!target) return;
+    const world = mapPixelToWorld(
+      ((event.clientX - bounds.left) / bounds.width) * WORLD_MAP_PIXEL_SIZE,
+      ((event.clientY - bounds.top) / bounds.height) * WORLD_MAP_PIXEL_SIZE,
+      mapSize,
+      WORLD_MAP_PIXEL_SIZE
+    );
+    const result = resolveNavigationTarget({ kind: 'point', x: world.x, z: world.z }, query);
+    if (!result.ok) {
+      setNavNotice(result.message);
+      return;
+    }
+    const target = { x: Math.floor(result.target.x) + 0.5, z: Math.floor(result.target.z) + 0.5 };
+    setNavNotice(null);
     onNavigate(target);
     onClose();
   };
@@ -281,17 +282,30 @@ export function WorldMapModal({
                 key={island.index}
                 type="button"
                 onClick={() => {
-                  onNavigate({ x: island.center.x, z: island.center.z });
+                  const result = resolveNavigationTarget({ kind: 'island', island }, query);
+                  if (!result.ok) {
+                    setNavNotice(result.message);
+                    return;
+                  }
+                  setNavNotice(null);
+                  onNavigate(result.target);
                   onClose();
                 }}
                 className="flex w-full items-center justify-between rounded-lg border border-transparent px-2 py-1.5 text-left hover:border-cyan-600/40 hover:bg-cyan-500/10"
               >
                 <span className="text-slate-200">{island.name}</span>
                 <span className="ml-2 shrink-0 font-mono text-[9px] text-slate-400">
-                  {Math.round(island.center.x)},{Math.round(island.center.z)}
+                  {(() => {
+                    // Mostra o destino realmente explorado: o centro só aparece quando ele já foi descoberto.
+                    const result = resolveNavigationTarget({ kind: 'island', island }, query);
+                    if (!result.ok) return '—';
+                    return `${Math.round(result.target.x)},${Math.round(result.target.z)}${result.adjusted ? ' (borda)' : ''}`;
+                  })()}
                 </span>
               </button>
             ))}
+
+            <p role="status" aria-live="polite" className="w-full text-amber-300 empty:hidden">{navNotice}</p>
 
             <span className="w-full pt-1 font-semibold text-slate-100">Legenda</span>
             {Object.entries(PLAYER_COLORS).map(([slot, color]) => (
