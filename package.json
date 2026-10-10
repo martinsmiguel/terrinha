@@ -12,6 +12,7 @@
     "clean": "rm -rf dist dist-server",
     "lint": "tsc --noEmit && node --experimental-vm-modules scripts/check-boundaries.mjs",
     "test": "vitest run",
+    "bench": "BENCH_REPORT=docs/evidence/card-52/benchmark.json vitest run tests/perf",
     "start": "NODE_ENV=production node dist-server/server.js",
     "smoke": "node scripts/smoke-production.mjs"
   },

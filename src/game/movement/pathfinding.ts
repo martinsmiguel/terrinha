@@ -246,3 +246,24 @@ export const nextWaypoint = (
   }
   return null;
 };
+
+/**
+ * Descarta do início do caminho os pontos já alcançados (dentro de `arriveRadius`). A rota só anda
+ * para frente: sem isso, chegar perto do primeiro ponto fazia a unidade mirar o segundo, que a puxava
+ * de volta para fora do raio do primeiro, e ela oscilava entre os dois para sempre.
+ * Devolve o mesmo array quando nada foi consumido.
+ */
+export const consumeReachedWaypoints = (
+  position: GridPoint,
+  path: GridPoint[],
+  arriveRadius = 0.35
+): GridPoint[] => {
+  let reached = 0;
+  while (
+    reached < path.length &&
+    Math.hypot(path[reached].x - position.x, path[reached].z - position.z) <= arriveRadius
+  ) {
+    reached += 1;
+  }
+  return reached === 0 ? path : path.slice(reached);
+};

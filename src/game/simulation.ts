@@ -3,7 +3,7 @@ import { boardArrivedPassengers } from './navalTransport';
 import type { BuildingType, GameState, Unit, UnitType } from './model';
 import { applyCost, canAfford, refinePlanks, UNIT_COSTS } from './economy';
 import { findDockOceanSpawnCell } from './dockPlacement';
-import { findPath, nextWaypoint } from './movement/pathfinding';
+import { consumeReachedWaypoints, findPath } from './movement/pathfinding';
 import { resolveSeparation } from './movement/separation';
 import { stepToward } from './movement/step';
 import { applyPopDelta, countDeathsByOwner } from './population';
@@ -160,13 +160,13 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
           pathCache.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: pathFor(unit.position) });
         }
 
-        let cachedPath = pathCache.get(unit.id)?.path ?? [];
-        if (cachedPath.length > 0 && nextWaypoint(unit.position, cachedPath) === null) {
-          cachedPath = pathFor(unit.position);
-          pathCache.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: cachedPath });
-        }
+        const before = pathCache.get(unit.id)?.path ?? [];
+        let cachedPath = consumeReachedWaypoints(unit.position, before);
+        // Fim de uma rota parcial: calcula o trecho seguinte a partir daqui.
+        if (before.length > 0 && cachedPath.length === 0) cachedPath = pathFor(unit.position);
+        if (cachedPath !== before) pathCache.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: cachedPath });
 
-        const waypoint = cachedPath.length > 0 ? nextWaypoint(unit.position, cachedPath) : null;
+        const waypoint = cachedPath.length > 0 ? cachedPath[0] : null;
         heading = waypoint ?? goal;
       }
 

@@ -1,0 +1,166 @@
+{
+  "movement": [
+    {
+      "unitCount": 120,
+      "seed": 1,
+      "commandLatencyMs": 24.281,
+      "tick": {
+        "samples": 200,
+        "p50": 0.432,
+        "p95": 0.821,
+        "max": 24.281
+      },
+      "movingAtTick20": 115
+    },
+    {
+      "unitCount": 120,
+      "seed": 42,
+      "commandLatencyMs": 17.635,
+      "tick": {
+        "samples": 200,
+        "p50": 0.44,
+        "p95": 0.757,
+        "max": 17.635
+      },
+      "movingAtTick20": 119
+    },
+    {
+      "unitCount": 120,
+      "seed": 777777,
+      "commandLatencyMs": 11.952,
+      "tick": {
+        "samples": 200,
+        "p50": 0.426,
+        "p95": 0.921,
+        "max": 11.952
+      },
+      "movingAtTick20": 119
+    },
+    {
+      "unitCount": 240,
+      "seed": 1,
+      "commandLatencyMs": 18.548,
+      "tick": {
+        "samples": 200,
+        "p50": 0.958,
+        "p95": 1.536,
+        "max": 18.548
+      },
+      "movingAtTick20": 234
+    },
+    {
+      "unitCount": 240,
+      "seed": 42,
+      "commandLatencyMs": 20.501,
+      "tick": {
+        "samples": 200,
+        "p50": 0.969,
+        "p95": 1.476,
+        "max": 20.501
+      },
+      "movingAtTick20": 234
+    },
+    {
+      "unitCount": 240,
+      "seed": 777777,
+      "commandLatencyMs": 20.147,
+      "tick": {
+        "samples": 200,
+        "p50": 0.958,
+        "p95": 1.394,
+        "max": 20.147
+      },
+      "movingAtTick20": 237
+    }
+  ],
+  "mapSizes": [
+    {
+      "size": 60,
+      "generationMs": 9.7,
+      "aStarMs": {
+        "samples": 20,
+        "p50": 0.039,
+        "p95": 0.177,
+        "max": 0.375
+      }
+    },
+    {
+      "size": 90,
+      "generationMs": 9.7,
+      "aStarMs": {
+        "samples": 20,
+        "p50": 0.085,
+        "p95": 0.258,
+        "max": 0.3
+      }
+    },
+    {
+      "size": 120,
+      "generationMs": 16.2,
+      "aStarMs": {
+        "samples": 20,
+        "p50": 0.073,
+        "p95": 0.158,
+        "max": 0.354
+      }
+    }
+  ],
+  "supportedSize": "O produto suporta 60x60: MAP_SIZE, a validação de rede (limite 60) e o grid de névoa são fixos em 60. O gerador e o A* aceitam 90 e 120, mas o tick completo só é validado em 60.",
+  "navalCycle": {
+    "seed": 42,
+    "phases": {
+      "construcao-do-cais": {
+        "ticks": 301,
+        "tick": {
+          "samples": 301,
+          "p50": 0.007,
+          "p95": 0.01,
+          "max": 0.135
+        }
+      },
+      "treino-do-barco": {
+        "ticks": 50,
+        "tick": {
+          "samples": 50,
+          "p50": 0.007,
+          "p95": 0.018,
+          "max": 0.128
+        }
+      },
+      "embarque": {
+        "ticks": 1,
+        "tick": {
+          "samples": 1,
+          "p50": 0.12,
+          "p95": 0.12,
+          "max": 0.12
+        }
+      },
+      "viagem": {
+        "ticks": 251,
+        "tick": {
+          "samples": 251,
+          "p50": 0.004,
+          "p95": 0.005,
+          "max": 0.144
+        }
+      }
+    },
+    "worstPhaseP95Ms": 0.12,
+    "landed": 2
+  },
+  "environment": {
+    "node": "v22.23.1",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M1",
+    "cores": 8,
+    "memoryGb": 8,
+    "tickBudgetMs": 50,
+    "seeds": [
+      1,
+      42,
+      777777
+    ]
+  }
+}
