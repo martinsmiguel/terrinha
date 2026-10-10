@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { BoatMarker } from '../game/alerts';
 import { createPortal } from 'react-dom';
 import { homeAnchor } from '../game/foundation';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -38,6 +39,9 @@ interface MinimapProps {
   /** Localidade de uma posição (metrópole ou ilha colonial) para a administração de colônias no mapa-múndi. */
   localityOf?: (owner: string, position: { x: number; z: number }) => string;
   focusedIsland?: number | null;
+  /** Barcos próprios com porão ou rota, e objetos próprios em alerta (pontos pulsantes). */
+  boats?: BoatMarker[];
+  alertSpots?: { x: number; z: number; danger: boolean }[];
 }
 
 const FACTION_MINIMAP_COLORS: Record<string, string> = {
@@ -64,6 +68,8 @@ export const Minimap: React.FC<MinimapProps> = ({
   developerToolsEnabled = false,
   localityOf,
   focusedIsland,
+  boats,
+  alertSpots,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -345,6 +351,28 @@ export const Minimap: React.FC<MinimapProps> = ({
       ctx.restore();
     });
 
+    // Barcos próprios com porão (anel âmbar) ou em rota (anel ciano) e objetos próprios em alerta (pontos vermelhos).
+    (boats ?? []).forEach((boat) => {
+      const pt = worldToCanvas(boat.x, boat.z);
+      ctx.save();
+      ctx.lineWidth = 1.4;
+      ctx.strokeStyle = boat.carrying ? '#f59e0b' : '#22d3ee';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 5.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    });
+    (alertSpots ?? []).forEach((spot) => {
+      const pt = worldToCanvas(spot.x, spot.z);
+      ctx.save();
+      ctx.fillStyle = spot.danger ? '#ef4444' : '#f59e0b';
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+
     // 5. Draw Fog of War (Authentic RTS 2-layer Fog: Unexplored Shroud + Explored Semi-Fog)
     // A nevoa vem do mesmo grid que a cena 3D usa, entao minimapa, mapa-mundi e
     // terreno nunca discordam sobre o que ja foi descoberto.
@@ -428,7 +456,7 @@ export const Minimap: React.FC<MinimapProps> = ({
 
       ctx.restore();
     }
-  }, [gameState, engine, playerSlot, selectedEntityId, revealAll, workZones, archipelago, visionGrid]);
+  }, [gameState, engine, playerSlot, selectedEntityId, revealAll, workZones, archipelago, visionGrid, boats, alertSpots]);
 
   // Handle click or drag to move camera
   const handleInteraction = (e: React.MouseEvent<HTMLCanvasElement>) => {

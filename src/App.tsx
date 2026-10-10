@@ -78,13 +78,13 @@ import {
 import { FACTION_COLORS } from './game/factions';
 import { pickFrontMostCandidate, resolveClickSelection } from './game/entitySelection';
 import { applyEmbarkOrder, boatCapacity } from './game/navalTransport';
-import { stormAlertFor } from './game/storms';
+import { boatMarkers, collectAlerts, healthMemoryOf, type HealthMemory } from './game/alerts';
 import { flowRows, pushSample, sampleFlows, type FlowSample } from './game/flows';
 import { BRIDGE, bridgeFoundation, checkBridge, withBridges } from './game/bridges';
 import { RELIC_REACH, applyRelicAction, checkRelicAction, generateRelics } from './game/mysticism';
 import { isExploredBy } from './game/visionAuthority';
 import { buyTalent, effectiveBuildCost, talentById } from './game/talents';
-import { findBerth, routeAlerts } from './game/tradeRoutes';
+import { findBerth } from './game/tradeRoutes';
 import { assignRoute, cancelRoute, pauseRoute, redirectRoute, resumeRoute } from './game/tradeRoutes';
 import { localityLabel } from './game/colonialTransport';
 import { deliverCargo, loadCargo, loadKit, previewDisembark, previewKit, previewLoad } from './game/colonialTransport';
@@ -353,7 +353,12 @@ export default function App() {
     },
   });
 
-  const stormAlert = stormAlertFor(gameState.storm, gameState.elapsed ?? 0, playerSlot, gameState.units, (x, z) => isExploredAt(visionGridRef.current, Math.round(x), Math.round(z)));
+  // Alertas agrupados por objeto (rota, tempestade, combate, sede em risco); a memória de vida detecta dano recebido entre leituras.
+  const healthMemoryRef = useRef<HealthMemory | undefined>(undefined);
+  const hudAlerts = collectAlerts(gameState, playerSlot, healthMemoryRef.current, (x, z) => isExploredAt(visionGridRef.current, Math.round(x), Math.round(z)));
+  useEffect(() => {
+    healthMemoryRef.current = healthMemoryOf(gameState, playerSlot);
+  }, [gameState, playerSlot]);
 
   // Fluxo líquido por minuto: amostra o estado real a cada segundo simulado (janela de 60 s).
   useEffect(() => {
@@ -3499,28 +3504,16 @@ export default function App() {
         className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4 flex flex-col sm:flex-row items-end justify-between gap-3 pointer-events-none z-20"
       >
         {/* Alertas de rotas comerciais próprias: localizam o próprio barco, sem revelar nada do inimigo */}
-        {stormAlert && (
-          <div role="alert" className="pointer-events-auto absolute bottom-full left-0 mb-14 max-w-xs">
-            <button
-              type="button"
-              onClick={() => engineRef.current?.setCameraTarget(stormAlert.focus.x, stormAlert.focus.z)}
-              className="rounded-lg border border-rose-600/70 bg-slate-950/90 px-2.5 py-1.5 text-left text-[11px] text-rose-200 hover:bg-slate-900"
-            >
-              <span className="font-bold">{stormAlert.phase === 'warning' ? 'Aviso de tempestade' : 'Tempestade'}</span>: {stormAlert.text} <span className="underline">Localizar</span>
-            </button>
-          </div>
-        )}
-        {routeAlerts(gameState.units, playerSlot).length > 0 && (
+        {hudAlerts.length > 0 && (
           <div role="alert" className="pointer-events-auto absolute bottom-full left-0 mb-2 flex max-w-xs flex-col gap-1">
-            {routeAlerts(gameState.units, playerSlot).map((alert) => (
+            {hudAlerts.map((alert) => (
               <button
-                key={alert.boatId}
+                key={alert.objectId}
                 type="button"
                 onClick={() => engineRef.current?.setCameraTarget(alert.focus.x, alert.focus.z)}
-                className="rounded-lg border border-amber-600/70 bg-slate-950/90 px-2.5 py-1.5 text-left text-[11px] text-amber-200 hover:bg-slate-900"
+                className={`rounded-lg border bg-slate-950/90 px-2.5 py-1.5 text-left text-[11px] hover:bg-slate-900 ${alert.severity === 'danger' ? 'border-rose-600/70 text-rose-200' : 'border-amber-600/70 text-amber-200'}`}
               >
-                <span className="font-bold">Rota {alert.view.label.toLowerCase()}</span>
-                {alert.view.reason ? `: ${alert.view.reason}` : ''} <span className="underline">Localizar</span>
+                {alert.text} <span className="underline">Localizar</span>
               </button>
             ))}
           </div>
@@ -3544,6 +3537,8 @@ export default function App() {
             developerToolsEnabled={developerToolsEnabled}
             localityOf={proceduralMapRef.current?.localityOf}
             focusedIsland={focusedIsland}
+            boats={boatMarkers(gameState.units, playerSlot)}
+            alertSpots={hudAlerts.map((alert) => ({ x: alert.focus.x, z: alert.focus.z, danger: alert.severity === 'danger' }))}
           />
         </div>
 
