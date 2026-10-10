@@ -83,6 +83,7 @@ export type NetworkCommand = CommandMetadata & (
   | { type: 'load_kit'; boatId: string }
   | { type: 'set_route'; boatId: string; a: RoutePort; b: RoutePort; outbound: RouteLeg; back: RouteLeg | null; partial?: boolean }
   | { type: 'cancel_route'; boatId: string }
+  | { type: 'pause_route' | 'resume_route'; boatId: string }
   | { type: 'redirect_route'; boatId: string; end: 'a' | 'b'; port: RoutePort }
   | { type: 'trade'; resource: MarketResourceType; action: 'buy' | 'sell'; amount: number; marketId?: string }
   | { type: 'found_capital'; wagonId: string; position: Position }
@@ -224,6 +225,8 @@ export function isValidNetworkCommand(value: unknown, mapSize: number = MAP_LIMI
       return allowedKeys('boatId', 'a', 'b', 'outbound', 'back', 'partial') && isId(value.boatId) && isRoutePort(value.a) && isRoutePort(value.b)
         && isRouteLeg(value.outbound) && (value.back === null || isRouteLeg(value.back)) && (value.partial === undefined || typeof value.partial === 'boolean');
     case 'cancel_route':
+    case 'pause_route':
+    case 'resume_route':
       return allowedKeys('boatId') && isId(value.boatId);
     case 'redirect_route':
       return allowedKeys('boatId', 'end', 'port') && isId(value.boatId) && (value.end === 'a' || value.end === 'b') && isRoutePort(value.port);
@@ -420,6 +423,11 @@ export function isAuthorizedPlayerCommand(
     case 'cancel_route': {
       const boat = ownsUnit(state, value.boatId, owner);
       return Boolean(boat?.route);
+    }
+    case 'pause_route':
+    case 'resume_route': {
+      const boat = ownsUnit(state, value.boatId, owner);
+      return Boolean(boat?.route) && Boolean(boat?.route?.paused) === (value.type === 'resume_route');
     }
     case 'redirect_route': {
       const boat = ownsUnit(state, value.boatId, owner);

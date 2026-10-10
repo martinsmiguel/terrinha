@@ -31,6 +31,10 @@ export interface TradeRoute {
   timer: number;
   status: 'running' | 'waiting' | 'blocked';
   reason?: string;
+  /** Causa do bloqueio, para a interface distinguir perda de porto de outras causas. */
+  cause?: 'lost' | 'unreachable' | 'passengers' | 'no-depot';
+  /** Pausada pelo jogador: o barco para onde está, com o porão intacto, até retomar. */
+  paused?: boolean;
 }
 
 export interface RouteConfig { a: RoutePort; b: RoutePort; outbound: RouteLeg; back: RouteLeg | null; partial?: boolean }
@@ -95,7 +99,8 @@ export function redirectRoute(state: GameState, boatId: string, end: 'a' | 'b', 
   const next = { ...route, [end]: port } as TradeRoute;
   if (next.a.buildingId === next.b.buildingId || !validPort(state, boat.owner, port)) return { state, problems: ['O novo porto precisa ser um cais próprio, concluído e diferente do outro.'] };
   const target = next.phase === 'travel_b' || next.phase === 'load_b' ? next.b.berth : next.a.berth;
-  return { state: replace(state, { ...withRoute(boat, { ...next, status: 'running', reason: undefined }), targetPosition: { ...target }, state: 'moving' }), problems: [] };
+  const retargeted = withRoute(boat, { ...next, status: 'running', reason: undefined, cause: undefined });
+  return { state: replace(state, next.paused ? retargeted : { ...retargeted, targetPosition: { ...target }, state: 'moving' }), problems: [] };
 }
 
 const portStock = (state: GameState, owner: string, port: RoutePort, resolve: LocalityResolver): { locality: string; building: Building } | null => {
@@ -113,9 +118,11 @@ export function stepRoute(
   const boat = state.units.find((u) => u.id === boatId);
   const route = boat && routeOf(boat);
   if (!boat || !route || boat.health <= 0) return state;
-  const block = (reason: string): GameState => replace(state, { ...withRoute(boat, { ...route, status: 'blocked', reason }), targetPosition: null, state: 'idle' });
+  const block = (reason: string, cause: NonNullable<TradeRoute['cause']>): GameState =>
+    replace(state, { ...withRoute(boat, { ...route, status: 'blocked', reason, cause }), targetPosition: null, state: 'idle' });
 
-  if ((boat.passengers?.length ?? 0) > 0) return block('Há passageiros a bordo.');
+  if (route.paused) return state;
+  if ((boat.passengers?.length ?? 0) > 0) return block('Há passageiros a bordo.', 'passengers');
   const atA = route.phase === 'load_a' || route.phase === 'unload_a';
   const loading = route.phase === 'load_a' || route.phase === 'load_b';
   const unloading = route.phase === 'unload_a' || route.phase === 'unload_b';
@@ -125,19 +132,19 @@ export function stepRoute(
 
   if (traveling) {
     const found = portStock(state, boat.owner, dest, resolve);
-    if (!found) return block('Porto de destino perdido: redirecione a rota.');
+    if (!found) return block('Porto de destino perdido: redirecione a rota.', 'lost');
     // A alcançabilidade só é consultada quando o movimento parou (sem alvo): evita busca de caminho a cada tick.
-    if (!boat.targetPosition && dist(boat.position, dest.berth) > ROUTE_ARRIVAL_RANGE && !canReach(boat.position, dest.berth)) return block('Rota impossível até o porto de destino.');
+    if (!boat.targetPosition && dist(boat.position, dest.berth) > ROUTE_ARRIVAL_RANGE && !canReach(boat.position, dest.berth)) return block('Rota impossível até o porto de destino.', 'unreachable');
     if (dist(boat.position, dest.berth) > ROUTE_ARRIVAL_RANGE) {
       const moving: Unit = boat.targetPosition ? boat : { ...boat, targetPosition: { ...dest.berth }, state: 'moving' };
-      return replace(state, withRoute(moving, { ...route, status: 'running', reason: undefined }));
+      return replace(state, withRoute(moving, { ...route, status: 'running', reason: undefined, cause: undefined }));
     }
     const arrived = route.phase === 'travel_b' ? 'unload_b' : 'unload_a';
     return replace(state, { ...withRoute(boat, { ...route, phase: arrived, timer: ROUTE_UNLOAD_SECONDS, status: 'running', reason: undefined }), targetPosition: null, state: 'idle' });
   }
 
   const found = portStock(state, boat.owner, port, resolve);
-  if (!found) return block('Porto perdido: redirecione a rota ou cancele (o porão fica a bordo).');
+  if (!found) return block('Porto perdido: redirecione a rota ou cancele (o porão fica a bordo).', 'lost');
   if (dist(boat.position, port.berth) > ROUTE_ARRIVAL_RANGE) {
     return replace(state, { ...withRoute(boat, { ...route, status: 'running' }), targetPosition: { ...port.berth }, state: 'moving' });
   }
@@ -170,7 +177,7 @@ export function stepRoute(
 
   if (unloading) {
     const hasDepot = found.locality === HOME || depotsIn(state.buildings, boat.owner, found.locality, resolve, true).length > 0;
-    if (!hasDepot) return block('A ilha do porto não tem posto concluído para receber a carga.');
+    if (!hasDepot) return block('A ilha do porto não tem posto concluído para receber a carga.', 'no-depot');
     const load = boat.cargo ?? { wood: 0, food: 0, gold: 0, stone: 0, planks: 0 };
     const credited = creditAt(state, boat.owner, found.locality, load, true);
     const emptied: Unit = { ...boat, cargo: undefined };
@@ -178,4 +185,76 @@ export function stepRoute(
     return replace(credited, withRoute(emptied, next('load_a')));
   }
   return state;
+}
+
+/** Pausa a rota: o barco para onde está e o porão fica a bordo, sem entrega nem devolução. */
+export function pauseRoute(state: GameState, boatId: string): GameState {
+  const boat = state.units.find((u) => u.id === boatId);
+  const route = boat && routeOf(boat);
+  if (!boat || !route || route.paused) return state;
+  return replace(state, { ...withRoute(boat, { ...route, paused: true }), targetPosition: null, state: 'idle' });
+}
+
+/** Retoma a rota do ponto em que parou; o porão e a fase são os mesmos. */
+export function resumeRoute(state: GameState, boatId: string): GameState {
+  const boat = state.units.find((u) => u.id === boatId);
+  const route = boat && routeOf(boat);
+  if (!boat || !route || !route.paused) return state;
+  return replace(state, withRoute(boat, { ...route, paused: false }));
+}
+
+export type RouteTone = 'ok' | 'wait' | 'alert' | 'idle';
+export interface RouteView {
+  label: 'Carregando' | 'Viajando' | 'Descarregando' | 'Retornando' | 'Esperando' | 'Bloqueada' | 'Pausada' | 'Perdida';
+  tone: RouteTone;
+  reason?: string;
+}
+
+/** Estado legível da rota para a interface: oito estados, com o motivo quando é conhecido. */
+export function routeView(route: TradeRoute): RouteView {
+  if (route.paused) return { label: 'Pausada', tone: 'idle', reason: 'Pausada pelo jogador: o porão fica a bordo.' };
+  if (route.status === 'blocked') {
+    return route.cause === 'lost'
+      ? { label: 'Perdida', tone: 'alert', reason: route.reason }
+      : { label: 'Bloqueada', tone: 'alert', reason: route.reason };
+  }
+  if (route.status === 'waiting') return { label: 'Esperando', tone: 'wait', reason: route.reason };
+  switch (route.phase) {
+    case 'load_a':
+    case 'load_b': return { label: 'Carregando', tone: 'ok' };
+    case 'unload_a':
+    case 'unload_b': return { label: 'Descarregando', tone: 'ok' };
+    case 'travel_b': return { label: 'Viajando', tone: 'ok' };
+    default: return { label: 'Retornando', tone: 'ok' };
+  }
+}
+
+export interface RouteAlert { boatId: string; view: RouteView; focus: { x: number; z: number } }
+
+/**
+ * Alertas de rotas do próprio jogador (bloqueadas, perdidas ou esperando). O foco é a posição do próprio barco:
+ * nada de inimigos ou unidades não visíveis entra aqui.
+ */
+export function routeAlerts(units: readonly Unit[], owner: string): RouteAlert[] {
+  return units
+    .filter((unit) => unit.owner === owner && unit.health > 0 && unit.route)
+    .map((unit) => ({ boatId: unit.id, view: routeView(unit.route!), focus: { ...unit.position } }))
+    .filter((alert) => alert.view.tone === 'alert' || alert.view.tone === 'wait');
+}
+
+/** Ponto de atracação: a célula navegável mais próxima do cais, até `maxRadius` células; null se não houver. */
+export function findBerth(
+  dock: { x: number; z: number }, isNavigable: (x: number, z: number) => boolean, maxRadius = 8
+): { x: number; z: number } | null {
+  let best: { x: number; z: number; d: number } | null = null;
+  for (let dz = -maxRadius; dz <= maxRadius; dz += 1) {
+    for (let dx = -maxRadius; dx <= maxRadius; dx += 1) {
+      const x = Math.floor(dock.x) + dx + 0.5;
+      const z = Math.floor(dock.z) + dz + 0.5;
+      const d = Math.hypot(x - dock.x, z - dock.z);
+      if (d > maxRadius || !isNavigable(x, z)) continue;
+      if (!best || d < best.d || (d === best.d && (x < best.x || (x === best.x && z < best.z)))) best = { x, z, d };
+    }
+  }
+  return best ? { x: best.x, z: best.z } : null;
 }
