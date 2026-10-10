@@ -13,6 +13,7 @@ import { soundManager } from '../game/audio';
 import { canAfford, describeCost, UNIT_COSTS } from '../game/economy';
 import { REPAIR_HP_PER_TICK, REPAIR_WOOD_PER_HP } from '../game/simulation';
 import { holdOf, localityLabel, type DisembarkPreview, type LoadPreview } from '../game/colonialTransport';
+import { RoutePanel, type RoutePortOption } from './RoutePanel';
 import { FoundationPanel, type CapitalSiteOption } from './FoundationPanel';
 
 interface ActiveWorkZone {
@@ -82,6 +83,8 @@ interface SelectionPanelProps {
   handleRepairBuilding(unitId: string, buildingId: string): void;
   handleDemolishBuilding(buildingId: string): void;
   handleDisembark(boatId: string): void;
+  /** Cais próprios e concluídos com ponto de atracação, para as rotas comerciais. */
+  routePorts: RoutePortOption[];
   /** Prévia (sem mutar) do carregamento: com `cargo`, carga; sem ele, o kit. */
   holdPreview(boat: Unit, cargo?: Partial<Record<'wood' | 'food' | 'gold' | 'stone' | 'planks', number>>): LoadPreview;
   disembarkPreview(boat: Unit): DisembarkPreview;
@@ -109,7 +112,7 @@ export function SelectionPanel(props: SelectionPanelProps) {
     handleSetGroveHarvestMode, handleToggleResourceHarvestMode, handleClearForestCluster,
     handleAssignVillagersToResource, handleAssignSelectedSquadToResource, handleRemoveResourceImmediately,
     renderVillagerBuildCatalog, nearestVillagerToSelectedBuilding, handleRepairBuilding,
-    handleDemolishBuilding, handleDisembark, holdPreview, disembarkPreview, handleLoadCargo, getCapitalSites, focusPoint, triggerNotification, multiRef, onPointerEnterUI, onPointerLeaveUI,
+    handleDemolishBuilding, handleDisembark, routePorts, holdPreview, disembarkPreview, handleLoadCargo, getCapitalSites, focusPoint, triggerNotification, multiRef, onPointerEnterUI, onPointerLeaveUI,
   } = props;
   return (
     <>
@@ -532,6 +535,18 @@ export function SelectionPanel(props: SelectionPanelProps) {
                             return hint.ok ? null : <div className="text-[10px] text-slate-400">Origem: {localityLabel(hint.origin)}. {hint.reasons[0]}</div>;
                           })()}
                         </div>
+                      )}
+                      {mine && selectedUnit.type === 'trade_boat' && (
+                        <RoutePanel
+                          boat={selectedUnit}
+                          gameState={gameState}
+                          ports={routePorts}
+                          send={(cmd) => {
+                            if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+                            else multiRef.current?.sendToHost(cmd);
+                          }}
+                          onFocusBoat={focusPoint}
+                        />
                       )}
                       {mine && unload && (hold.passengers > 0 || hold.cargo > 0 || hold.kitOnBoard) ? (
                         <div className="flex items-center justify-between gap-2">

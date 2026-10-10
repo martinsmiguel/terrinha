@@ -65,7 +65,8 @@ import {
 import { FACTION_COLORS } from './game/factions';
 import { pickFrontMostCandidate, resolveClickSelection } from './game/entitySelection';
 import { applyEmbarkOrder, boatCapacity } from './game/navalTransport';
-import { assignRoute, cancelRoute, redirectRoute } from './game/tradeRoutes';
+import { findBerth, routeAlerts } from './game/tradeRoutes';
+import { assignRoute, cancelRoute, pauseRoute, redirectRoute, resumeRoute } from './game/tradeRoutes';
 import { localityLabel } from './game/colonialTransport';
 import { deliverCargo, loadCargo, loadKit, previewDisembark, previewKit, previewLoad } from './game/colonialTransport';
 import { tickGameState } from './game/simulation';
@@ -1131,6 +1132,9 @@ export default function App() {
       if (result.problems.length > 0) { triggerNotification(result.problems[0], 'warning'); return; }
       setGameState(result.state);
       triggerNotification('Rota comercial iniciada.', 'success');
+    } else if (cmd.type === 'pause_route' || cmd.type === 'resume_route') {
+      setGameState((prev) => (cmd.type === 'pause_route' ? pauseRoute(prev, cmd.boatId) : resumeRoute(prev, cmd.boatId)));
+      triggerNotification(cmd.type === 'pause_route' ? 'Rota pausada: o porão fica a bordo.' : 'Rota retomada.', 'info');
     } else if (cmd.type === 'cancel_route') {
       setGameState((prev) => cancelRoute(prev, cmd.boatId));
       triggerNotification('Rota cancelada: o porão fica a bordo.', 'info');
@@ -3217,6 +3221,22 @@ export default function App() {
         onMouseLeave={() => engineRef.current?.setIsPointerOverUI(false)}
         className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4 flex flex-col sm:flex-row items-end justify-between gap-3 pointer-events-none z-20"
       >
+        {/* Alertas de rotas comerciais próprias: localizam o próprio barco, sem revelar nada do inimigo */}
+        {routeAlerts(gameState.units, playerSlot).length > 0 && (
+          <div role="alert" className="pointer-events-auto absolute bottom-full left-0 mb-2 flex max-w-xs flex-col gap-1">
+            {routeAlerts(gameState.units, playerSlot).map((alert) => (
+              <button
+                key={alert.boatId}
+                type="button"
+                onClick={() => engineRef.current?.setCameraTarget(alert.focus.x, alert.focus.z)}
+                className="rounded-lg border border-amber-600/70 bg-slate-950/90 px-2.5 py-1.5 text-left text-[11px] text-amber-200 hover:bg-slate-900"
+              >
+                <span className="font-bold">Rota {alert.view.label.toLowerCase()}</span>
+                {alert.view.reason ? `: ${alert.view.reason}` : ''} <span className="underline">Localizar</span>
+              </button>
+            ))}
+          </div>
+        )}
         {/* Interactive Mini-Map with Fog of War */}
         <div className="pointer-events-auto">
           <Minimap
@@ -3306,6 +3326,13 @@ export default function App() {
             if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
             else multiRef.current?.sendToHost(cmd);
           }}
+          routePorts={gameState.buildings
+            .filter((b) => b.type === 'dock' && b.owner === playerSlot && b.isComplete && b.health > 0)
+            .flatMap((dock, index) => {
+              const isNav = proceduralMapRef.current?.isNavigableAt;
+              const berth = isNav ? findBerth(dock.position, isNav) : null;
+              return berth ? [{ buildingId: dock.id, name: `Cais ${index + 1} (${Math.round(dock.position.x)}, ${Math.round(dock.position.z)})`, berth }] : [];
+            })}
           holdPreview={(boat, cargo) => {
             const map = proceduralMapRef.current;
             if (!map) return { ok: false, reasons: ['Mapa indisponível.'], origin: HOME };
