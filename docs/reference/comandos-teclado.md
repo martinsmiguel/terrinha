@@ -44,6 +44,7 @@
 | `Y` | Mercadão do Império |
 | `F` | Fazenda & Granja |
 | `B` | Cais & Doca Naval (só em margem do oceano navegável) |
+| `U` | Posto Avançado (solo conhecido, a 24 ou mais de outro posto ou da capital) |
 
 ## Treino (com edifício próprio selecionado e concluído)
 

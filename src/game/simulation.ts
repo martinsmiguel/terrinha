@@ -1,3 +1,4 @@
+import { healUnitsInTerritory } from './colonies';
 import { isBoatUnit, worldSizeOf } from './model';
 import { boardArrivedPassengers } from './navalTransport';
 import type { BuildingType, GameState, Unit, UnitType } from './model';
@@ -867,6 +868,9 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       });
     }
   }
+
+  // Cura terrestre dentro do território de postos próprios concluídos (efeito some com o posto).
+  updatedUnits = [...healUnitsInTerritory(updatedUnits, updatedBuildings)];
 
   // Eliminação só existe numa partida com pelo menos dois contendores (mesma regra da vitória).
   const eliminated = activeSlots.length >= 2

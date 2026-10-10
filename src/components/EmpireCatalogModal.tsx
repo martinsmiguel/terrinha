@@ -62,6 +62,7 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
     'market',
     'farm',
     'dock',
+    'outpost',
   ];
 
   return (

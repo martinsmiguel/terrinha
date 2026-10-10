@@ -62,6 +62,7 @@ export const HOTKEYS: readonly HotkeyDefinition[] = [
   villager('y', 'market', 'Construir mercado'),
   villager('f', 'farm', 'Construir fazenda'),
   villager('b', 'dock', 'Construir cais'),
+  villager('u', 'outpost', 'Construir posto avançado'),
   train('town_center', 'v', 'villager', 'Treinar aldeão'),
   train('barracks', 's', 'soldier', 'Treinar soldado'),
   train('barracks', 'g', 'cavalry', 'Treinar cavalaria'),

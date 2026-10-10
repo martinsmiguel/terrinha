@@ -1062,7 +1062,8 @@ export default function App() {
         proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.isNavigableAt : undefined,
-        proceduralMapRef.current?.fertilityAt
+        proceduralMapRef.current?.fertilityAt,
+        cmd.owner
       );
       if (!placement.isValid) return;
     }
@@ -1211,6 +1212,7 @@ export default function App() {
           proceduralMapRef.current?.getHeightAt,
           proceduralMapRef.current?.isNavigableAt,
           proceduralMapRef.current?.fertilityAt,
+          cmd.owner,
         ).isValid,
       ));
     } else if (cmd.type === 'train') {
@@ -1554,7 +1556,8 @@ export default function App() {
         proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.isNavigableAt : undefined,
-        proceduralMapRef.current?.fertilityAt
+        proceduralMapRef.current?.fertilityAt,
+        playerSlot
       );
 
       if (!check.isValid) {
@@ -1798,7 +1801,8 @@ export default function App() {
             proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
             proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
             proceduralMapRef.current ? proceduralMapRef.current.isNavigableAt : undefined,
-        proceduralMapRef.current?.fertilityAt
+        proceduralMapRef.current?.fertilityAt,
+            playerSlot
           );
           if (ghostBuildingMesh.current) {
             const ghostY = proceduralMapRef.current ? proceduralMapRef.current.getHeightAt(snappedX, snappedZ) : pt.y;
@@ -2906,6 +2910,7 @@ export default function App() {
       'market',
       'farm',
       'dock',
+      'outpost',
     ];
 
     return (
@@ -2922,7 +2927,7 @@ export default function App() {
             >
               <span>Matriz Tecnológica & Mercadão</span>
             </button>
-            <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">Q, W, E, R, T, Y, F, B</span>
+            <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">Q, W, E, R, T, Y, F, B, U</span>
           </div>
         </div>
 

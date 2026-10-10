@@ -951,6 +951,30 @@ export function useSceneSynchronization({
           );
           flag.position.set(0.65, 1.3, 0.65);
           group.add(flag);
+        } else if (b.type === 'outpost') {
+          // Posto Avançado: palanque de madeira com bandeira do dono
+          const platform = new THREE.Mesh(
+            new THREE.CylinderGeometry(1.3, 1.5, 0.3, 8),
+            new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.85 })
+          );
+          platform.position.y = 0.15;
+          platform.receiveShadow = true;
+          group.add(platform);
+
+          const mast = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.07, 0.09, 2.4, 6),
+            new THREE.MeshStandardMaterial({ color: 0x451a03 })
+          );
+          mast.position.y = 1.5;
+          mast.castShadow = true;
+          group.add(mast);
+
+          const banner = new THREE.Mesh(
+            new THREE.BoxGeometry(0.7, 0.45, 0.03),
+            new THREE.MeshStandardMaterial({ color: ownerColor })
+          );
+          banner.position.set(0.4, 2.45, 0);
+          group.add(banner);
         }
 
         // Floating 3D Health Bar
