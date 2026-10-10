@@ -113,7 +113,7 @@ export function generateProceduralTerrain(mapSize: number = 60, seed?: number): 
 }
 
 /** Quantas sementes seguidas o gerador tenta antes de aceitar o último mapa, mesmo inviável. */
-export const MAX_SEED_ATTEMPTS = 12;
+export const MAX_SEED_ATTEMPTS = 32;
 /** Passo entre sementes candidatas: primo, para não repetir layouts parecidos. */
 const SEED_STEP = 7919;
 
