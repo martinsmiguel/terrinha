@@ -19,6 +19,7 @@ export const UNIT_ATTRIBUTES: Readonly<Record<UnitType, Readonly<UnitAttributes>
   cavalry: { maxHealth: 180, attackDamage: 32, movePerTick: 0.3, attackRangeUnit: 2.5, attackRangeBuilding: 3.5, attackCooldownTicks: 8, bodyRadius: 0.55, visionRadius: 8, canAttack: true },
   fishing_boat: { maxHealth: 220, attackDamage: 0, movePerTick: 0.16, attackRangeUnit: 0, attackRangeBuilding: 0, attackCooldownTicks: 20, bodyRadius: 0.8, visionRadius: 7, canAttack: false },
   trade_boat: { maxHealth: 220, attackDamage: 0, movePerTick: 0.16, attackRangeUnit: 0, attackRangeBuilding: 0, attackCooldownTicks: 20, bodyRadius: 0.8, visionRadius: 7, canAttack: false },
+  wagon: { maxHealth: 300, attackDamage: 0, movePerTick: 0.16, attackRangeUnit: 0, attackRangeBuilding: 0, attackCooldownTicks: 20, bodyRadius: 0.8, visionRadius: 10, canAttack: false },
   warship: { maxHealth: 300, attackDamage: 20, movePerTick: 0.16, attackRangeUnit: 7, attackRangeBuilding: 5, attackCooldownTicks: 16, bodyRadius: 0.8, visionRadius: 8, canAttack: true },
 };
 

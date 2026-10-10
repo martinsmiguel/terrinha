@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Building } from './model';
+import type { Building, Unit } from './model';
+import { lifePhase } from './foundation';
 
 /** Estado da partida segundo a condição de vitória. */
 export type MatchStatus =
@@ -29,12 +30,22 @@ export const hasTownCenter = (buildings: Building[], owner: string): boolean =>
   townCenterOwners(buildings).includes(owner);
 
 /**
+ * Donos ainda na partida. Sem `units`, vale só o Centro da Vila de pé; com `units`, a fase de
+ * vida decide: carroça (chegando), capital em obras (fundando) e capital concluída (ativo) contam;
+ * ficar sem Centro antes de fundar a capital não elimina enquanto a carroça sobreviver.
+ */
+const survivors = (buildings: Building[], contenders: string[], units?: Unit[]): string[] =>
+  units
+    ? contenders.filter((owner) => lifePhase(owner, buildings, units) !== 'eliminated')
+    : townCenterOwners(buildings).filter((owner) => contenders.includes(owner));
+
+/**
  * Avalia a partida entre os participantes informados.
- * Sobrar um único dono com TC = vitória dele; não sobrar ninguém = empate
+ * Sobrar um único sobrevivente = vitória dele; não sobrar ninguém = empate
  * (winner null). Enquanto dois ou mais seguem de pé, a partida continua.
  */
-export const evaluateMatch = (buildings: Building[], contenders: string[]): MatchStatus => {
-  const alive = townCenterOwners(buildings).filter((owner) => contenders.includes(owner));
+export const evaluateMatch = (buildings: Building[], contenders: string[], units?: Unit[]): MatchStatus => {
+  const alive = survivors(buildings, contenders, units);
   if (alive.length > 1) {
     return { status: 'running', players: contenders };
   }
@@ -42,18 +53,19 @@ export const evaluateMatch = (buildings: Building[], contenders: string[]): Matc
 };
 
 /**
- * Resultado do jogador local: perdeu ao ficar sem TC, venceu quando é o
+ * Resultado do jogador local: perdeu ao ser eliminado, venceu quando é o
  * único sobrevivente e a partida terminou.
  */
 export const localOutcome = (
   localOwner: string,
   buildings: Building[],
-  contenders: string[]
+  contenders: string[],
+  units?: Unit[]
 ): LocalOutcome => {
-  if (!hasTownCenter(buildings, localOwner)) {
+  if (!survivors(buildings, [localOwner], units).includes(localOwner)) {
     return 'defeat';
   }
-  const match = evaluateMatch(buildings, contenders);
+  const match = evaluateMatch(buildings, contenders, units);
   if (match.status === 'running') {
     return 'running';
   }
