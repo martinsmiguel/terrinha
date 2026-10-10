@@ -21,3 +21,7 @@ para quadro completo e para delta sequenciado (#76).
 - Tudo em **loopback na mesma máquina**: não houve quatro dispositivos distintos nem LAN/Wi-Fi real. Isso NÃO prova usabilidade percebida; a medição em LAN fica para o gate do #89.
 - `bytesWritten` do soquete inclui o handshake; a proporção entre configurações vale, o valor absoluto tem pequena margem.
 - A CPU é do processo de teste inteiro (servidor e clientes), não só do host.
+
+## Complemento
+
+Links Wi-Fi simulados (banda limitada e atraso), onde a compressão também reduz a latência: [wifi-simulado.md](wifi-simulado.md).
