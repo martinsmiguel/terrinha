@@ -1,0 +1,52 @@
+{
+  "full": {
+    "off": {
+      "compression": false,
+      "mode": "full",
+      "packets": 240,
+      "applied": 240,
+      "bytesToGuests": 17704205,
+      "bytesPerPacket": 73768,
+      "cpuMsTotal": 557,
+      "p50LatencyMs": 5.23,
+      "p95LatencyMs": 9.31
+    },
+    "on": {
+      "compression": true,
+      "mode": "full",
+      "packets": 240,
+      "applied": 240,
+      "bytesToGuests": 1436901,
+      "bytesPerPacket": 5987,
+      "cpuMsTotal": 984,
+      "p50LatencyMs": 6.22,
+      "p95LatencyMs": 11.02
+    },
+    "savedBytesPct": 91.9
+  },
+  "delta": {
+    "off": {
+      "compression": false,
+      "mode": "delta",
+      "packets": 240,
+      "applied": 240,
+      "bytesToGuests": 1049482,
+      "bytesPerPacket": 4373,
+      "cpuMsTotal": 239,
+      "p50LatencyMs": 1.34,
+      "p95LatencyMs": 3.41
+    },
+    "on": {
+      "compression": true,
+      "mode": "delta",
+      "packets": 240,
+      "applied": 240,
+      "bytesToGuests": 44286,
+      "bytesPerPacket": 185,
+      "cpuMsTotal": 314,
+      "p50LatencyMs": 1.82,
+      "p95LatencyMs": 2.98
+    },
+    "savedBytesPct": 95.8
+  }
+}

@@ -3,9 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { DEFAULT_BOT_PROFILE, type BotProfile } from './game/bots';
 import { creditAll, exploredSectorKeys } from './game/mastery';
 import { filterSnapshotFor } from './game/snapshotFilter';
 import { DeltaReceiver, DeltaSender, rulesRevisionOf } from './game/snapshotDelta';
+import { BatchModal } from './components/BatchModal';
+import { canUndoBatch, previewBatch, recordBatch, undoBatch, type BatchCommand, type BatchPreview, type BatchRecord } from './game/batchOrders';
+import { RulesPanel } from './components/RulesPanel';
+import { applyRules, canEditRules } from './game/rulesAdmin';
 import { TalentPanel } from './components/TalentPanel';
 import { CommandPalette } from './components/CommandPalette';
 import { focusLocality, type PaletteEntry, type PaletteLocality } from './game/commandPalette';
@@ -77,12 +82,13 @@ import {
 import { FACTION_COLORS } from './game/factions';
 import { pickFrontMostCandidate, resolveClickSelection } from './game/entitySelection';
 import { applyEmbarkOrder, boatCapacity } from './game/navalTransport';
-import { stormAlertFor } from './game/storms';
+import { boatMarkers, collectAlerts, healthMemoryOf, type HealthMemory } from './game/alerts';
 import { flowRows, pushSample, sampleFlows, type FlowSample } from './game/flows';
+import { BRIDGE, bridgeFoundation, checkBridge, withBridges } from './game/bridges';
 import { RELIC_REACH, applyRelicAction, checkRelicAction, generateRelics } from './game/mysticism';
 import { isExploredBy } from './game/visionAuthority';
 import { buyTalent, effectiveBuildCost, talentById } from './game/talents';
-import { findBerth, routeAlerts } from './game/tradeRoutes';
+import { findBerth } from './game/tradeRoutes';
 import { assignRoute, cancelRoute, pauseRoute, redirectRoute, resumeRoute } from './game/tradeRoutes';
 import { localityLabel } from './game/colonialTransport';
 import { deliverCargo, loadCargo, loadKit, previewDisembark, previewKit, previewLoad } from './game/colonialTransport';
@@ -129,6 +135,7 @@ export default function App() {
   const activeSlotsRef = useRef<PlayerSlot[]>(['player1', 'player2']);
   activeSlotsRef.current = activeSlots;
   const [matchSize, setMatchSize] = useState<2 | 3 | 4>(2);
+  const [botProfile, setBotProfile] = useState<BotProfile>(DEFAULT_BOT_PROFILE);
   /** Dimensão escolhida no lobby (host e solo); a da sessão ativa fica em `worldSizeRef`. */
   const [worldSizeSetting, setWorldSizeSetting] = useState<number>(MAP_SIZE);
   const worldSizeRef = useRef<number>(MAP_SIZE);
@@ -187,6 +194,9 @@ export default function App() {
   const [isTechPanelOpen, setIsTechPanelOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isTalentsOpen, setIsTalentsOpen] = useState(false);
+  const [pendingBatch, setPendingBatch] = useState<{ title: string; preview: BatchPreview } | null>(null);
+  const [batchRecord, setBatchRecord] = useState<BatchRecord | null>(null);
+  const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [flowSamples, setFlowSamples] = useState<FlowSample[]>([]);
   const [focusedIsland, setFocusedIsland] = useState<number | null>(null);
   const [showWorkZones3D, setShowWorkZones3D] = useState(true);
@@ -244,6 +254,30 @@ export default function App() {
       const key = entry.run.key;
       // Mesma via do teclado: o atalho exibido é o que executa. Fecha a busca antes, para não agir atrás do overlay.
       window.setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })), 0);
+    } else if (entry.run.kind === 'select') {
+      // Efeito explícito: troca a seleção pelos ociosos e mostra o primeiro.
+      const ids = entry.run.ids;
+      if (ids.length > 0) {
+        setSelectedUnitIds(ids);
+        setSelectedEntity({ id: ids[0], kind: 'unit' });
+        const first = gameStateRef.current.units.find((u) => u.id === ids[0]);
+        if (first) engineRef.current?.setCameraTarget(first.position.x, first.position.z);
+      }
+    } else if (entry.run.kind === 'order' && (role === 'host' || role === 'single')) {
+      // Lote com prévia: lista alvos, donos e efeitos com a MESMA autorização das ações individuais; só aplica ao confirmar.
+      const authorize = (command: BatchCommand) => isAuthorizedPlayerCommand(gameStateRef.current, command, playerSlot, hostVisionRef.current);
+      const preview = previewBatch(gameStateRef.current, entry.run.commands, authorize);
+      setPendingBatch({ title: entry.label, preview });
+    } else if (entry.run.kind === 'order') {
+      // Convidado: sem desfazer (o host é quem aplica); cada comando passa pela mesma autorização do host.
+      const before = JSON.stringify(gameStateRef.current.units.map((u) => [u.id, u.state, u.targetEntityId]));
+      entry.run.commands.forEach((command) => handleIncomingCommand(command));
+      window.setTimeout(() => {
+        const after = gameStateRef.current.units;
+        const started = entry.run.kind === 'order' ? entry.run.commands.filter((c) => after.find((u) => u.id === c.unitId)?.targetEntityId === c.targetId).length : 0;
+        if (started === 0 && before) triggerNotification('Nenhuma ordem foi aceita pelo host (alvo desconhecido ou fora da visão).', 'warning');
+        else triggerNotification(`${started} ordem(ns) aceita(s).`, 'success');
+      }, 150);
     } else if (entry.run.kind === 'tech') {
       setIsTechPanelOpen(true);
     } else {
@@ -331,7 +365,12 @@ export default function App() {
     },
   });
 
-  const stormAlert = stormAlertFor(gameState.storm, gameState.elapsed ?? 0, playerSlot, gameState.units, (x, z) => isExploredAt(visionGridRef.current, Math.round(x), Math.round(z)));
+  // Alertas agrupados por objeto (rota, tempestade, combate, sede em risco); a memória de vida detecta dano recebido entre leituras.
+  const healthMemoryRef = useRef<HealthMemory | undefined>(undefined);
+  const hudAlerts = collectAlerts(gameState, playerSlot, healthMemoryRef.current, (x, z) => isExploredAt(visionGridRef.current, Math.round(x), Math.round(z)));
+  useEffect(() => {
+    healthMemoryRef.current = healthMemoryOf(gameState, playerSlot);
+  }, [gameState, playerSlot]);
 
   // Fluxo líquido por minuto: amostra o estado real a cada segundo simulado (janela de 60 s).
   useEffect(() => {
@@ -934,6 +973,7 @@ export default function App() {
       mapSize: worldSizeSetting,
       foundationKits,
       relics: generateRelics(procMap.islands),
+      botProfile,
       elapsed: 0,
     };
     if (role === 'single') {
@@ -1131,7 +1171,7 @@ export default function App() {
   const handleIncomingCommand = (cmd: unknown) => {
     if (!isValidNetworkCommand(cmd)) return;
     const commandOwner = cmd.playerSlot === undefined ? playerSlot : isPlayerSlot(cmd.playerSlot) ? cmd.playerSlot : null;
-    if (!commandOwner || !isAuthorizedPlayerCommand(gameStateRef.current, cmd, commandOwner, hostVisionRef.current, proceduralMapRef.current ?? undefined)) return;
+    if (!commandOwner || !isAuthorizedPlayerCommand(gameStateRef.current, cmd, commandOwner, hostVisionRef.current, proceduralMapRef.current ? withBridges(proceduralMapRef.current, gameStateRef.current.buildings) : undefined)) return;
 
     if (cmd.type === 'found_capital') {
       setGameState((prev) => {
@@ -1219,6 +1259,17 @@ export default function App() {
       }
       setGameState(next);
       triggerNotification(cmd.type === 'load_kit' ? 'Kit de colonização embarcado.' : 'Carga embarcada.', 'success');
+    } else if (cmd.type === 'build_bridge') {
+      // O host revalida e cria a ponte em obras; o custo é debitado uma vez e os aldeões vão construir.
+      const span = { a: cmd.a, b: cmd.b };
+      const foundation = bridgeFoundation(uuidv4(), commandOwner, span);
+      setGameState((prev) => {
+        const map = proceduralMapRef.current;
+        if (!map || !checkBridge(prev, commandOwner, span, cmd.builderIds, withBridges(map, prev.buildings)).ok) return prev;
+        return applyBuildingFoundation(prev, foundation, BRIDGE.cost, cmd.builderIds, () => true);
+      });
+      soundManager.playBuildingConstructStartedSound('house');
+      triggerNotification('Ponte em obras: os aldeões vão construir (20 s).', 'success');
     } else if (cmd.type === 'harvest_plant' || cmd.type === 'restore_monument') {
       const known = (x: number, z: number) => !hostVisionRef.current || isExploredBy(hostVisionRef.current, commandOwner, x, z);
       const applied = applyRelicAction(gameStateRef.current, commandOwner, cmd.type === 'harvest_plant' ? 'harvest' : 'restore', cmd.unitId, cmd.relicId, known);
@@ -1533,6 +1584,8 @@ export default function App() {
   if (showTutorial) openOverlays.add('tutorial');
   if (isPaletteOpen) openOverlays.add('palette');
   if (isTalentsOpen) openOverlays.add('talents');
+  if (pendingBatch) openOverlays.add('batch');
+  if (isRulesOpen) openOverlays.add('rules');
   overlayOrderRef.current = syncOverlayOrder(overlayOrderRef.current, openOverlays);
   const overlayOrder = overlayOrderRef.current;
 
@@ -1569,10 +1622,15 @@ export default function App() {
           else if (action.overlay === 'controls') setShowControlsModal(false);
           else if (action.overlay === 'palette') setIsPaletteOpen(false);
           else if (action.overlay === 'talents') setIsTalentsOpen(false);
+          else if (action.overlay === 'batch') setPendingBatch(null);
+          else if (action.overlay === 'rules') setIsRulesOpen(false);
           else closeTutorial();
           break;
         case 'cancel':
-          if (buildMode) {
+          if (bridgeModeRef.current) {
+            setBridgeMode(null);
+            triggerNotification('Modo ponte cancelado.', 'info');
+          } else if (buildMode) {
             setBuildMode(null);
           } else {
             setSelectedUnitIds([]);
@@ -1605,6 +1663,10 @@ export default function App() {
         case 'toggle-work-zones':
           soundManager.playClickSound();
           setIsWorkZoneModalOpen((prev) => !prev);
+          break;
+        case 'toggle-rules':
+          e.preventDefault();
+          setIsRulesOpen(true);
           break;
         case 'toggle-talents':
           e.preventDefault();
@@ -1713,6 +1775,37 @@ export default function App() {
       }
     };
   }, [buildMode]);
+
+  // Modo ponte: dois cliques escolhem as margens; o host valida (mesma ilha, vão de água doce até 12, declive, custo, aldeões).
+  const [bridgeMode, setBridgeMode] = useState<{ first: { x: number; z: number } | null } | null>(null);
+  const bridgeModeRef = useRef(bridgeMode);
+  bridgeModeRef.current = bridgeMode;
+  const handleBridgeClick = (clientX: number, clientY: number) => {
+    if (!engineRef.current || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const mouse = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, engineRef.current.camera);
+    const hit = raycaster.intersectObject(engineRef.current.groundMesh)[0];
+    if (!hit) return;
+    const point = { x: Math.round(hit.point.x), z: Math.round(hit.point.z) };
+    const current = bridgeModeRef.current;
+    if (!current?.first) {
+      setBridgeMode({ first: point });
+      triggerNotification('Primeira margem marcada: clique na margem oposta (Esc cancela).', 'info');
+      return;
+    }
+    const builders = selectedUnitIdsRef.current.filter((id) => gameStateRef.current.units.some((u) => u.id === id && u.owner === playerSlot && u.type === 'villager'));
+    const fallback = gameStateRef.current.units.find((u) => u.owner === playerSlot && u.type === 'villager' && u.health > 0);
+    const builderIds = builders.length > 0 ? builders : fallback ? [fallback.id] : [];
+    const map = proceduralMapRef.current;
+    const check = map ? checkBridge(gameStateRef.current, playerSlot, { a: current.first, b: point }, builderIds, withBridges(map, gameStateRef.current.buildings)) : { ok: false, message: 'Mapa indisponível.' };
+    if (!check.ok) { triggerNotification(`Ponte recusada: ${check.message}`, 'warning'); return; }
+    const cmd = { type: 'build_bridge', a: current.first, b: point, builderIds };
+    if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+    else multiRef.current?.sendToHost(cmd);
+    setBridgeMode(null);
+  };
 
   // Execute building placement at specific screen coordinates
   const handleBuildingPlacementAt = (clientX: number, clientY: number) => {
@@ -2022,7 +2115,7 @@ export default function App() {
     };
 
     const onWindowMouseUp = (e: MouseEvent) => {
-      if (!isMouseDownRef.current && !buildMode) return;
+      if (!isMouseDownRef.current && !buildMode && !bridgeModeRef.current) return;
       const wasDragging = isDraggingMarqueeRef.current;
       const startPos = dragStartPosRef.current;
       const dragDist = startPos ? Math.hypot(e.clientX - startPos.x, e.clientY - startPos.y) : 0;
@@ -2031,6 +2124,11 @@ export default function App() {
       dragStartPosRef.current = null;
       isDraggingMarqueeRef.current = false;
       setMarqueeBox(null);
+
+      if (bridgeModeRef.current) {
+        handleBridgeClick(e.clientX, e.clientY);
+        return;
+      }
 
       if (buildMode) {
         handleBuildingPlacementAt(e.clientX, e.clientY);
@@ -2986,6 +3084,8 @@ export default function App() {
         setPlayerSlot={setPlayerSlot}
         lobbyError={lobbyError}
         matchSize={matchSize}
+        botProfile={botProfile}
+        setBotProfile={setBotProfile}
         setMatchSize={setMatchSize}
         worldSize={worldSizeSetting}
         setWorldSize={setWorldSizeSetting}
@@ -3259,6 +3359,55 @@ export default function App() {
         onMouseEnter={() => { if (!isHudPreviewMode) setIsHoverPeeking(true); }}
       />
 
+      {isRulesOpen && (
+        <RulesPanel
+          editable={canEditRules(role)}
+          session={gameState.ruleSettings}
+          appliedAt={gameState.rulesApplied}
+          onClose={() => setIsRulesOpen(false)}
+          onApply={(draft) => {
+            if (!canEditRules(role)) return;
+            const applied = applyRules(gameStateRef.current, draft);
+            setGameState((prev) => applyRules(prev, draft).state);
+            triggerNotification(applied.changes.length === 0 ? 'Nenhuma mudança de regra.' : `Regras aplicadas (revisão ${applied.revision}): ${applied.changes.length} mudança(s). Vida das unidades manteve a fração.`, 'success');
+          }}
+        />
+      )}
+
+      {pendingBatch && (
+        <BatchModal
+          title={pendingBatch.title}
+          preview={pendingBatch.preview}
+          onCancel={() => setPendingBatch(null)}
+          onConfirm={() => {
+            const { preview } = pendingBatch;
+            setBatchRecord(recordBatch(gameStateRef.current, preview, gameStateRef.current.elapsed ?? 0));
+            preview.commands.forEach((command) => handleIncomingCommand(command));
+            setPendingBatch(null);
+            triggerNotification(`Lote aplicado: ${preview.commands.length} ordem(ns). O desfazer vale por 60 s.`, 'success');
+          }}
+        />
+      )}
+
+      {batchRecord && canUndoBatch(batchRecord, gameState.elapsed ?? 0) && (
+        <div className="pointer-events-auto absolute bottom-24 right-3 z-30 flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950/90 px-3 py-1.5 text-[11px] text-slate-200">
+          <span>Lote de {batchRecord.prior.length} ordem(ns)</span>
+          <button
+            type="button"
+            className="rounded bg-amber-700 px-2 py-0.5 font-semibold text-white hover:bg-amber-600"
+            onClick={() => {
+              const result = undoBatch(gameStateRef.current, batchRecord);
+              setGameState((prev) => undoBatch(prev, batchRecord).state);
+              setBatchRecord(null);
+              triggerNotification(`Desfeito: ${result.reverted.length}. ${result.conflicts.length > 0 ? `Conflitos: ${result.conflicts.length} (${result.conflicts[0].reason}).` : ''}`, result.conflicts.length > 0 ? 'warning' : 'success');
+            }}
+          >
+            Desfazer lote
+          </button>
+          <button type="button" aria-label="Dispensar" className="px-1 text-slate-400 hover:text-white" onClick={() => setBatchRecord(null)}>×</button>
+        </div>
+      )}
+
       {isTalentsOpen && (
         <TalentPanel
           state={gameState}
@@ -3275,6 +3424,10 @@ export default function App() {
       {isPaletteOpen && (
         <CommandPalette
           discovered={discoveredLocalities()}
+          orders={{
+            idleVillagers: gameState.units.filter((u) => u.owner === playerSlot && u.type === 'villager' && u.health > 0 && u.state === 'idle'),
+            knownNodes: gameState.resourceNodes.filter((n) => isExploredAt(visionGridRef.current, Math.round(n.position.x), Math.round(n.position.z))),
+          }}
           onClose={() => setIsPaletteOpen(false)}
           onRun={runPaletteEntry}
         />
@@ -3289,6 +3442,8 @@ export default function App() {
           canRedo={hud.canRedo}
           onTogglePanel={() => hud.setPanelOpen((prev) => !prev)}
           onOpenTalents={() => setIsTalentsOpen(true)}
+          bridgeActive={bridgeMode !== null}
+          onToggleBridge={() => { setBridgeMode((current) => (current ? null : { first: null })); setBuildMode(null); triggerNotification('Modo ponte: clique nas duas margens do rio ou lago (Esc cancela).', 'info'); }}
           flows={flowRows(flowSamples)}
           relics={(gameState.relics ?? []).filter((relic) => isExploredAt(visionGridRef.current, Math.round(relic.position.x), Math.round(relic.position.z))).map((relic) => {
             const action = relic.kind === 'plant' ? 'harvest' : 'restore';
@@ -3418,28 +3573,16 @@ export default function App() {
         className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4 flex flex-col sm:flex-row items-end justify-between gap-3 pointer-events-none z-20"
       >
         {/* Alertas de rotas comerciais próprias: localizam o próprio barco, sem revelar nada do inimigo */}
-        {stormAlert && (
-          <div role="alert" className="pointer-events-auto absolute bottom-full left-0 mb-14 max-w-xs">
-            <button
-              type="button"
-              onClick={() => engineRef.current?.setCameraTarget(stormAlert.focus.x, stormAlert.focus.z)}
-              className="rounded-lg border border-rose-600/70 bg-slate-950/90 px-2.5 py-1.5 text-left text-[11px] text-rose-200 hover:bg-slate-900"
-            >
-              <span className="font-bold">{stormAlert.phase === 'warning' ? 'Aviso de tempestade' : 'Tempestade'}</span>: {stormAlert.text} <span className="underline">Localizar</span>
-            </button>
-          </div>
-        )}
-        {routeAlerts(gameState.units, playerSlot).length > 0 && (
+        {hudAlerts.length > 0 && (
           <div role="alert" className="pointer-events-auto absolute bottom-full left-0 mb-2 flex max-w-xs flex-col gap-1">
-            {routeAlerts(gameState.units, playerSlot).map((alert) => (
+            {hudAlerts.map((alert) => (
               <button
-                key={alert.boatId}
+                key={alert.objectId}
                 type="button"
                 onClick={() => engineRef.current?.setCameraTarget(alert.focus.x, alert.focus.z)}
-                className="rounded-lg border border-amber-600/70 bg-slate-950/90 px-2.5 py-1.5 text-left text-[11px] text-amber-200 hover:bg-slate-900"
+                className={`rounded-lg border bg-slate-950/90 px-2.5 py-1.5 text-left text-[11px] hover:bg-slate-900 ${alert.severity === 'danger' ? 'border-rose-600/70 text-rose-200' : 'border-amber-600/70 text-amber-200'}`}
               >
-                <span className="font-bold">Rota {alert.view.label.toLowerCase()}</span>
-                {alert.view.reason ? `: ${alert.view.reason}` : ''} <span className="underline">Localizar</span>
+                {alert.text} <span className="underline">Localizar</span>
               </button>
             ))}
           </div>
@@ -3463,6 +3606,8 @@ export default function App() {
             developerToolsEnabled={developerToolsEnabled}
             localityOf={proceduralMapRef.current?.localityOf}
             focusedIsland={focusedIsland}
+            boats={boatMarkers(gameState.units, playerSlot)}
+            alertSpots={hudAlerts.map((alert) => ({ x: alert.focus.x, z: alert.focus.z, danger: alert.severity === 'danger' }))}
           />
         </div>
 

@@ -7,7 +7,8 @@ export type BuildingType =
   | 'market'
   | 'farm'
   | 'dock'
-  | 'outpost';
+  | 'outpost'
+  | 'bridge';
 
 export interface BuildingDef {
   type: BuildingType;
@@ -142,5 +143,18 @@ export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
     hotkey: 'U',
     footprintWidth: 3.0,
     footprintDepth: 3.0,
+  },
+  bridge: {
+    type: 'bridge',
+    name: 'Ponte',
+    category: 'economia',
+    description: 'Liga duas margens de rio ou lago da mesma ilha; só abre passagem depois de concluída.',
+    benefit: 'Vão de até 12, largura 2,5; abre deck para tropas terrestres',
+    cost: { wood: 150, stone: 50, planks: 20 },
+    buildTimeSeconds: 20,
+    maxHealth: 800,
+    hotkey: '',
+    footprintWidth: 2.5,
+    footprintDepth: 2.5,
   },
 };

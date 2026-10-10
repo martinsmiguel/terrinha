@@ -29,7 +29,8 @@ export type BuildingType =
   | 'market'
   | 'farm'
   | 'dock'
-  | 'outpost';
+  | 'outpost'
+  | 'bridge';
 
 export interface Unit {
   id: string;
@@ -72,6 +73,8 @@ export interface Building {
   attackCooldown?: number;
   trainingQueue: { unitType: UnitType; progress: number }[];
   lastProduceTick?: number;
+  /** Ponte: as duas margens que ela liga (só `bridge`). */
+  span?: { a: { x: number; z: number }; b: { x: number; z: number } };
 }
 
 export interface ResourceNode {
@@ -115,6 +118,11 @@ export interface GameState {
   mapSize?: number;
   /** Kit de fundacao reservado por jogador ate a capital ser fundada (separado do suprimento). */
   foundationKits?: Record<string, { wood: number; stone: number }>;
+  /** Última aplicação de regras da sessão: revisão e instante da partida em que valeu. */
+  rulesApplied?: { revision: number; atElapsed: number };
+  /** Perfil de comportamento da IA da partida (default Defensivo) e o relógio de cada bot. */
+  botProfile?: import('./bots').BotProfile;
+  botClocks?: Record<string, import('./bots').BotClock>;
   /** Tempestade em aviso ou ativa (estado do host, sincronizado por snapshot). */
   storm?: import('./storms').Storm;
   /** Plantas e monumentos das ilhas (estado do host). */

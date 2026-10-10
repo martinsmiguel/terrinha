@@ -1,0 +1,20 @@
+{
+  "size-192": {
+    "size": 192,
+    "count": 120,
+    "ticks": 900,
+    "arrived": 99,
+    "firstTickMs": 32.95,
+    "p95Ms": 1.73,
+    "maxMs": 32.95
+  },
+  "size-384": {
+    "size": 384,
+    "count": 120,
+    "ticks": 900,
+    "arrived": 97,
+    "firstTickMs": 50.71,
+    "p95Ms": 1.59,
+    "maxMs": 50.71
+  }
+}
