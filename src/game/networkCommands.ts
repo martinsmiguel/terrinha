@@ -9,7 +9,7 @@ import { bodyOf, type BodyId } from './bodyModel';
 import { outpostSpacingReason } from './colonies';
 import { previewKit, previewLoad } from './colonialTransport';
 import { redirectRoute, routeProblems, type RouteLeg, type RoutePort } from './tradeRoutes';
-import { HOME, canPayAt, depotsIn, type LocalityResolver } from './depots';
+import { HOME, canPayAt, depotsIn, tradeAt, type LocalityResolver } from './depots';
 import { UNIT_COSTS, tradeResource, type MarketResourceType } from './economy';
 
 export const PLAYER_SLOTS = ['player1', 'player2', 'player3', 'player4'] as const;
@@ -84,7 +84,7 @@ export type NetworkCommand = CommandMetadata & (
   | { type: 'set_route'; boatId: string; a: RoutePort; b: RoutePort; outbound: RouteLeg; back: RouteLeg | null; partial?: boolean }
   | { type: 'cancel_route'; boatId: string }
   | { type: 'redirect_route'; boatId: string; end: 'a' | 'b'; port: RoutePort }
-  | { type: 'trade'; resource: MarketResourceType; action: 'buy' | 'sell'; amount: number }
+  | { type: 'trade'; resource: MarketResourceType; action: 'buy' | 'sell'; amount: number; marketId?: string }
   | { type: 'found_capital'; wagonId: string; position: Position }
 );
 
@@ -231,7 +231,8 @@ export function isValidNetworkCommand(value: unknown, mapSize: number = MAP_LIMI
       return allowedKeys('wagonId', 'position') && isId(value.wagonId) && isPosition(value.position);
     case 'trade':
       return (
-        allowedKeys('resource', 'action', 'amount') &&
+        allowedKeys('resource', 'action', 'amount', 'marketId') &&
+        (value.marketId === undefined || isId(value.marketId)) &&
         (value.resource === 'wood' || value.resource === 'food' || value.resource === 'stone') &&
         (value.action === 'buy' || value.action === 'sell') &&
         typeof value.amount === 'number' &&
@@ -431,6 +432,12 @@ export function isAuthorizedPlayerCommand(
     case 'trade': {
       const resources = state.playerResources[owner];
       if (!resources) return false;
+      if (value.marketId !== undefined) {
+        // Câmbio local: o mercado precisa ser próprio e concluído, e o saldo é o da ilha dele.
+        const market = state.buildings.find((b) => b.id === value.marketId);
+        if (!market || market.type !== 'market' || market.owner !== owner || !market.isComplete || market.health <= 0 || !terrain?.localityOf) return false;
+        return tradeAt(state, owner, terrain.localityOf(owner, market.position), value.resource, value.action, value.amount).ok;
+      }
       return tradeResource(resources, value.resource, value.action, value.amount).ok;
     }
     default:

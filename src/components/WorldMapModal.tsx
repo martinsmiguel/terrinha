@@ -10,6 +10,8 @@ import type { GameState } from '../game/engine';
 import { MAP_SIZE } from '../game/engine';
 import { coastRadiusAt, computeArchipelago, type IslandProfile } from '../game/archipelago';
 import { isIslandDiscovered, isMapCellKnown, isMapCellVisible, type MapDiscoveryQuery, resolveNavigationTarget } from '../game/worldMap';
+import { localityOverview, type LocalityRow } from '../game/depots';
+import { localityLabel } from '../game/colonialTransport';
 import { mapPixelToWorld, worldToCell, worldToMapPixel, WORLD_MAP_PIXEL_SIZE } from '../game/mapProjection';
 
 /** Cores do interior de cada perfil geografico (espelham o minimapa). */
@@ -39,6 +41,8 @@ interface WorldMapModalProps {
   onClose: () => void;
   onToggleRevealAll: () => void;
   onNavigate: (target: { x: number; z: number }) => void;
+  /** Resolve a localidade (metrópole ou ilha colonial) de uma posição para o jogador local. */
+  localityOf?: (owner: string, position: { x: number; z: number }) => string;
   /** Mantem a camera parada enquanto o mapa cobre a tela. */
   onPointerOverChange?: (isOver: boolean) => void;
 }
@@ -52,6 +56,7 @@ export function WorldMapModal({
   onClose,
   onToggleRevealAll,
   onNavigate,
+  localityOf,
   onPointerOverChange,
 }: WorldMapModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -67,6 +72,22 @@ export function WorldMapModal({
     () => layout.islands.filter((island) => isIslandDiscovered(island, query)),
     [layout, query]
   );
+
+  const overview = useMemo(
+    () => (localityOf
+      ? localityOverview(gameState, playerSlot, layout.islands, localityOf, (island) => discoveredIslands.some((known) => known.index === island.index))
+      : null),
+    [gameState, playerSlot, layout, localityOf, discoveredIslands]
+  );
+
+  const goTo = (row: LocalityRow) => {
+    // Mesma regra de descoberta do resto do mapa: só vai a ponto explorado; ordens e seleção não mudam.
+    const result = resolveNavigationTarget({ kind: 'point', x: row.focus.x, z: row.focus.z }, query);
+    if (!result.ok) { setNavNotice(result.message); return; }
+    setNavNotice(null);
+    onNavigate(result.target);
+    onClose();
+  };
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -312,6 +333,45 @@ export function WorldMapModal({
             ))}
 
             <p role="status" aria-live="polite" className="w-full text-amber-300 empty:hidden">{navNotice}</p>
+
+            {overview && (
+              <section aria-labelledby="colonies-title" className="w-full space-y-1.5 border-t border-slate-700/70 pt-2">
+                <h3 id="colonies-title" className="font-semibold text-slate-100">Metrópole e colônias</h3>
+                {overview.rows.map((row) => (
+                  <div key={row.locality + row.island.index} className="rounded-lg border border-slate-700/70 bg-slate-900/60 p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-100">
+                        {row.discovered ? row.island.name : 'Região desconhecida'}
+                        <span className="ml-1 text-[9px] uppercase text-slate-400">
+                          {row.kind === 'metropole' ? 'metrópole' : row.kind === 'colonia' ? 'colônia' : 'região'}
+                        </span>
+                      </span>
+                      {row.kind !== 'regiao' && (
+                        <button type="button" onClick={() => goTo(row)} className="rounded-md bg-cyan-700/70 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-cyan-600">
+                          Ir
+                        </button>
+                      )}
+                    </div>
+                    {row.kind !== 'regiao' && row.stock && (
+                      <div className="mt-1 text-[10px] text-slate-300">
+                        <span className="text-slate-400">Saldo aplicável ({localityLabel(row.locality)}): </span>
+                        {Math.floor(row.stock.wood)}M · {Math.floor(row.stock.food)}C · {Math.floor(row.stock.gold)}O · {Math.floor(row.stock.stone)}P · {Math.floor(row.stock.planks)}T
+                      </div>
+                    )}
+                    {row.kind === 'colonia' && (
+                      <div className="text-[10px] text-slate-400">
+                        Postos: {row.completeDepots} concluído(s) de {row.outposts.length} · posse: sua
+                      </div>
+                    )}
+                    {row.reason && <div className="text-[10px] text-amber-300">{row.reason}</div>}
+                  </div>
+                ))}
+                <div className="rounded-lg border border-emerald-700/50 bg-emerald-950/30 p-2 text-[10px] text-emerald-200">
+                  <span className="font-semibold">Total do império</span> (soma única, não é saldo gastável):{' '}
+                  {Math.floor(overview.total.wood)}M · {Math.floor(overview.total.food)}C · {Math.floor(overview.total.gold)}O · {Math.floor(overview.total.stone)}P · {Math.floor(overview.total.planks)}T
+                </div>
+              </section>
+            )}
 
             <span className="w-full pt-1 font-semibold text-slate-100">Legenda</span>
             {Object.entries(PLAYER_COLORS).map(([slot, color]) => (
