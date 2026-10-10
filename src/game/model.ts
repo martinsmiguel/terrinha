@@ -29,7 +29,8 @@ export type BuildingType =
   | 'market'
   | 'farm'
   | 'dock'
-  | 'outpost';
+  | 'outpost'
+  | 'bridge';
 
 export interface Unit {
   id: string;
@@ -72,6 +73,8 @@ export interface Building {
   attackCooldown?: number;
   trainingQueue: { unitType: UnitType; progress: number }[];
   lastProduceTick?: number;
+  /** Ponte: as duas margens que ela liga (só `bridge`). */
+  span?: { a: { x: number; z: number }; b: { x: number; z: number } };
 }
 
 export interface ResourceNode {

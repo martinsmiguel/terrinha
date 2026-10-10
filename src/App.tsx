@@ -79,6 +79,7 @@ import { pickFrontMostCandidate, resolveClickSelection } from './game/entitySele
 import { applyEmbarkOrder, boatCapacity } from './game/navalTransport';
 import { stormAlertFor } from './game/storms';
 import { flowRows, pushSample, sampleFlows, type FlowSample } from './game/flows';
+import { BRIDGE, bridgeFoundation, checkBridge, withBridges } from './game/bridges';
 import { RELIC_REACH, applyRelicAction, checkRelicAction, generateRelics } from './game/mysticism';
 import { isExploredBy } from './game/visionAuthority';
 import { buyTalent, effectiveBuildCost, talentById } from './game/talents';
@@ -1131,7 +1132,7 @@ export default function App() {
   const handleIncomingCommand = (cmd: unknown) => {
     if (!isValidNetworkCommand(cmd)) return;
     const commandOwner = cmd.playerSlot === undefined ? playerSlot : isPlayerSlot(cmd.playerSlot) ? cmd.playerSlot : null;
-    if (!commandOwner || !isAuthorizedPlayerCommand(gameStateRef.current, cmd, commandOwner, hostVisionRef.current, proceduralMapRef.current ?? undefined)) return;
+    if (!commandOwner || !isAuthorizedPlayerCommand(gameStateRef.current, cmd, commandOwner, hostVisionRef.current, proceduralMapRef.current ? withBridges(proceduralMapRef.current, gameStateRef.current.buildings) : undefined)) return;
 
     if (cmd.type === 'found_capital') {
       setGameState((prev) => {
@@ -1219,6 +1220,17 @@ export default function App() {
       }
       setGameState(next);
       triggerNotification(cmd.type === 'load_kit' ? 'Kit de colonização embarcado.' : 'Carga embarcada.', 'success');
+    } else if (cmd.type === 'build_bridge') {
+      // O host revalida e cria a ponte em obras; o custo é debitado uma vez e os aldeões vão construir.
+      const span = { a: cmd.a, b: cmd.b };
+      const foundation = bridgeFoundation(uuidv4(), commandOwner, span);
+      setGameState((prev) => {
+        const map = proceduralMapRef.current;
+        if (!map || !checkBridge(prev, commandOwner, span, cmd.builderIds, withBridges(map, prev.buildings)).ok) return prev;
+        return applyBuildingFoundation(prev, foundation, BRIDGE.cost, cmd.builderIds, () => true);
+      });
+      soundManager.playBuildingConstructStartedSound('house');
+      triggerNotification('Ponte em obras: os aldeões vão construir (20 s).', 'success');
     } else if (cmd.type === 'harvest_plant' || cmd.type === 'restore_monument') {
       const known = (x: number, z: number) => !hostVisionRef.current || isExploredBy(hostVisionRef.current, commandOwner, x, z);
       const applied = applyRelicAction(gameStateRef.current, commandOwner, cmd.type === 'harvest_plant' ? 'harvest' : 'restore', cmd.unitId, cmd.relicId, known);
@@ -1572,7 +1584,10 @@ export default function App() {
           else closeTutorial();
           break;
         case 'cancel':
-          if (buildMode) {
+          if (bridgeModeRef.current) {
+            setBridgeMode(null);
+            triggerNotification('Modo ponte cancelado.', 'info');
+          } else if (buildMode) {
             setBuildMode(null);
           } else {
             setSelectedUnitIds([]);
@@ -1713,6 +1728,37 @@ export default function App() {
       }
     };
   }, [buildMode]);
+
+  // Modo ponte: dois cliques escolhem as margens; o host valida (mesma ilha, vão de água doce até 12, declive, custo, aldeões).
+  const [bridgeMode, setBridgeMode] = useState<{ first: { x: number; z: number } | null } | null>(null);
+  const bridgeModeRef = useRef(bridgeMode);
+  bridgeModeRef.current = bridgeMode;
+  const handleBridgeClick = (clientX: number, clientY: number) => {
+    if (!engineRef.current || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const mouse = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, engineRef.current.camera);
+    const hit = raycaster.intersectObject(engineRef.current.groundMesh)[0];
+    if (!hit) return;
+    const point = { x: Math.round(hit.point.x), z: Math.round(hit.point.z) };
+    const current = bridgeModeRef.current;
+    if (!current?.first) {
+      setBridgeMode({ first: point });
+      triggerNotification('Primeira margem marcada: clique na margem oposta (Esc cancela).', 'info');
+      return;
+    }
+    const builders = selectedUnitIdsRef.current.filter((id) => gameStateRef.current.units.some((u) => u.id === id && u.owner === playerSlot && u.type === 'villager'));
+    const fallback = gameStateRef.current.units.find((u) => u.owner === playerSlot && u.type === 'villager' && u.health > 0);
+    const builderIds = builders.length > 0 ? builders : fallback ? [fallback.id] : [];
+    const map = proceduralMapRef.current;
+    const check = map ? checkBridge(gameStateRef.current, playerSlot, { a: current.first, b: point }, builderIds, withBridges(map, gameStateRef.current.buildings)) : { ok: false, message: 'Mapa indisponível.' };
+    if (!check.ok) { triggerNotification(`Ponte recusada: ${check.message}`, 'warning'); return; }
+    const cmd = { type: 'build_bridge', a: current.first, b: point, builderIds };
+    if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+    else multiRef.current?.sendToHost(cmd);
+    setBridgeMode(null);
+  };
 
   // Execute building placement at specific screen coordinates
   const handleBuildingPlacementAt = (clientX: number, clientY: number) => {
@@ -2022,7 +2068,7 @@ export default function App() {
     };
 
     const onWindowMouseUp = (e: MouseEvent) => {
-      if (!isMouseDownRef.current && !buildMode) return;
+      if (!isMouseDownRef.current && !buildMode && !bridgeModeRef.current) return;
       const wasDragging = isDraggingMarqueeRef.current;
       const startPos = dragStartPosRef.current;
       const dragDist = startPos ? Math.hypot(e.clientX - startPos.x, e.clientY - startPos.y) : 0;
@@ -2031,6 +2077,11 @@ export default function App() {
       dragStartPosRef.current = null;
       isDraggingMarqueeRef.current = false;
       setMarqueeBox(null);
+
+      if (bridgeModeRef.current) {
+        handleBridgeClick(e.clientX, e.clientY);
+        return;
+      }
 
       if (buildMode) {
         handleBuildingPlacementAt(e.clientX, e.clientY);
@@ -3289,6 +3340,8 @@ export default function App() {
           canRedo={hud.canRedo}
           onTogglePanel={() => hud.setPanelOpen((prev) => !prev)}
           onOpenTalents={() => setIsTalentsOpen(true)}
+          bridgeActive={bridgeMode !== null}
+          onToggleBridge={() => { setBridgeMode((current) => (current ? null : { first: null })); setBuildMode(null); triggerNotification('Modo ponte: clique nas duas margens do rio ou lago (Esc cancela).', 'info'); }}
           flows={flowRows(flowSamples)}
           relics={(gameState.relics ?? []).filter((relic) => isExploredAt(visionGridRef.current, Math.round(relic.position.x), Math.round(relic.position.z))).map((relic) => {
             const action = relic.kind === 'plant' ? 'harvest' : 'restore';
