@@ -51,7 +51,8 @@ describe('registro de atalhos', () => {
 
 describe('modificadores e controles nativos', () => {
   it.each(['ctrlKey', 'metaKey', 'altKey'] as const)('%s não dispara comandos de jogo por coincidência de letra', (modifier) => {
-    for (const key of ['c', 'l', 'h', 'm', 'k', 'z', '1', '2', '3', ' ']) {
+    // Ctrl/Cmd+Z é o desfazer do HUD (testado abaixo); com Alt, o Z segue sem ação.
+    for (const key of ['c', 'l', 'h', 'm', 'k', 'i', 'j', '1', '2', '3', ' ', ...(modifier === 'altKey' ? ['z'] : [])]) {
       expect(resolveHotkey(press(key, { [modifier]: true }), idle)).toBeNull();
     }
     expect(resolveHotkey(press('q', { [modifier]: true }), { ...idle, hasVillagerSelected: true })).toBeNull();
@@ -105,5 +106,25 @@ describe('ordem dos overlays', () => {
     order = syncOverlayOrder(order, new Set<OverlayId>(['controls', 'tutorial']));
     expect(order).toEqual(['controls', 'tutorial']);
     expect(syncOverlayOrder(order, new Set())).toEqual([]);
+  });
+});
+
+describe('desfazer e refazer da configuração do HUD', () => {
+  it.each(['ctrlKey', 'metaKey'] as const)('%s+Z desfaz e %s+Shift+Z refaz', (modifier) => {
+    expect(resolveHotkey(press('z', { [modifier]: true }), idle)).toEqual({ kind: 'hud-undo' });
+    expect(resolveHotkey(press('Z', { [modifier]: true, shiftKey: true }), idle)).toEqual({ kind: 'hud-redo' });
+  });
+
+  it('não vale com overlay aberto, em campos de texto, com Alt, e Shift+Z sozinho não refaz', () => {
+    expect(resolveHotkey(press('z', { ctrlKey: true }), { ...idle, overlays: ['controls'] })).toBeNull();
+    expect(resolveHotkey({ key: 'z', ctrlKey: true, target: { tagName: 'INPUT' } }, idle)).toBeNull();
+    expect(resolveHotkey(press('z', { ctrlKey: true, altKey: true }), idle)).toBeNull();
+    // Shift+Z sem Ctrl/Cmd continua sendo o atalho das zonas de trabalho, sem refazer.
+    expect(resolveHotkey(press('Z', { shiftKey: true }), idle)).toEqual({ kind: 'toggle-work-zones' });
+  });
+
+  it('composição (I) e painel (J) são atalhos globais sem colisão', () => {
+    expect(resolveHotkey(press('i'), idle)).toEqual({ kind: 'cycle-hud-composition' });
+    expect(resolveHotkey(press('j'), idle)).toEqual({ kind: 'toggle-hud-panel' });
   });
 });
