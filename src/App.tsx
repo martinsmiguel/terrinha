@@ -65,6 +65,7 @@ import {
 import { FACTION_COLORS } from './game/factions';
 import { pickFrontMostCandidate, resolveClickSelection } from './game/entitySelection';
 import { applyEmbarkOrder, boatCapacity } from './game/navalTransport';
+import { assignRoute, cancelRoute, redirectRoute } from './game/tradeRoutes';
 import { deliverCargo, loadCargo, loadKit, previewDisembark, previewKit, previewLoad } from './game/colonialTransport';
 import { tickGameState } from './game/simulation';
 import { applyBuildingFoundation } from './game/buildingOrders';
@@ -1124,6 +1125,19 @@ export default function App() {
       }
       setGameState(next);
       triggerNotification(cmd.type === 'load_kit' ? 'Kit de colonização embarcado.' : 'Carga embarcada.', 'success');
+    } else if (cmd.type === 'set_route') {
+      const result = assignRoute(gameStateRef.current, cmd.boatId, cmd);
+      if (result.problems.length > 0) { triggerNotification(result.problems[0], 'warning'); return; }
+      setGameState(result.state);
+      triggerNotification('Rota comercial iniciada.', 'success');
+    } else if (cmd.type === 'cancel_route') {
+      setGameState((prev) => cancelRoute(prev, cmd.boatId));
+      triggerNotification('Rota cancelada: o porão fica a bordo.', 'info');
+    } else if (cmd.type === 'redirect_route') {
+      const result = redirectRoute(gameStateRef.current, cmd.boatId, cmd.end, cmd.port);
+      if (result.problems.length > 0) { triggerNotification(result.problems[0], 'warning'); return; }
+      setGameState(result.state);
+      triggerNotification('Rota redirecionada.', 'success');
     } else if (cmd.type === 'disembark') {
       const map = proceduralMapRef.current;
       if (!map) return;
