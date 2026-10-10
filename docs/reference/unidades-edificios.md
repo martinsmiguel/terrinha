@@ -54,6 +54,7 @@
 | Mercadão do Império | Y | 150 madeira + 50 ouro | 16 s | +1 ouro/s; compra/venda (madeira/comida/pedra) |
 | Fazenda & Granja | F | 75 madeira | 9 s | +2 comida/s |
 | Cais & Doca Naval | B | 140 madeira | 15 s | Treina barcos; só em margem do oceano navegável |
+| Posto Avançado | U | 150 madeira + 50 pedra | 20 s | 900 HP; território de raio 18; cura terrestre própria 2 HP/s (sem somar, sem reviver); mínimo 24 de outro posto ou da capital; sem vida extra |
 
 Centro da Vila (Town Center): 2400 HP, fundado pelo jogador a partir da carroça
 (20 s, uso único do kit reservado de 400 madeira e 200 pedra); não consta no

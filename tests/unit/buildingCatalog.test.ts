@@ -4,8 +4,8 @@ import { BUILDING_CATALOG } from '../../src/game/buildingCatalog';
 
 
 describe('BUILDING_CATALOG', () => {
-  it('defines the eight buildable structures', () => {
-    expect(Object.keys(BUILDING_CATALOG)).toHaveLength(8);
+  it('defines the nine buildable structures', () => {
+    expect(Object.keys(BUILDING_CATALOG)).toHaveLength(9);
   });
 
   it('has non-negative resource costs and positive build times', () => {
@@ -52,7 +52,9 @@ it('preserva os atributos mecânicos do catálogo anterior à extração pura #5
       Object.entries(definition).filter(([key]) => !['name', 'description', 'benefit'].includes(key))
     )])
   );
-  expect(mechanics(BUILDING_CATALOG)).toEqual(mechanics(before));
+  // O posto avançado (#67) é posterior à extração: só o conjunto anterior é comparado.
+  const { outpost: _outpost, ...legacy } = BUILDING_CATALOG;
+  expect(mechanics(legacy)).toEqual(mechanics(before));
 });
 
 describe('fronteira do catálogo de edifícios', () => {

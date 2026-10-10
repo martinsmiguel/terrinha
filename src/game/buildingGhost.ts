@@ -8,6 +8,7 @@ import { Building, ResourceNode } from './engine';
 import { BuildingType, BUILDING_CATALOG } from './buildingCatalog';
 import { hasOceanNearDock, hasLandNearDock } from './dockPlacement';
 import { farmPlacementReason } from './islandEconomy';
+import { outpostSpacingReason } from './colonies';
 
 export interface GhostPlacementCheck {
   isValid: boolean;
@@ -178,11 +179,18 @@ export function checkBuildingPlacementValid(
   isCliffAt?: (x: number, z: number) => boolean,
   getHeightAt?: (x: number, z: number) => number,
   isOceanAt?: (x: number, z: number) => boolean,
-  fertilityAt?: (x: number, z: number) => number
+  fertilityAt?: (x: number, z: number) => number,
+  owner?: string
 ): GhostPlacementCheck {
   const def = BUILDING_CATALOG[type] || BUILDING_CATALOG.house;
   const footprintWidth = def.footprintWidth;
   const footprintDepth = def.footprintDepth;
+
+  // Posto avançado: espaçamento de postos e capital próprios (mesma regra do host).
+  if (type === 'outpost' && owner) {
+    const reason = outpostSpacingReason({ x, z }, owner, buildings);
+    if (reason) return { isValid: false, reason, footprintWidth, footprintDepth };
+  }
 
   // Papel econômico: fazendas só em solo fértil (a mesma regra no preview e no host).
   if (type === 'farm' && fertilityAt) {

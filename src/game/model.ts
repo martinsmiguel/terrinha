@@ -27,7 +27,8 @@ export type BuildingType =
   | 'mine'
   | 'market'
   | 'farm'
-  | 'dock';
+  | 'dock'
+  | 'outpost';
 
 export interface Unit {
   id: string;

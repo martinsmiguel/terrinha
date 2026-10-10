@@ -6,7 +6,8 @@ export type BuildingType =
   | 'mine'
   | 'market'
   | 'farm'
-  | 'dock';
+  | 'dock'
+  | 'outpost';
 
 export interface BuildingDef {
   type: BuildingType;
@@ -128,5 +129,18 @@ export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
     footprintWidth: 3.4,
     footprintDepth: 3.4,
     requiresWater: true,
+  },
+  outpost: {
+    type: 'outpost',
+    name: 'Posto Avançado',
+    category: 'economia',
+    description: 'Entreposto regional em solo conhecido: marca território, habilita a economia local e cura tropas terrestres próprias.',
+    benefit: 'Território de raio 18 e cura de 2 HP/s; não dá vida extra',
+    cost: { wood: 150, stone: 50 },
+    buildTimeSeconds: 20,
+    maxHealth: 900,
+    hotkey: 'U',
+    footprintWidth: 3.0,
+    footprintDepth: 3.0,
   },
 };

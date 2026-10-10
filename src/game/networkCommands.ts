@@ -6,6 +6,7 @@ import { researchBlock } from './tech';
 import { FOUNDATION_KIT, lifePhase } from './foundation';
 import { canTarget, type OwnerVision } from './visionAuthority';
 import { bodyOf, type BodyId } from './bodyModel';
+import { outpostSpacingReason } from './colonies';
 import { UNIT_COSTS, tradeResource, type MarketResourceType } from './economy';
 
 export const PLAYER_SLOTS = ['player1', 'player2', 'player3', 'player4'] as const;
@@ -312,6 +313,11 @@ export function isAuthorizedPlayerCommand(
       const resources = state.playerResources[owner];
       if (!def || !resources || !canAffordResources(resources, def.cost)) return false;
       if (!canTarget(vision, owner, { position: value.position }, 'explored')) return false;
+      if (value.buildingType === 'outpost') {
+        // Posto avançado: solo transitável conhecido e distância mínima de outros postos e da capital própria.
+        if (terrain && !terrain.canStandAt('human', value.position.x, value.position.z)) return false;
+        if (outpostSpacingReason(value.position, owner, state.buildings)) return false;
+      }
       return (value.builderIds || []).every((id) => ownsUnit(state, id, owner)?.type === 'villager');
     }
     case 'train': {
