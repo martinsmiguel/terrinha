@@ -1,6 +1,6 @@
 # Referência: comandos de teclado
 
-> Quadrante **Referência** — dados exatos. Fonte: `src/App.tsx` (hotkeys).
+> Quadrante **Referência** — dados exatos. Fonte: `src/game/hotkeys.ts` (registro único de atalhos).
 
 ## Câmera e navegação
 
@@ -56,30 +56,15 @@
 | Cais Naval | `M` | Barco Mercante |
 | Cais Naval | `G` | Barco de Guerra |
 
-> Atenção: `C` e `M` também são atalhos globais do HUD (HUD completo/compacto
-> e mini-mapa), portanto só funcionam quando o edifício não está selecionado.
+## Regras de resolução
 
-## Tecnologias
-
-| Ação | Comando |
-| --- | --- |
-| Abrir o painel de tecnologias | Botão **Tecnologias** na barra do HUD |
-| Pesquisar tecnologia/avanço de era | Clique no card do `TechPanel` |
-
-Fila única por jogador, máx. 3 itens. Detalhes em
-[tecnologias-eras](tecnologias-eras.md).
-
-## Manutenção de edifícios (no painel do edifício próprio selecionado)
-
-| Ação | Comando |
-| --- | --- |
-| Reparar | Botão **Reparar (80 HP/s · 5 M por 100 HP)** — só aparece com dano; usa o aldeão próprio mais próximo |
-| Demolir | Botão **Demolir (devolve 50%)** — Centro da Vila não pode ser demolida |
-
-## Formações (grupo selecionado)
-
-| Tecla | Formação |
-| --- | --- |
-| `1` | Caixa (marcha em bloco) |
-| `2` | Linha de batalha |
-| `3` | Dispersa (anti-área) |
+- **Colisão do `M`:** com o Cais próprio e concluído selecionado, `M` treina o Barco Mercante e
+  não alterna o minimapa; o minimapa continua no botão. Em qualquer outro caso `M` recolhe/expande
+  o minimapa. É a única tecla repetida entre escopos e está declarada em `RESOLVED_CONFLICTS`.
+- **Modificadores:** `Ctrl`, `Cmd` e `Alt` nunca disparam comandos de jogo (`Ctrl+C`, `Cmd+L` etc.
+  ficam para o navegador e o sistema).
+- **Controles nativos:** em `input`, `textarea`, `select` e `contenteditable` o teclado é do controle.
+  `Espaço` e `Enter` ativam botões e links focados em vez de centralizar a câmera.
+- **Overlays:** com mapa-múndi, zonas de trabalho, catálogo, controles ou tutorial abertos, nenhum
+  atalho de fundo nem a câmera (`WASD`/setas) responde. `Esc` fecha apenas o overlay mais recente e não
+  limpa seleção nem ordens. `Tab`/`Shift+Tab` ficam dentro do diálogo e o foco volta ao gatilho ao fechar.

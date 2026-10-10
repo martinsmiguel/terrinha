@@ -270,7 +270,7 @@ export function WorldMapModal({
               <MapPin className="h-3.5 w-3.5 text-cyan-300" /> Ilhas descobertas
             </span>
             {discoveredIslands.length === 0 && (
-              <p className="w-full text-slate-500">Explore com barcos ou unidades para revelar terras.</p>
+              <p className="w-full text-slate-400">Explore com barcos ou unidades para revelar terras.</p>
             )}
             {discoveredIslands.map((island) => (
               <button
@@ -283,7 +283,7 @@ export function WorldMapModal({
                 className="flex w-full items-center justify-between rounded-lg border border-transparent px-2 py-1.5 text-left hover:border-cyan-600/40 hover:bg-cyan-500/10"
               >
                 <span className="text-slate-200">{island.name}</span>
-                <span className="ml-2 shrink-0 font-mono text-[9px] text-slate-500">
+                <span className="ml-2 shrink-0 font-mono text-[9px] text-slate-400">
                   {Math.round(island.center.x)},{Math.round(island.center.z)}
                 </span>
               </button>
@@ -300,7 +300,7 @@ export function WorldMapModal({
             <span className="flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-yellow-400" />Ouro</span>
             <span className="flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-sky-400" />Cardumes</span>
 
-            <span className="flex w-full items-center gap-2 pt-1 text-slate-500">
+            <span className="flex w-full items-center gap-2 pt-1 text-slate-400">
               <Compass className="h-3.5 w-3.5" />
               {hovered ? `Célula ${hovered.x}, ${hovered.z}` : 'Semente do mundo:'} {hovered ? '' : gameState.mapSeed ?? '—'}
             </span>

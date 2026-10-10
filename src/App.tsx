@@ -13,6 +13,7 @@ import { soundManager } from './game/audio';
 import { update3DHealthBar, align3DHealthBarToCamera } from './game/healthBar';
 import { createBuildingGhost, updateBuildingGhost, checkBuildingPlacementValid } from './game/buildingGhost';
 import { BUILDING_CATALOG, BuildingType } from './game/buildingDefs';
+import { resolveHotkey, syncOverlayOrder, type OverlayId } from './game/hotkeys';
 import { generateProceduralTerrain, findNearestOceanCell, ProceduralMapResult } from './game/proceduralMap';
 import { EmpireCatalogModal } from './components/EmpireCatalogModal';
 import { Tutorial } from './components/Tutorial';
@@ -118,7 +119,7 @@ export default function App() {
 
   // Collapsible bottom cards & minimap state
   const [isBottomCardCollapsed, setIsBottomCardCollapsed] = useState(false);
-  const [isMinimapCollapsed, setIsMinimapCollapsed] = useState(false);
+  const [isMinimapCollapsed, setIsMinimapCollapsed] = useState(() => window.matchMedia('(max-width: 639px)').matches);
   // O mapa-mundi e controlado aqui para o Esc fechar o mapa sem limpar a selecao.
   const [isWorldMapOpen, setIsWorldMapOpen] = useState(false);
   /**
@@ -223,6 +224,7 @@ export default function App() {
   const [selectedEntity, setSelectedEntity] = useState<{ id: string; kind: 'unit' | 'building' | 'resource' } | null>(null);
   const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
   const selectedUnitIdsRef = useRef<string[]>([]);
+  const overlayOrderRef = useRef<OverlayId[]>([]);
   selectedUnitIdsRef.current = selectedUnitIds;
 
   // Marquee drag-selection box state
@@ -1297,166 +1299,138 @@ export default function App() {
     }
   }, [gameState.units]);
 
-  // Keyboard hotkeys: HUD toggle (H), Base focus (Space), Cancel/Clear (Escape), Build hotkeys (Q, W, E)
+  // Atalhos de jogo: tabela e regras em game/hotkeys.ts (modificadores, controles nativos e overlays).
+  const openOverlays = new Set<OverlayId>();
+  if (isWorldMapOpen) openOverlays.add('world-map');
+  if (isWorkZoneModalOpen) openOverlays.add('work-zone');
+  if (isEmpireCatalogOpen) openOverlays.add('empire-catalog');
+  if (showControlsModal) openOverlays.add('controls');
+  if (showTutorial) openOverlays.add('tutorial');
+  overlayOrderRef.current = syncOverlayOrder(overlayOrderRef.current, openOverlays);
+  const overlayOrder = overlayOrderRef.current;
+
+  useEffect(() => {
+    engineRef.current?.setKeyboardBlocked(overlayOrder.length > 0);
+  }, [overlayOrder.length]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Do not trigger game hotkeys if focused on text input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const state = gameStateRef.current;
+      const selectedUnit = selectedEntity?.kind === 'unit' ? state.units.find((u) => u.id === selectedEntity.id) : undefined;
+      const selectedBuildingEntity = selectedEntity?.kind === 'building'
+        ? state.buildings.find((b) => b.id === selectedEntity.id)
+        : undefined;
+      const hasVillagerSelected =
+        state.units.some((u) => selectedUnitIdsRef.current.includes(u.id) && u.owner === playerSlot && u.type === 'villager') ||
+        (selectedUnit?.type === 'villager' && selectedUnit.owner === playerSlot);
+      const action = resolveHotkey(e, {
+        overlays: overlayOrder,
+        hasVillagerSelected,
+        selectedBuilding:
+          selectedBuildingEntity && selectedBuildingEntity.owner === playerSlot && selectedBuildingEntity.isComplete
+            ? selectedBuildingEntity.type
+            : null,
+        buildMode: buildMode !== null,
+      });
+      if (!action) return;
 
-      // Com o mapa-múndi aberto o Esc apenas fecha o mapa: a partida retoma com
-      // a mesma seleção e as mesmas ordens pendentes.
-      if (isWorldMapOpen) {
-        if (e.key === 'Escape') setIsWorldMapOpen(false);
-        return;
-      }
-
-      if (e.key === 'Escape') {
-        if (buildMode) {
-          setBuildMode(null);
-        } else {
-          setSelectedUnitIds([]);
-          setSelectedEntity(null);
+      switch (action.kind) {
+        case 'close-overlay':
+          if (action.overlay === 'world-map') setIsWorldMapOpen(false);
+          else if (action.overlay === 'work-zone') setIsWorkZoneModalOpen(false);
+          else if (action.overlay === 'empire-catalog') setIsEmpireCatalogOpen(false);
+          else if (action.overlay === 'controls') setShowControlsModal(false);
+          else closeTutorial();
+          break;
+        case 'cancel':
+          if (buildMode) {
+            setBuildMode(null);
+          } else {
+            setSelectedUnitIds([]);
+            setSelectedEntity(null);
+          }
+          break;
+        case 'toggle-camera-lock':
+          toggleCameraLock();
+          break;
+        case 'toggle-hud-compact':
+          setHudMode((prev) => {
+            const next = prev === 'compact' ? 'full' : 'compact';
+            soundManager.playClickSound();
+            triggerNotification(next === 'compact' ? 'Modo Tático Compacto ativado.' : 'Modo HUD Completo ativado.', 'info');
+            return next;
+          });
+          break;
+        case 'toggle-minimap':
+          setIsMinimapCollapsed((prev) => {
+            const next = !prev;
+            soundManager.playClickSound();
+            triggerNotification(next ? 'Mini-mapa recolhido.' : 'Mini-mapa expandido.', 'info');
+            return next;
+          });
+          break;
+        case 'toggle-empire-catalog':
+          soundManager.playClickSound();
+          setIsEmpireCatalogOpen((prev) => !prev);
+          break;
+        case 'toggle-work-zones':
+          soundManager.playClickSound();
+          setIsWorkZoneModalOpen((prev) => !prev);
+          break;
+        case 'toggle-hud-hidden':
+          setHudMode((prev) => {
+            const next = prev === 'hidden' ? 'full' : 'hidden';
+            triggerNotification(
+              next === 'full' ? 'Interface HUD exibida.' : 'Interface HUD ocultada (Modo Cinemático). Pressione H para restaurar.',
+              'info'
+            );
+            return next;
+          });
+          soundManager.playClickSound();
+          break;
+        case 'formation': {
+          setSquadFormation(action.formation);
+          soundManager.playClickSound();
+          const label = {
+            box: 'Formação em Caixa selecionada (Marcha em Bloco)',
+            line: 'Formação em Linha de Batalha selecionada (Fuzilaria Frontal)',
+            spread: 'Formação Dispersa selecionada (Anti-Área)',
+          }[action.formation];
+          triggerNotification(label, 'info');
+          break;
         }
-      } else if (e.key === 'l' || e.key === 'L') {
-        toggleCameraLock();
-      } else if (e.key === 'c' || e.key === 'C') {
-        setHudMode((prev) => {
-          const next = prev === 'compact' ? 'full' : 'compact';
-          soundManager.playClickSound();
-          triggerNotification(next === 'compact' ? 'Modo Tático Compacto ativado.' : 'Modo HUD Completo ativado.', 'info');
-          return next;
-        });
-      } else if (e.key === 'm' || e.key === 'M') {
-        setIsMinimapCollapsed((prev) => {
-          const next = !prev;
-          soundManager.playClickSound();
-          triggerNotification(next ? 'Mini-mapa recolhido.' : 'Mini-mapa expandido.', 'info');
-          return next;
-        });
-      } else if (e.key === 'k' || e.key === 'K') {
-        setIsEmpireCatalogOpen((prev) => {
-          const next = !prev;
-          soundManager.playClickSound();
-          return next;
-        });
-      } else if (e.key === 'z' || e.key === 'Z') {
-        setIsWorkZoneModalOpen((prev) => {
-          const next = !prev;
-          soundManager.playClickSound();
-          return next;
-        });
-      } else if (e.key === 'h' || e.key === 'H') {
-        setHudMode((prev) => {
-          const next = prev === 'hidden' ? 'full' : 'hidden';
-          triggerNotification(
-            next === 'full' ? 'Interface HUD exibida.' : 'Interface HUD ocultada (Modo Cinemático). Pressione H para restaurar.',
-            'info'
-          );
-          return next;
-        });
-        soundManager.playClickSound();
-      } else if (e.key === '1') {
-        setSquadFormation('box');
-        soundManager.playClickSound();
-        triggerNotification('Formação em Caixa selecionada (Marcha em Bloco)', 'info');
-      } else if (e.key === '2') {
-        setSquadFormation('line');
-        soundManager.playClickSound();
-        triggerNotification('Formação em Linha de Batalha selecionada (Fuzilaria Frontal)', 'info');
-      } else if (e.key === '3') {
-        setSquadFormation('spread');
-        soundManager.playClickSound();
-        triggerNotification('Formação Dispersa selecionada (Anti-Área)', 'info');
-      } else if (e.key === ' ') {
-        e.preventDefault();
-        // Spacebar: Center camera on selected squad, or player's Town Center
-        if (selectedUnitIdsRef.current.length > 0) {
-          const firstU = gameStateRef.current.units.find((u) => u.id === selectedUnitIdsRef.current[0]);
+        case 'center-camera': {
+          e.preventDefault();
+          const firstU = selectedUnitIdsRef.current.length > 0
+            ? state.units.find((u) => u.id === selectedUnitIdsRef.current[0])
+            : undefined;
           if (firstU && engineRef.current) {
             engineRef.current.setCameraTarget(firstU.position.x, firstU.position.z);
             triggerNotification('Câmera centralizada no pelotão selecionado', 'info');
-          }
-        } else {
-          const myTc = gameStateRef.current.buildings.find(
-            (b) => b.owner === playerSlot && b.type === 'town_center'
-          );
-          if (myTc && engineRef.current) {
-            engineRef.current.setCameraTarget(myTc.position.x, myTc.position.z);
-            triggerNotification('Câmera centralizada no Centro da Vila', 'info');
-          }
-        }
-      } else {
-        // Check if any villager is selected for quick build hotkeys
-        const hasVillagerSelected =
-          gameStateRef.current.units.some(
-            (u) => selectedUnitIdsRef.current.includes(u.id) && u.owner === playerSlot && u.type === 'villager'
-          ) ||
-          (selectedEntity?.kind === 'unit' &&
-            gameStateRef.current.units.find((u) => u.id === selectedEntity.id)?.type === 'villager' &&
-            gameStateRef.current.units.find((u) => u.id === selectedEntity.id)?.owner === playerSlot);
-
-        if (hasVillagerSelected && !buildMode) {
-          const key = e.key.toLowerCase();
-          if (key === 'q') {
-            setBuildMode('house');
-            soundManager.playClickSound();
-            triggerNotification('Modo de Construção: Casa Colonial [Q]. Clique no chão para posicionar.', 'info');
-          } else if (key === 'w') {
-            setBuildMode('barracks');
-            soundManager.playClickSound();
-            triggerNotification('Modo de Construção: Quartel Militar [W]. Clique no chão para posicionar.', 'info');
-          } else if (key === 'e') {
-            setBuildMode('tower');
-            soundManager.playClickSound();
-            triggerNotification('Modo de Construção: Torre de Vigia [E]. Clique no chão para posicionar.', 'info');
-          } else if (key === 'r') {
-            setBuildMode('sawmill');
-            soundManager.playClickSound();
-            triggerNotification('Modo de Construção: Serralheria & Madeireira [R]. Clique no chão para posicionar.', 'info');
-          } else if (key === 't') {
-            setBuildMode('mine');
-            soundManager.playClickSound();
-            triggerNotification('Modo de Construção: Mineradora & Pedreira [T]. Clique no chão para posicionar.', 'info');
-          } else if (key === 'y') {
-            setBuildMode('market');
-            soundManager.playClickSound();
-            triggerNotification('Modo de Construção: Mercadão do Império [Y]. Clique no chão para posicionar.', 'info');
-          } else if (key === 'f') {
-            setBuildMode('farm');
-            soundManager.playClickSound();
-            triggerNotification('Modo de Construção: Fazenda & Granja [F]. Clique no chão para posicionar.', 'info');
-          } else if (key === 'b') {
-            setBuildMode('dock');
-            soundManager.playClickSound();
-            triggerNotification('Modo de Construção: Cais Naval [B]. Posicione na margem do oceano navegável.', 'info');
-          }
-        }
-
-        // Training hotkeys for selected building
-        if (selectedEntity?.kind === 'building') {
-          const b = gameStateRef.current.buildings.find((bd) => bd.id === selectedEntity.id);
-          if (b && b.owner === playerSlot && b.isComplete) {
-            const key = e.key.toLowerCase();
-            if (b.type === 'town_center' && key === 'v') {
-              handleTrainUnit('villager', 1);
-            } else if (b.type === 'barracks' && key === 's') {
-              handleTrainUnit('soldier', 1);
-            } else if (b.type === 'barracks' && key === 'g') {
-              handleTrainUnit('cavalry', 1);
-            } else if (b.type === 'dock' && key === 'p') {
-              handleTrainUnit('fishing_boat', 1);
-            } else if (b.type === 'dock' && key === 'm') {
-              handleTrainUnit('trade_boat', 1);
-            } else if (b.type === 'dock' && key === 'g') {
-              handleTrainUnit('warship', 1);
+          } else if (selectedUnitIdsRef.current.length === 0) {
+            const myTc = state.buildings.find((b) => b.owner === playerSlot && b.type === 'town_center');
+            if (myTc && engineRef.current) {
+              engineRef.current.setCameraTarget(myTc.position.x, myTc.position.z);
+              triggerNotification('Câmera centralizada no Centro da Vila', 'info');
             }
           }
+          break;
         }
+        case 'build': {
+          setBuildMode(action.building);
+          soundManager.playClickSound();
+          const def = BUILDING_CATALOG[action.building];
+          triggerNotification(`Modo de Construção: ${def.name}. Clique no chão para posicionar.`, 'info');
+          break;
+        }
+        case 'train':
+          handleTrainUnit(action.unit, 1);
+          break;
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [buildMode, playerSlot, selectedEntity, isWorldMapOpen]);
+  }, [buildMode, playerSlot, selectedEntity, overlayOrder]);
 
   // Manage 3D Building Ghost in the scene during build mode
   useEffect(() => {
@@ -2872,7 +2846,7 @@ export default function App() {
             >
               <span>Matriz Tecnológica & Mercadão</span>
             </button>
-            <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">Q, W, E, R, T, Y, F, B</span>
+            <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">Q, W, E, R, T, Y, F, B</span>
           </div>
         </div>
 
@@ -2947,7 +2921,7 @@ export default function App() {
                         );
                       })}
                   </div>
-                  <span className="text-slate-500 text-[9px]">{def.buildTimeSeconds}s</span>
+                  <span className="text-slate-400 text-[9px]">{def.buildTimeSeconds}s</span>
                 </div>
 
                 {!affordable && (

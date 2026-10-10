@@ -9,6 +9,7 @@ import { VISION_EXPLORED, VISION_UNEXPLORED, VISION_VISIBLE } from './visibility
 
 export * from './model';
 import { MAP_SIZE } from './model';
+import { isNativeKeyboardEvent } from './hotkeys';
 
 export class GameEngine {
   scene: THREE.Scene;
@@ -19,6 +20,7 @@ export class GameEngine {
 
   // Camera control state
   keysPressed: Record<string, boolean> = {};
+  private keyboardBlocked = false;
   cameraTarget: THREE.Vector3 = new THREE.Vector3(MAP_SIZE / 2, 0, MAP_SIZE / 2);
   zoomLevel: number = 32;
 
@@ -274,7 +276,14 @@ export class GameEngine {
     this.touchStartDist = null;
   };
 
+  /** Com um overlay aberto a câmera não responde ao teclado. */
+  setKeyboardBlocked(blocked: boolean) {
+    this.keyboardBlocked = blocked;
+    if (blocked) this.keysPressed = {};
+  }
+
   handleKeyDown = (e: KeyboardEvent) => {
+    if (this.keyboardBlocked || isNativeKeyboardEvent(e)) return;
     this.keysPressed[e.key.toLowerCase()] = true;
   };
 
