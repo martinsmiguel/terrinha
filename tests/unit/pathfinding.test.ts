@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findPath, nextWaypoint } from '../../src/game/movement/pathfinding';
+import { findPath, nextWaypoint, consumeReachedWaypoints } from '../../src/game/movement/pathfinding';
 
 const MAP = 60;
 const options = { mapSize: MAP, cellSize: 1 };
@@ -153,3 +153,36 @@ describe('nextWaypoint', () => {
     expect(nextWaypoint({ x: 50, z: 50 }, [])).toBeNull();
   });
 });
+
+describe('consumeReachedWaypoints', () => {
+  const path = [{ x: 22.5, z: 17.5 }, { x: 23.5, z: 18.5 }, { x: 24.5, z: 19.5 }];
+
+  it('descarta os pontos já alcançados e nunca volta a eles', () => {
+    expect(consumeReachedWaypoints({ x: 22.6, z: 17.6 }, path)).toEqual(path.slice(1));
+    expect(consumeReachedWaypoints({ x: 23.4, z: 18.4 }, path.slice(1))).toEqual(path.slice(2));
+  });
+
+  it('mantém o mesmo array quando nada foi alcançado e esvazia ao chegar no fim', () => {
+    expect(consumeReachedWaypoints({ x: 20, z: 15 }, path)).toBe(path);
+    expect(consumeReachedWaypoints({ x: 24.5, z: 19.5 }, path.slice(2))).toEqual([]);
+    expect(consumeReachedWaypoints({ x: 0, z: 0 }, [])).toEqual([]);
+  });
+
+  it('regressão: andando 0,16 por passo a partir de 0,375 do primeiro ponto, a unidade avança em vez de oscilar', () => {
+    let position = { x: 22.765, z: 17.765 };
+    let remaining = path;
+    const visited: number[] = [];
+    for (let tick = 0; tick < 200 && remaining.length > 0; tick += 1) {
+      remaining = consumeReachedWaypoints(position, remaining);
+      if (remaining.length === 0) break;
+      const target = remaining[0];
+      const dx = target.x - position.x, dz = target.z - position.z, dist = Math.hypot(dx, dz);
+      const step = Math.min(0.16, dist);
+      position = { x: position.x + (dx / dist) * step, z: position.z + (dz / dist) * step };
+      visited.push(path.indexOf(target));
+    }
+    expect(remaining).toEqual([]);
+    expect(visited).toEqual([...visited].sort((a, b) => a - b));
+  });
+});
+
