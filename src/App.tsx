@@ -97,6 +97,7 @@ import { applyBuildingFoundation } from './game/buildingOrders';
 import { useSceneSynchronization } from './hooks/useSceneSynchronization';
 import { LobbyScreen } from './components/LobbyScreen';
 import { GameDialogs } from './components/GameDialogs';
+import { DEFAULT_WORLD_SIZE } from './game/worldConfig';
 import { useHudAccessibility } from './hooks/useHudAccessibility';
 import { GameHeader } from './components/GameHeader';
 import { SelectionPanel } from './components/SelectionPanel';
@@ -138,7 +139,7 @@ export default function App() {
   const [matchSize, setMatchSize] = useState<2 | 3 | 4>(2);
   const [botProfile, setBotProfile] = useState<BotProfile>(DEFAULT_BOT_PROFILE);
   /** Dimensão escolhida no lobby (host e solo); a da sessão ativa fica em `worldSizeRef`. */
-  const [worldSizeSetting, setWorldSizeSetting] = useState<number>(MAP_SIZE);
+  const [worldSizeSetting, setWorldSizeSetting] = useState<number>(DEFAULT_WORLD_SIZE);
   const worldSizeRef = useRef<number>(MAP_SIZE);
   /** Visão e exploração por dono, mantidas só no host (autoridade); o cliente apenas desenha a própria névoa. */
   const hostVisionRef = useRef<OwnerVision | undefined>(undefined);

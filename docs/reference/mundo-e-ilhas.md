@@ -5,7 +5,7 @@
 
 ## Dimensão
 
-O host (ou o treino solo) escolhe o tamanho do mundo no lobby. O valor viaja em `GameState.mapSize` junto com
+O host (ou o treino solo) escolhe o tamanho do mundo no lobby; o padrão é 280 (`DEFAULT_WORLD_SIZE`), com ilhas de cerca de 21 vezes a área das de 60. O valor viaja em `GameState.mapSize` junto com
 `mapSeed`, e o convidado regenera o mesmo mundo. Limites: de 60 a 1024 células de lado (`parseWorldSize`).
 
 | Mundo | Situação | Latência da ordem em massa (120 unidades) |
@@ -13,6 +13,7 @@ O host (ou o treino solo) escolhe o tamanho do mundo no lobby. O valor viaja em 
 | 60 | suportado (validado) | 7 ms |
 | 120 | experimental | dentro de 50 ms |
 | 192 | suportado (validado) | 28 ms |
+| 280 | padrão do lobby (validado) | 36 ms |
 | 384 | experimental | 57 ms (passa de 50 ms) |
 | 768 | experimental (dimensão-alvo) | 154 ms (passa de 50 ms) |
 

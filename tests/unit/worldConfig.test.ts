@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { WORLD_SIZE_MAX, WORLD_SIZE_MIN, WORLD_SIZE_OPTIONS, parseWorldSize } from '../../src/game/worldConfig';
+import { MAP_SIZE } from '../../src/game/model';
+import { DEFAULT_WORLD_SIZE, WORLD_SIZE_MAX, WORLD_SIZE_MIN, WORLD_SIZE_OPTIONS, parseWorldSize } from '../../src/game/worldConfig';
 
 describe('configuração do mundo', () => {
   it('aceita inteiros dentro dos limites e cai no padrão para qualquer outra coisa', () => {
@@ -12,11 +13,11 @@ describe('configuração do mundo', () => {
     expect(parseWorldSize('x', 192)).toBe(192);
   });
 
-  it('as opções do lobby são válidas, crescentes e só o padrão está validado', () => {
+  it('as opções do lobby são válidas, crescentes e só 60 e o padrão do lobby estão validados', () => {
     const sizes = WORLD_SIZE_OPTIONS.map((option) => option.size);
     expect(sizes).toEqual([...sizes].sort((a, b) => a - b));
     expect(sizes[0]).toBe(WORLD_SIZE_MIN);
     for (const option of WORLD_SIZE_OPTIONS) expect(parseWorldSize(option.size, -1)).toBe(option.size);
-    expect(WORLD_SIZE_OPTIONS.filter((option) => option.status === 'validado').map((option) => option.size)).toEqual([60]);
+    expect(WORLD_SIZE_OPTIONS.filter((option) => option.status === 'validado').map((option) => option.size)).toEqual([MAP_SIZE, DEFAULT_WORLD_SIZE]);
   });
 });

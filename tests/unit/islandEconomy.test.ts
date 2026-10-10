@@ -9,6 +9,7 @@ import {
   treeCapacityFor,
 } from '../../src/game/islandEconomy';
 import { generateProceduralTerrain } from '../../src/game/proceduralMap';
+import { DEFAULT_WORLD_SIZE } from '../../src/game/worldConfig';
 
 const PROFILES: IslandProfile[] = ['floresta', 'arida', 'glacial', 'montanhosa', 'ruintas'];
 // Sementes espalhadas: o gerador congruencial é fraco para sementes muito pequenas.
@@ -119,7 +120,7 @@ describe('veredito econômico: controles negativos', () => {
 });
 
 describe('economia das ilhas em mapas reais (tabela por perfil e semente)', () => {
-  for (const size of [60, 192]) {
+  for (const size of [60, 192, DEFAULT_WORLD_SIZE]) {
     it(`mundo ${size}: toda natal sustenta a jornada com os próprios recursos, e a especialização aparece`, () => {
       const wood: Record<string, number[]> = {};
       const gold: Record<string, number[]> = {};
