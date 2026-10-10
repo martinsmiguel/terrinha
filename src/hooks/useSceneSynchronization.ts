@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import * as THREE from 'three';
 import type { GameEngine, GameState } from '../game/engine';
 import { isBoatUnit } from '../game/engine';
-import type { MultiplayerManager } from '../game/multiplayer';
 import type { ProceduralMapResult } from '../game/proceduralMap';
 import { create3DHealthBar, update3DHealthBar } from '../game/healthBar';
 import type { BuildingType } from '../game/buildingCatalog';
@@ -15,7 +14,6 @@ type MutableValue<T> = { current: T };
 
 interface SceneSynchronizationContext {
   engineRef: MutableValue<GameEngine | null>;
-  multiRef: MutableValue<MultiplayerManager | null>;
   proceduralMapRef: MutableValue<ProceduralMapResult | null>;
   resourceMeshes: MutableValue<Map<string, THREE.Group>>;
   unitMeshes: MutableValue<Map<string, THREE.Group>>;
@@ -29,7 +27,7 @@ interface SceneSynchronizationContext {
 }
 
 export function useSceneSynchronization({
-  engineRef, multiRef, proceduralMapRef, resourceMeshes, unitMeshes, buildingMeshes,
+  engineRef, proceduralMapRef, resourceMeshes, unitMeshes, buildingMeshes,
   gameState, selectedEntity, selectedUnitIds, role, playerSlot, visionGridRef,
 }: SceneSynchronizationContext): void {
   const selectedResource = selectedEntity?.kind === 'resource'
@@ -1053,10 +1051,6 @@ export function useSceneSynchronization({
         isVisibleAt(visionGridRef.current, Math.floor(b.position.x), Math.floor(b.position.z));
     });
 
-    // Host broadcasts simulation state to connected clients in LAN
-    if (role === 'host' && multiRef.current) {
-      multiRef.current.broadcast(gameState);
-    }
   }, [gameState, selectedEntity, selectedResource, selectedUnitIds, role, playerSlot, visionGridRef]);
 
 }

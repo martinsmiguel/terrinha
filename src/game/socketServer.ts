@@ -71,11 +71,14 @@ export function registerGameSocketHandlers(io: Server): void {
       socket.emit('joined-success', { id: socket.id, playerSlot, playerCount });
     });
 
-    socket.on('sync-game-state', (gameState: unknown) => {
+    // O host envia um snapshot por convidado, já filtrado pela visão dele; o servidor só entrega ao destinatário.
+    socket.on('sync-game-state-to', (payload: unknown) => {
       const roomId = socket.data.roomId;
-      if (roomId && socket.data.isHost) {
-        socket.to(roomId).compress(true).emit('game-state-update', gameState);
-      }
+      if (!roomId || !socket.data.isHost || typeof payload !== 'object' || payload === null) return;
+      const { slot, state } = payload as { slot?: unknown; state?: unknown };
+      if (typeof slot !== 'string') return;
+      const target = [...io.sockets.sockets.values()].find((member) => member.data.roomId === roomId && !member.data.isHost && member.data.playerSlot === slot);
+      target?.compress(true).emit('game-state-update', state);
     });
 
     socket.on('send-command', (command: unknown) => {

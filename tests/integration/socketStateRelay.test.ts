@@ -70,7 +70,7 @@ describe('four-player Socket.IO state relay', () => {
     }
   });
 
-  it('delivers every compressed 20 Hz host snapshot to all three clients', async () => {
+  it('delivers every compressed 20 Hz per-guest snapshot to all three clients', async () => {
     const httpServer = createServer();
     server = new SocketServer(httpServer, {
       ...GAME_STATE_COMPRESSION_OPTIONS,
@@ -91,7 +91,8 @@ describe('four-player Socket.IO state relay', () => {
       expect(Buffer.byteLength(JSON.stringify(snapshot))).toBeGreaterThan(GAME_STATE_COMPRESSION_THRESHOLD_BYTES);
       const deliveries = clients.slice(1).map((client) => waitForEvent<typeof snapshot>(client, 'game-state-update'));
       const startedAt = performance.now();
-      clients[0].emit('sync-game-state', snapshot);
+      // O host envia um snapshot por convidado (slots 2 a 4), já filtrado por ele; o servidor só entrega ao destinatário.
+      [2, 3, 4].forEach((slot) => clients[0].emit('sync-game-state-to', { slot: `player${slot}`, state: snapshot }));
       const received = await Promise.all(deliveries);
       latenciesMs.push(performance.now() - startedAt);
       received.forEach((state) => expect(state).toEqual(snapshot));

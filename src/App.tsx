@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { filterSnapshotFor } from './game/snapshotFilter';
 import { CommandPalette } from './components/CommandPalette';
 import { focusLocality, type PaletteEntry, type PaletteLocality } from './game/commandPalette';
 import { computeArchipelago } from './game/archipelago';
@@ -315,6 +316,16 @@ export default function App() {
       player4: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 3, maxPop: 15 },
     },
   });
+
+  // O host envia a cada convidado o snapshot filtrado pela visão dele (nunca o mundo inteiro).
+  useEffect(() => {
+    if (role !== 'host' || !multiRef.current) return;
+    for (const slot of activeSlotsRef.current) {
+      if (slot === playerSlot) continue;
+      multiRef.current.sendStateTo(slot, filterSnapshotFor(gameState, slot, hostVisionRef.current));
+    }
+  }, [gameState, role, playerSlot]);
+
 
   // 3D Object Render references
   const unitMeshes = useRef<Map<string, THREE.Group>>(new Map());
@@ -926,7 +937,6 @@ export default function App() {
 
   useSceneSynchronization({
     engineRef,
-    multiRef,
     proceduralMapRef,
     resourceMeshes,
     unitMeshes,
