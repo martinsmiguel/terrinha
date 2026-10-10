@@ -36,6 +36,8 @@ export interface SimulationContext {
   ruleSettings?: RuleSettings;
   /** Visão e exploração por dono, mantidas no host. Sem ela, nenhum alvo é filtrado por visão. */
   vision?: OwnerVision;
+  /** Fertilidade declarada do solo (perfil da ilha); multiplica o rendimento das fazendas. Sem ela, 1. */
+  fertilityAt?(x: number, z: number): number;
   playerSlot: string;
   mode: 'host' | 'single';
   map?: SimulationMap;
@@ -97,6 +99,39 @@ function findNearbyResource(
     })[0];
 }
 
+/**
+ * Rota A* de `from` até `goal`. O A* trabalha em centros de célula: uma unidade de pé na borda legal de uma célula cujo
+ * centro é intransitável (costa, margem de lago) teria rota vazia. Nesse caso a rota parte da vizinha livre mais próxima.
+ */
+function routeFrom(
+  from: { x: number; z: number },
+  goal: { x: number; z: number },
+  isBlocked: (x: number, z: number) => boolean,
+  mapSize: number
+): { x: number; z: number }[] {
+  const options = { mapSize, maxExpanded: 2400 };
+  const direct = findPath(from, goal, isBlocked, options);
+  if (direct.length > 0) return direct;
+  const cellX = Math.floor(from.x);
+  const cellZ = Math.floor(from.z);
+  let best: { x: number; z: number } | null = null;
+  let bestDistance = Infinity;
+  for (let dx = -1; dx <= 1; dx += 1) {
+    for (let dz = -1; dz <= 1; dz += 1) {
+      const center = { x: cellX + dx + 0.5, z: cellZ + dz + 0.5 };
+      if (isBlocked(center.x, center.z)) continue;
+      const distance = Math.hypot(center.x - from.x, center.z - from.z);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = center;
+      }
+    }
+  }
+  if (!best) return [];
+  const rest = findPath(best, goal, isBlocked, options);
+  return rest.length > 0 ? [best, ...rest] : [];
+}
+
 /** Advances one 20 Hz simulation step without React, Three.js, or external effects. */
 export function tickGameState(state: GameState, context: SimulationContext): SimulationTickResult {
   const effects: SimulationEffect[] = [];
@@ -137,6 +172,36 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
   const updatedTechs: Record<string, TechState> = { ...(state.techs ?? {}) };
   const ruleSettings = context.ruleSettings ?? state.ruleSettings;
 
+  /**
+   * Próximo passo de uma unidade rumo a `goal` nas ações de aproximação (coleta, obra, reparo e perseguição): segue em
+   * linha reta enquanto o passo é legal e, quando o terreno bloqueia, segue a rota do A* (lago e rio entre a unidade e o
+   * alvo não podem impedir a coleta). `null` quando não existe passo legal nem rota.
+   */
+  const routeStep = (unit: Unit, goal: { x: number; z: number }): { x: number; z: number } | null => {
+    const speed = unitAttribute(unit.type, 'movePerTick', ruleSettings);
+    if (!pMap) return stepToward(unit.type, unit.position, goal, speed, undefined);
+
+    const cached = pathCache.get(unit.id);
+    const followingRoute = Boolean(cached && cached.goal.x === goal.x && cached.goal.z === goal.z && cached.path.length > 0);
+    if (!followingRoute) {
+      const direct = stepToward(unit.type, unit.position, goal, speed, pMap);
+      if (direct) return direct;
+    }
+
+    const boat = isBoatUnit(unit.type);
+    const pathFor = (from: { x: number; z: number }) =>
+      routeFrom(from, goal, boat ? (x, z) => !pMap.isOceanAt(x, z) : (x, z) => pMap.isImpassableAt(x, z), mapSize);
+    if (!cached || cached.goal.x !== goal.x || cached.goal.z !== goal.z) {
+      pathCache.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: pathFor(unit.position) });
+    }
+    const before = pathCache.get(unit.id)?.path ?? [];
+    let route = consumeReachedWaypoints(unit.position, before);
+    if (before.length > 0 && route.length === 0) route = pathFor(unit.position);
+    if (route !== before) pathCache.set(unit.id, { goal: { x: goal.x, z: goal.z }, path: route });
+    if (route.length === 0) return null;
+    return stepToward(unit.type, unit.position, route[0], speed, pMap);
+  };
+
   updatedUnits = updatedUnits.map((unit) => {
     if (unit.targetPosition) {
       const goal = unit.targetPosition;
@@ -158,7 +223,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
           const isBlocked = boat
             ? (x: number, z: number) => !pMap.isOceanAt(x, z)
             : (x: number, z: number) => pMap.isImpassableAt(x, z);
-          return findPath(from, goal, isBlocked, { mapSize, maxExpanded: 2400 });
+          return routeFrom(from, goal, isBlocked, mapSize);
         };
 
         const cached = pathCache.get(unit.id);
@@ -207,7 +272,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       const repairDistance = Math.sqrt(repairDx * repairDx + repairDz * repairDz);
 
       if (repairDistance > REPAIR_REACH) {
-        const next = stepToward(unit.type, unit.position, building.position, unitAttribute(unit.type, 'movePerTick', ruleSettings), pMap);
+        const next = routeStep(unit, building.position);
         if (!next) return { ...unit, state: 'idle' as const, targetEntityId: null };
         return { ...unit, position: next, state: 'repairing' as const };
       }
@@ -253,7 +318,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         const dist = Math.sqrt(dx * dx + dz * dz);
 
         if (dist > 1.8) {
-          const next = stepToward(unit.type, unit.position, targetNode.position, unitAttribute(unit.type, 'movePerTick', ruleSettings), pMap);
+          const next = routeStep(unit, targetNode.position);
           if (!next) {
             return {
               ...unit,
@@ -406,7 +471,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         const attackRange = targetBuilding ? attributes.attackRangeBuilding : attributes.attackRangeUnit;
 
         if (dist > attackRange) {
-          const next = stepToward(unit.type, unit.position, target.position, unitAttribute(unit.type, 'movePerTick', ruleSettings), pMap);
+          const next = routeStep(unit, target.position);
           if (!next) return { ...unit, state: 'idle' as const, targetEntityId: null, targetPosition: null };
           return { ...unit, position: next };
         }
@@ -458,7 +523,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
 
         const buildRange = 2.4;
         if (dist > buildRange) {
-          const next = stepToward(unit.type, unit.position, targetB.position, unitAttribute(unit.type, 'movePerTick', ruleSettings), pMap);
+          const next = routeStep(unit, targetB.position);
           if (!next) return { ...unit, state: 'idle' as const, targetEntityId: null, targetPosition: null };
           return { ...unit, position: next };
         }
@@ -623,8 +688,9 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
 
     const completedFarms = updatedBuildings.filter(
       (building) => building.owner === slot && building.type === 'farm' && building.isComplete && building.health > 0
-    ).length;
-    if (completedFarms > 0) res.food += completedFarms * 0.1;
+    );
+    // Cada fazenda rende 0,1 por passo vezes a fertilidade declarada da ilha onde está.
+    for (const farm of completedFarms) res.food += 0.1 * (context.fertilityAt?.(farm.position.x, farm.position.z) ?? 1);
 
     const completedMarkets = updatedBuildings.filter(
       (building) => building.owner === slot && building.type === 'market' && building.isComplete && building.health > 0

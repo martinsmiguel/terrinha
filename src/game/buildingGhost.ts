@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { Building, ResourceNode } from './engine';
 import { BuildingType, BUILDING_CATALOG } from './buildingCatalog';
 import { hasOceanNearDock, hasLandNearDock } from './dockPlacement';
+import { farmPlacementReason } from './islandEconomy';
 
 export interface GhostPlacementCheck {
   isValid: boolean;
@@ -176,11 +177,18 @@ export function checkBuildingPlacementValid(
   isWaterAt?: (x: number, z: number) => boolean,
   isCliffAt?: (x: number, z: number) => boolean,
   getHeightAt?: (x: number, z: number) => number,
-  isOceanAt?: (x: number, z: number) => boolean
+  isOceanAt?: (x: number, z: number) => boolean,
+  fertilityAt?: (x: number, z: number) => number
 ): GhostPlacementCheck {
   const def = BUILDING_CATALOG[type] || BUILDING_CATALOG.house;
   const footprintWidth = def.footprintWidth;
   const footprintDepth = def.footprintDepth;
+
+  // Papel econômico: fazendas só em solo fértil (a mesma regra no preview e no host).
+  if (type === 'farm' && fertilityAt) {
+    const reason = farmPlacementReason(fertilityAt(x, z));
+    if (reason) return { isValid: false, reason, footprintWidth, footprintDepth };
+  }
 
   // Check map borders
   const margin = Math.max(footprintWidth, footprintDepth) / 2 + 1.5;

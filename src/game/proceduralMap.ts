@@ -9,6 +9,7 @@ import { evaluateCapitalSite } from './capitalSite';
 import { checkBuildingPlacementValid } from './buildingGhost';
 import { CAPITAL_MIN_SITES, findCapitalSites } from './foundation';
 import { proveWorld, type WorldProof } from './worldProofs';
+import { economyPlanFor, evaluateNativeEconomy, fertilityOf, journeyNeeds, NODE_CAPACITY, treeCapacityFor, type EconomyVerdict } from './islandEconomy';
 import {
   ArchipelagoLayout,
   ElevData,
@@ -21,7 +22,6 @@ import {
   computeReachableSet,
   createNoise2D,
   isLandBlocked,
-  resourcePlanFor,
 } from './archipelago';
 
 export interface MapCell {
@@ -64,6 +64,14 @@ export interface ProceduralMapResult {
   proof: WorldProof;
   /** Sítios de capital distintos encontrados em cada nascedouro (player1 a player4). */
   capitalSites: number[];
+  /** Veredito econômico de cada ilha natal (player1 a player4): recursos básicos contra a jornada natal. */
+  economy: EconomyVerdict[];
+  /** Fertilidade das fazendas na posição, pelo perfil declarado da ilha (0 no oceano e fora de ilhas). */
+  fertilityAt: (x: number, z: number) => number;
+  /** Motivos pelos quais este mundo foi considerado inviável (vazio quando viável). */
+  viabilityReasons: string[];
+  /** Sementes puladas antes desta, com o motivo de cada rejeição. */
+  rejectedSeeds: { seed: number; reasons: string[] }[];
   /** O mundo passou nas provas e todo nascedouro tem sítios suficientes. */
   viable: boolean;
   /** Sementes tentadas até achar um mundo viável (a semente usada está em `seed`). */
@@ -90,18 +98,22 @@ const PROFILE_PALETTES: Record<
 export function generateProceduralTerrain(mapSize: number = 60, seed?: number): ProceduralMapResult {
   const start = seed ?? Math.floor(Math.random() * 100000);
   let last: ProceduralMapResult | null = null;
+  const rejected: { seed: number; reasons: string[] }[] = [];
   for (let attempt = 0; attempt < MAX_SEED_ATTEMPTS; attempt += 1) {
     const candidate = buildProceduralTerrain(mapSize, start + attempt * SEED_STEP);
     assessViability(candidate);
     candidate.seedAttempts = attempt + 1;
+    candidate.rejectedSeeds = [...rejected];
     if (candidate.viable) return candidate;
+    rejected.push({ seed: candidate.seed, reasons: candidate.viabilityReasons });
     last = candidate;
   }
+  last!.rejectedSeeds = rejected.slice(0, -1);
   return last!;
 }
 
 /** Quantas sementes seguidas o gerador tenta antes de aceitar o último mapa, mesmo inviável. */
-export const MAX_SEED_ATTEMPTS = 12;
+export const MAX_SEED_ATTEMPTS = 32;
 /** Passo entre sementes candidatas: primo, para não repetir layouts parecidos. */
 const SEED_STEP = 7919;
 
@@ -131,7 +143,19 @@ function assessViability(map: ProceduralMapResult): void {
   });
   map.proof = proof;
   map.capitalSites = capitalSites;
-  map.viable = proof.viable && capitalSites.every((count) => count >= CAPITAL_MIN_SITES) && immediateExpansion.every((cells) => cells >= 25);
+  // Cada ilha natal precisa sustentar a jornada com os próprios recursos (madeira, comida, ouro e pedra).
+  map.economy = [0, 1, 2, 3].map((index) =>
+    evaluateNativeEconomy(map.resourceNodes.filter((node) => new RegExp(`^(?:tree|gold-mine|stone|food-bush|fish)-${index}-`).test(node.id)))
+  );
+  const reasons: string[] = [];
+  proof.islands.forEach((island) => {
+    for (const [check, ok] of Object.entries(island.checks)) if (!ok) reasons.push(`natal ${island.island}: prova de ${check}`);
+  });
+  capitalSites.forEach((count, i) => { if (count < CAPITAL_MIN_SITES) reasons.push(`natal ${i}: ${count} sítios de capital`); });
+  immediateExpansion.forEach((cells, i) => { if (cells < 25) reasons.push(`natal ${i}: expansão imediata ${cells} < 25`); });
+  map.economy.forEach((verdict, i) => { if (!verdict.viable) reasons.push(`natal ${i}: economia sem ${verdict.missing.join(', ')}`); });
+  map.viabilityReasons = reasons;
+  map.viable = reasons.length === 0;
 }
 
 function buildProceduralTerrain(mapSize: number, actualSeed: number): ProceduralMapResult {
@@ -332,7 +356,7 @@ function buildProceduralTerrain(mapSize: number, actualSeed: number): Procedural
     return reachable[island.index][gz * mapSize + gx] === 1;
   };
 
-  const findLandSpot = (island: ArchipelagoLayout['islands'][number], clearance: number, tries = 60): { x: number; z: number } | null => {
+  const findLandSpot = (island: ArchipelagoLayout['islands'][number], clearance: number, tries = 240): { x: number; z: number } | null => {
     for (let i = 0; i < tries; i++) {
       const angle = rng.next() * Math.PI * 2;
       const coast = coastRadiusAt(island, angle);
@@ -347,12 +371,14 @@ function buildProceduralTerrain(mapSize: number, actualSeed: number): Procedural
   };
 
   layout.islands.forEach((island) => {
-    const plan = resourcePlanFor(island.profile);
+    const plan = economyPlanFor(island.profile, mapSize, island.kind);
     const label = island.name;
+    // Ilhas natais mantêm 4,6 de folga do nascedouro; as neutras não têm nascedouro e aceitam folga menor.
+    const clearance = island.kind === 'native' ? 4.6 : 1.2;
 
     // A. Bosques agrupados
     for (let c = 0; c < plan.treeClusters; c++) {
-      const centerSpot = findLandSpot(island, 4.6);
+      const centerSpot = findLandSpot(island, clearance);
       if (!centerSpot) continue;
       const clusterId = `forest-cluster-${island.index}-${c}`;
       const clusterName = `Bosque ${c + 1} da ${label}`;
@@ -361,15 +387,15 @@ function buildProceduralTerrain(mapSize: number, actualSeed: number): Procedural
         for (let attempt = 0; attempt < 8 && !placed; attempt++) {
           const px = centerSpot.x + (rng.next() * 4.4 - 2.2);
           const pz = centerSpot.z + (rng.next() * 4.4 - 2.2);
-          if (!isUsableLand(island, px, pz, 4.6)) continue;
+          if (!isUsableLand(island, px, pz, clearance)) continue;
           placed = true;
           resourceNodes.push({
             id: `tree-${island.index}-${c}-${i}`,
             type: 'tree',
             name: clusterName,
             position: { x: px, z: pz },
-            remaining: 160,
-            maxCapacity: 160,
+            remaining: NODE_CAPACITY.tree,
+            maxCapacity: NODE_CAPACITY.tree,
             harvestMode: 'clear_cut',
             isRegrowing: false,
             regrowthProgress: 0,
@@ -382,15 +408,15 @@ function buildProceduralTerrain(mapSize: number, actualSeed: number): Procedural
 
     // B. Minas de ouro
     for (let i = 0; i < plan.gold; i++) {
-      const spot = findLandSpot(island, 4.6);
+      const spot = findLandSpot(island, clearance);
       if (!spot) continue;
       resourceNodes.push({
         id: `gold-mine-${island.index}-${i}`,
         type: 'gold_mine',
         name: `Mina de Ouro ${i + 1} da ${label}`,
         position: spot,
-        remaining: 900,
-        maxCapacity: 900,
+        remaining: NODE_CAPACITY.gold_mine,
+        maxCapacity: NODE_CAPACITY.gold_mine,
         clusterId: `mine-cluster-${island.index}`,
         clusterName: `Minas da ${label}`,
       });
@@ -398,15 +424,15 @@ function buildProceduralTerrain(mapSize: number, actualSeed: number): Procedural
 
     // C. Pedreiras
     for (let i = 0; i < plan.stone; i++) {
-      const spot = findLandSpot(island, 4.6);
+      const spot = findLandSpot(island, clearance);
       if (!spot) continue;
       resourceNodes.push({
         id: `stone-${island.index}-${i}`,
         type: 'stone',
         name: `Pedreira ${i + 1} da ${label}`,
         position: spot,
-        remaining: 700,
-        maxCapacity: 700,
+        remaining: NODE_CAPACITY.stone,
+        maxCapacity: NODE_CAPACITY.stone,
         clusterId: `quarry-cluster-${island.index}`,
         clusterName: `Pedreiras da ${label}`,
       });
@@ -414,15 +440,15 @@ function buildProceduralTerrain(mapSize: number, actualSeed: number): Procedural
 
     // D. Arbustos de comida
     for (let i = 0; i < plan.bush; i++) {
-      const spot = findLandSpot(island, 4.6);
+      const spot = findLandSpot(island, clearance);
       if (!spot) continue;
       resourceNodes.push({
         id: `food-bush-${island.index}-${i}`,
         type: 'food_bush',
         name: `Pomar ${i + 1} da ${label}`,
         position: spot,
-        remaining: 450,
-        maxCapacity: 450,
+        remaining: NODE_CAPACITY.food_bush,
+        maxCapacity: NODE_CAPACITY.food_bush,
         clusterId: `food-cluster-${island.index}`,
         clusterName: `Pomares da ${label}`,
       });
@@ -436,7 +462,7 @@ function buildProceduralTerrain(mapSize: number, actualSeed: number): Procedural
         const fx = island.center.x + Math.cos(angle) * (coast + 1.4);
         const fz = island.center.z + Math.sin(angle) * (coast + 1.4);
         if (fx < 1 || fz < 1 || fx > mapSize - 1 || fz > mapSize - 1) continue;
-        if (Math.hypot(fx - island.spawn.x, fz - island.spawn.z) < 4.6) continue;
+        if (island.kind === 'native' && Math.hypot(fx - island.spawn.x, fz - island.spawn.z) < 4.6) continue;
         const data = calculateElevationData(fx, fz);
         if (!data.isOcean) continue;
         resourceNodes.push({
@@ -444,12 +470,24 @@ function buildProceduralTerrain(mapSize: number, actualSeed: number): Procedural
           type: 'fish_school',
           name: `Cardume Costeiro ${i + 1} da ${label}`,
           position: { x: fx, z: fz },
-          remaining: 600,
-          maxCapacity: 600,
+          remaining: NODE_CAPACITY.fish_school,
+          maxCapacity: NODE_CAPACITY.fish_school,
           clusterId: `fish-cluster-${island.index}`,
           clusterName: `Cardumes da ${label}`,
         });
         break;
+      }
+    }
+
+    // Piso de madeira da ilha natal: poucas árvores ganham capacidade maior para sustentar a jornada sem frete,
+    // em vez de lotar o platô de capital com árvores extras.
+    if (island.kind === 'native') {
+      const isOwn = (node: { id: string }) => new RegExp(`^tree-${island.index}-`).test(node.id);
+      const trees = resourceNodes.filter((node) => node.type === 'tree' && isOwn(node));
+      const capacity = treeCapacityFor(trees.length, journeyNeeds().wood);
+      for (const tree of trees) {
+        tree.remaining = capacity;
+        tree.maxCapacity = capacity;
       }
     }
   });
@@ -521,6 +559,13 @@ function buildProceduralTerrain(mapSize: number, actualSeed: number): Procedural
     isCliffAt,
     isImpassableAt,
     proof: { islands: [], viable: false },
+    economy: [],
+    viabilityReasons: [],
+    rejectedSeeds: [],
+    fertilityAt: (x, z) => {
+      const island = calculateElevationData(x, z).island;
+      return island ? fertilityOf(island.profile, island.kind) : 0;
+    },
     capitalSites: [],
     viable: false,
     seedAttempts: 1,

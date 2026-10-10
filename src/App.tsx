@@ -993,6 +993,7 @@ export default function App() {
           pathCache: unitPathsRef.current,
           activeSlots: activeSlotsRef.current,
           vision: hostVisionRef.current,
+          fertilityAt: procMap?.fertilityAt,
           gatherRadiusLimit: gatherRadiusLimitRef.current,
           sustainableForestryEnabled: isColonySustainableForestryRef.current,
           buildingDefinitions,
@@ -1059,7 +1060,8 @@ export default function App() {
         proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
-        proceduralMapRef.current ? proceduralMapRef.current.isOceanAt : undefined
+        proceduralMapRef.current ? proceduralMapRef.current.isOceanAt : undefined,
+        proceduralMapRef.current?.fertilityAt
       );
       if (!placement.isValid) return;
     }
@@ -1205,6 +1207,7 @@ export default function App() {
           proceduralMapRef.current?.isCliffAt,
           proceduralMapRef.current?.getHeightAt,
           proceduralMapRef.current?.isOceanAt,
+          proceduralMapRef.current?.fertilityAt,
         ).isValid,
       ));
     } else if (cmd.type === 'train') {
@@ -1547,7 +1550,8 @@ export default function App() {
         proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
         proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
-        proceduralMapRef.current ? proceduralMapRef.current.isOceanAt : undefined
+        proceduralMapRef.current ? proceduralMapRef.current.isOceanAt : undefined,
+        proceduralMapRef.current?.fertilityAt
       );
 
       if (!check.isValid) {
@@ -1790,7 +1794,8 @@ export default function App() {
             proceduralMapRef.current ? proceduralMapRef.current.isWaterAt : undefined,
             proceduralMapRef.current ? proceduralMapRef.current.isCliffAt : undefined,
             proceduralMapRef.current ? proceduralMapRef.current.getHeightAt : undefined,
-            proceduralMapRef.current ? proceduralMapRef.current.isOceanAt : undefined
+            proceduralMapRef.current ? proceduralMapRef.current.isOceanAt : undefined,
+        proceduralMapRef.current?.fertilityAt
           );
           if (ghostBuildingMesh.current) {
             const ghostY = proceduralMapRef.current ? proceduralMapRef.current.getHeightAt(snappedX, snappedZ) : pt.y;

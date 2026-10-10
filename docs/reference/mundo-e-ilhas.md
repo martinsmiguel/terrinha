@@ -41,7 +41,7 @@ Terra útil é transitável, sem água, sem rochedo e com declive de até 0,85.
 
 ## Rejeição de sementes inviáveis
 
-`generateProceduralTerrain(tamanho, semente)` tenta até 12 sementes (passo 7919) e só aceita um mundo em que as quatro
+`generateProceduralTerrain(tamanho, semente)` tenta até 32 sementes (passo 7919) e só aceita um mundo em que as quatro
 natais passam nas provas, cada nascedouro tem 3 sítios de capital e a expansão imediata tem 25 células construíveis. O
 resultado traz `seed` (a semente usada), `seedAttempts`, `viable`, `proof` e `capitalSites`. Recriar o mundo com `seed`
 dá o mesmo mapa na primeira tentativa.
