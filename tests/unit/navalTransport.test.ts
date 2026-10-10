@@ -217,8 +217,21 @@ describe('ordens de embarque e desembarque na rede', () => {
 describe('caminho naval ao redor de ilhas', () => {
   it('leva um barco de uma ilha a outra contornando apenas por oceano', () => {
     const map = getMap(24680);
-    const from = findNearestOceanCell(map, map.islands[0].spawn.x, map.islands[0].spawn.z);
-    const to = findNearestOceanCell(map, map.islands[1].spawn.x, map.islands[1].spawn.z);
+    // Mar aberto (a célula e as quatro vizinhas são oceano): o A* trabalha em centros de célula.
+    const openSeaNear = (point: { x: number; z: number }) => {
+      let best: { x: number; z: number } | null = null;
+      let bestDistance = Infinity;
+      for (let x = 1; x < SIZE - 1; x += 1) {
+        for (let z = 1; z < SIZE - 1; z += 1) {
+          const open = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].every(([dx, dz]) => map.isOceanAt(x + dx + 0.5, z + dz + 0.5));
+          const distance = Math.hypot(x + 0.5 - point.x, z + 0.5 - point.z);
+          if (open && distance < bestDistance) { bestDistance = distance; best = { x: x + 0.5, z: z + 0.5 }; }
+        }
+      }
+      return best;
+    };
+    const from = openSeaNear(map.islands[0].spawn);
+    const to = openSeaNear(map.islands[1].spawn);
     expect(from).not.toBeNull();
     expect(to).not.toBeNull();
 
