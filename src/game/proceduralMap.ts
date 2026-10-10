@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { ResourceNode } from './engine';
 import { evaluateCapitalSite } from './capitalSite';
+import { boatCanFloat, canStand, type BodyId, type Surface } from './bodyModel';
 import { checkBuildingPlacementValid } from './buildingGhost';
 import { CAPITAL_MIN_SITES, findCapitalSites } from './foundation';
 import { proveWorld, type WorldProof } from './worldProofs';
@@ -64,6 +65,12 @@ export interface ProceduralMapResult {
   proof: WorldProof;
   /** Sítios de capital distintos encontrados em cada nascedouro (player1 a player4). */
   capitalSites: number[];
+  /** Superfície no ponto: água (oceano, lago ou rio), profundidade e rochedo. Fonte única do modelo de corpos. */
+  surfaceAt: (x: number, z: number) => Surface;
+  /** O corpo terrestre pode estar neste ponto (terra seca ou água rasa até o seu limite de vau)? */
+  canStandAt: (body: BodyId, x: number, z: number) => boolean;
+  /** O barco flutua neste ponto? Só oceano com calado mais margem (1,0 de fundo); rios e lagos são fechados. */
+  isNavigableAt: (x: number, z: number) => boolean;
   /** Veredito econômico de cada ilha natal (player1 a player4): recursos básicos contra a jornada natal. */
   economy: EconomyVerdict[];
   /** Fertilidade das fazendas na posição, pelo perfil declarado da ilha (0 no oceano e fora de ilhas). */
@@ -511,6 +518,15 @@ function buildProceduralTerrain(mapSize: number, actualSeed: number): Procedural
   const isImpassableAt = (wx: number, wz: number): boolean =>
     isLandBlocked(calculateElevationData(wx, wz));
 
+  const surfaceAt = (wx: number, wz: number): Surface => {
+    const data = calculateElevationData(wx, wz);
+    return {
+      water: !data.isWater ? 'none' : data.isOcean ? 'ocean' : data.isLake ? 'lake' : 'river',
+      depth: data.depth,
+      cliff: data.isCliff,
+    };
+  };
+
   const getCellAt = (wx: number, wz: number): MapCell => {
     const data = calculateElevationData(wx, wz);
     let biome: MapCell['biome'] = 'plains';
@@ -559,6 +575,9 @@ function buildProceduralTerrain(mapSize: number, actualSeed: number): Procedural
     isCliffAt,
     isImpassableAt,
     proof: { islands: [], viable: false },
+    surfaceAt,
+    canStandAt: (body, x, z) => canStand(surfaceAt(x, z), body),
+    isNavigableAt: (x, z) => boatCanFloat(surfaceAt(x, z)),
     economy: [],
     viabilityReasons: [],
     rejectedSeeds: [],

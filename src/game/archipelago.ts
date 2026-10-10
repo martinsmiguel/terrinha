@@ -83,6 +83,8 @@ export interface ArchipelagoLayout {
 
 export interface ElevData {
   height: number;
+  /** Profundidade da água (0 em terra): oceano pela distância da costa, lago 1,4, rio fundo 1,2 e vau 0,3. */
+  depth: number;
   isWater: boolean;
   isRiver: boolean;
   isLake: boolean;
@@ -509,8 +511,10 @@ export function computeElevation(layout: ArchipelagoLayout, noise: TerrainNoise,
   // 2. Oceano continuo entre as ilhas (navegavel, nunca entra em lago/rio).
   if (!owner) {
     const depth = bestGap;
+    const height = -0.15 - Math.min(3.0, depth * 0.55);
     return {
-      height: -0.15 - Math.min(3.0, depth * 0.55),
+      height,
+      depth: -height,
       isWater: true,
       isRiver: false,
       isLake: false,
@@ -597,8 +601,11 @@ export function computeElevation(layout: ArchipelagoLayout, noise: TerrainNoise,
   const isCliff =
     !isWater && ((isPeak && height > 1.6) || height > 2.2);
 
+  // Profundidades declaradas: o rio fundo e o lago passam do vau de qualquer corpo; só o vau é rasa.
+  const depth = !isWater ? 0 : isLakeWater ? LAKE_DEPTH : ford ? FORD_DEPTH : RIVER_DEPTH;
   return {
     height,
+    depth,
     isWater,
     isRiver: isRiverWater,
     isLake: isLakeWater,
@@ -609,6 +616,11 @@ export function computeElevation(layout: ArchipelagoLayout, noise: TerrainNoise,
     island,
   };
 }
+
+/** Profundidades de água declaradas (ver `bodyModel.ts`): lago e rio fundo bloqueiam qualquer corpo; o vau é vadeável. */
+export const LAKE_DEPTH = 1.4;
+export const RIVER_DEPTH = 1.2;
+export const FORD_DEPTH = 0.3;
 
 function mapSafe(layout: ArchipelagoLayout, valueAt60: number): number {
   return (valueAt60 * layout.mapSize) / 60;
