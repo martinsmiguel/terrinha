@@ -1,4 +1,4 @@
-import { isBoatUnit, MAP_SIZE } from './model';
+import { isBoatUnit, worldSizeOf } from './model';
 import { boardArrivedPassengers } from './navalTransport';
 import type { BuildingType, GameState, Unit, UnitType } from './model';
 import { applyCost, canAfford, refinePlanks, UNIT_COSTS } from './economy';
@@ -95,6 +95,7 @@ function findNearbyResource(
 /** Advances one 20 Hz simulation step without React, Three.js, or external effects. */
 export function tickGameState(state: GameState, context: SimulationContext): SimulationTickResult {
   const effects: SimulationEffect[] = [];
+  const mapSize = worldSizeOf(state);
 
   if (state.match?.status === 'finished') return { state, effects: [] };
 
@@ -152,7 +153,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
           const isBlocked = boat
             ? (x: number, z: number) => !pMap.isOceanAt(x, z)
             : (x: number, z: number) => pMap.isImpassableAt(x, z);
-          return findPath(from, goal, isBlocked, { mapSize: MAP_SIZE, maxExpanded: 2400 });
+          return findPath(from, goal, isBlocked, { mapSize, maxExpanded: 2400 });
         };
 
         const cached = pathCache.get(unit.id);
@@ -688,7 +689,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
             const pathExists =
               !pMap ||
               findPath(aiUnit.position, goal, (x, z) => pMap.isImpassableAt(x, z), {
-                mapSize: MAP_SIZE,
+                mapSize,
                 maxExpanded: 800,
               }).length > 0;
             if (pathExists) {
@@ -732,7 +733,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       if (units.length < 2) return;
       const resolved = resolveSeparation(
         units.map((unit) => ({ id: unit.id, x: unit.position.x, z: unit.position.z })),
-        { mapSize: MAP_SIZE, isBlocked }
+        { mapSize, isBlocked }
       );
       resolved.forEach((pos, index) => {
         const unit = units[index];

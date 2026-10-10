@@ -21,6 +21,8 @@ export class MultiplayerManager {
   onChatMessage?: (chat: ChatMessage) => void;
   onConnectionStatus?: (connected: boolean) => void;
   onJoinError?: (message: string) => void;
+  /** Lado do mundo da sessão: o host valida as posições dos comandos recebidos contra ele. */
+  getMapSize?: () => number;
 
   constructor(roomId: string, isHost: boolean, playerName: string, playerSlot: PlayerSlot) {
     this.roomId = roomId;
@@ -78,7 +80,7 @@ export class MultiplayerManager {
 
     // Host receives commands from Clients
     this.socket.on('client-command', (command: unknown) => {
-      if (this.isHost && isValidNetworkCommand(command)) {
+      if (this.isHost && isValidNetworkCommand(command, this.getMapSize?.())) {
         this.onCommand?.(command);
       }
     });

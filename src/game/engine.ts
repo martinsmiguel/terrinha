@@ -21,6 +21,9 @@ export class GameEngine {
   // Camera control state
   keysPressed: Record<string, boolean> = {};
   private keyboardBlocked = false;
+  private sunLight: THREE.DirectionalLight;
+  /** Lado do mundo em células; muda com `setWorldSize` quando a sessão usa outra dimensão. */
+  worldSize: number = MAP_SIZE;
   cameraTarget: THREE.Vector3 = new THREE.Vector3(MAP_SIZE / 2, 0, MAP_SIZE / 2);
   zoomLevel: number = 32;
 
@@ -79,6 +82,7 @@ export class GameEngine {
     this.scene.add(hemiLight);
 
     const sunLight = new THREE.DirectionalLight(0xfffaed, 1.25);
+    this.sunLight = sunLight;
     sunLight.position.set(40, 60, 30);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 1024;
@@ -90,17 +94,36 @@ export class GameEngine {
     sunLight.shadow.camera.top = 40;
     sunLight.shadow.camera.bottom = -40;
     this.scene.add(sunLight);
+    this.scene.add(sunLight.target);
 
     // Base Terrain
-    this.fogPixels = new Uint8Array(MAP_SIZE * MAP_SIZE * 4);
-    this.fogTexture = new THREE.DataTexture(this.fogPixels, MAP_SIZE, MAP_SIZE, THREE.RGBAFormat, THREE.UnsignedByteType);
+    this.fogPixels = new Uint8Array(0);
+    this.fogTexture = new THREE.DataTexture(this.fogPixels, 1, 1);
+    this.groundMesh = new THREE.Mesh();
+    this.gridHelper = new THREE.GridHelper(1, 1);
+    this.buildBaseWorld();
+
+    // Setup input listeners for camera pan
+    this.setupEventListeners();
+    this.startLoop();
+  }
+
+  /** Cria (ou recria) fog, chão base e grade para a dimensão atual do mundo. */
+  private buildBaseWorld() {
+    const size = this.worldSize;
+    this.scene.remove(this.groundMesh);
+    this.scene.remove(this.gridHelper);
+    this.fogTexture.dispose();
+
+    this.fogPixels = new Uint8Array(size * size * 4);
+    this.fogTexture = new THREE.DataTexture(this.fogPixels, size, size, THREE.RGBAFormat, THREE.UnsignedByteType);
     this.fogTexture.magFilter = THREE.LinearFilter;
     this.fogTexture.minFilter = THREE.LinearFilter;
     this.fogTexture.wrapS = THREE.ClampToEdgeWrapping;
     this.fogTexture.wrapT = THREE.ClampToEdgeWrapping;
     this.fogTexture.name = 'fog_of_war_grid';
 
-    const groundGeo = new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE, 48, 48);
+    const groundGeo = new THREE.PlaneGeometry(size, size, 48, 48);
     const groundMat = new THREE.MeshStandardMaterial({
       color: 0x4f8f3b,
       roughness: 0.85,
@@ -109,18 +132,33 @@ export class GameEngine {
     this.applyFogToTerrain(groundMat);
     this.groundMesh = new THREE.Mesh(groundGeo, groundMat);
     this.groundMesh.rotation.x = -Math.PI / 2;
-    this.groundMesh.position.set(MAP_SIZE / 2, 0, MAP_SIZE / 2);
+    this.groundMesh.position.set(size / 2, 0, size / 2);
     this.groundMesh.receiveShadow = true;
     this.scene.add(this.groundMesh);
 
-    // Subtle grid overlay for AoE placement feel
-    this.gridHelper = new THREE.GridHelper(MAP_SIZE, MAP_SIZE, 0x3d702e, 0x437c33);
-    this.gridHelper.position.set(MAP_SIZE / 2, 0.02, MAP_SIZE / 2);
+    // Subtle grid overlay for AoE placement feel (linhas a cada célula até 120; acima disso a cada 10)
+    const divisions = size <= 120 ? size : Math.round(size / 10);
+    this.gridHelper = new THREE.GridHelper(size, divisions, 0x3d702e, 0x437c33);
+    this.gridHelper.position.set(size / 2, 0.02, size / 2);
     this.scene.add(this.gridHelper);
+  }
 
-    // Setup input listeners for camera pan
-    this.setupEventListeners();
-    this.startLoop();
+  /**
+   * Ajusta o motor à dimensão do mundo da sessão: recria névoa, chão base e grade, recentra a câmera
+   * e amplia o zoom máximo. Deve ser chamado antes de `setProceduralTerrainMesh`.
+   */
+  setWorldSize(size: number) {
+    if (!Number.isInteger(size) || size < 16) throw new RangeError('Dimensão do mundo inválida');
+    if (size === this.worldSize) return;
+    this.worldSize = size;
+    this.cameraTarget.set(size / 2, 0, size / 2);
+    this.buildBaseWorld();
+    this.updateCameraPosition();
+  }
+
+  /** Zoom máximo: 50 no mundo padrão, crescendo com a dimensão até 200. */
+  private get maxZoom(): number {
+    return Math.min(200, 50 + Math.max(0, this.worldSize - MAP_SIZE) * 0.2);
   }
 
   setProceduralTerrainMesh(newTerrainMesh: THREE.Mesh, newWaterMesh?: THREE.Mesh, decorationsGroup?: THREE.Group) {
@@ -153,7 +191,7 @@ export class GameEngine {
     const fogTexture = this.fogTexture;
     mat.onBeforeCompile = (shader) => {
       shader.uniforms.uFogMap = { value: fogTexture };
-      shader.uniforms.uFogScale = { value: 1 / MAP_SIZE };
+      shader.uniforms.uFogScale = { value: 1 / this.worldSize };
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec2 vFogWorld;\nuniform float uFogScale;')
         .replace(
@@ -176,7 +214,7 @@ export class GameEngine {
    */
   setFogGrid(grid: Uint8Array) {
     const levels = GameEngine.FOG_LEVELS;
-    const cells = MAP_SIZE * MAP_SIZE;
+    const cells = this.worldSize * this.worldSize;
     for (let i = 0; i < cells; i++) {
       const level = levels[grid[i]] ?? 255;
       const offset = i * 4;
@@ -225,8 +263,8 @@ export class GameEngine {
       const dy = (e.clientY - this.lastMiddleMousePos.y) * 0.06 * (this.zoomLevel / 30);
       this.lastMiddleMousePos = { x: e.clientX, y: e.clientY };
 
-      this.cameraTarget.x = Math.max(5, Math.min(MAP_SIZE - 5, this.cameraTarget.x - dx));
-      this.cameraTarget.z = Math.max(5, Math.min(MAP_SIZE - 5, this.cameraTarget.z - dy));
+      this.cameraTarget.x = Math.max(5, Math.min(this.worldSize - 5, this.cameraTarget.x - dx));
+      this.cameraTarget.z = Math.max(5, Math.min(this.worldSize - 5, this.cameraTarget.z - dy));
       this.updateCameraPosition();
     }
   };
@@ -256,8 +294,8 @@ export class GameEngine {
       const dy = (e.touches[0].clientY - this.touchStartPos.y) * 0.05 * (this.zoomLevel / 30);
       this.touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
 
-      this.cameraTarget.x = Math.max(5, Math.min(MAP_SIZE - 5, this.cameraTarget.x - dx));
-      this.cameraTarget.z = Math.max(5, Math.min(MAP_SIZE - 5, this.cameraTarget.z - dy));
+      this.cameraTarget.x = Math.max(5, Math.min(this.worldSize - 5, this.cameraTarget.x - dx));
+      this.cameraTarget.z = Math.max(5, Math.min(this.worldSize - 5, this.cameraTarget.z - dy));
       this.updateCameraPosition();
     } else if (e.touches.length === 2 && this.touchStartDist) {
       e.preventDefault();
@@ -265,7 +303,7 @@ export class GameEngine {
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       const dist = Math.hypot(dx, dy);
       const diff = this.touchStartDist - dist;
-      this.zoomLevel = Math.max(16, Math.min(50, this.zoomLevel + diff * 0.06));
+      this.zoomLevel = Math.max(16, Math.min(this.maxZoom, this.zoomLevel + diff * 0.06));
       this.touchStartDist = dist;
       this.updateCameraPosition();
     }
@@ -293,7 +331,7 @@ export class GameEngine {
 
   handleWheel = (e: WheelEvent) => {
     e.preventDefault();
-    this.zoomLevel = Math.max(16, Math.min(50, this.zoomLevel + e.deltaY * 0.03));
+    this.zoomLevel = Math.max(16, Math.min(this.maxZoom, this.zoomLevel + e.deltaY * 0.03));
     this.updateCameraPosition();
   };
 
@@ -308,11 +346,14 @@ export class GameEngine {
       this.cameraTarget.z + distanceZ
     );
     this.camera.lookAt(this.cameraTarget);
+    // O sol (e a caixa de sombra) acompanha o alvo da câmera: o mundo pode ser bem maior que a caixa.
+    this.sunLight?.target.position.set(this.cameraTarget.x, 0, this.cameraTarget.z);
+    this.sunLight?.position.set(this.cameraTarget.x + 40, 60, this.cameraTarget.z + 30);
   }
 
   setCameraTarget(x: number, z: number) {
-    this.cameraTarget.x = Math.max(5, Math.min(MAP_SIZE - 5, x));
-    this.cameraTarget.z = Math.max(5, Math.min(MAP_SIZE - 5, z));
+    this.cameraTarget.x = Math.max(5, Math.min(this.worldSize - 5, x));
+    this.cameraTarget.z = Math.max(5, Math.min(this.worldSize - 5, z));
     this.updateCameraPosition();
   }
 
@@ -321,9 +362,9 @@ export class GameEngine {
     const height = this.zoomLevel * 0.95;
     return {
       minX: Math.max(0, this.cameraTarget.x - width / 2),
-      maxX: Math.min(MAP_SIZE, this.cameraTarget.x + width / 2),
+      maxX: Math.min(this.worldSize, this.cameraTarget.x + width / 2),
       minZ: Math.max(0, this.cameraTarget.z - height / 2),
-      maxZ: Math.min(MAP_SIZE, this.cameraTarget.z + height / 2),
+      maxZ: Math.min(this.worldSize, this.cameraTarget.z + height / 2),
       centerX: this.cameraTarget.x,
       centerZ: this.cameraTarget.z,
       width,
@@ -355,8 +396,8 @@ export class GameEngine {
     }
 
     if (dx !== 0 || dz !== 0) {
-      this.cameraTarget.x = Math.max(5, Math.min(MAP_SIZE - 5, this.cameraTarget.x + dx));
-      this.cameraTarget.z = Math.max(5, Math.min(MAP_SIZE - 5, this.cameraTarget.z + dz));
+      this.cameraTarget.x = Math.max(5, Math.min(this.worldSize - 5, this.cameraTarget.x + dx));
+      this.cameraTarget.z = Math.max(5, Math.min(this.worldSize - 5, this.cameraTarget.z + dz));
       this.updateCameraPosition();
     }
   }

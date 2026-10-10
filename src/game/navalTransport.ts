@@ -1,5 +1,5 @@
 
-import { BOAT_CAPACITY, isBoatUnit, MAP_SIZE, type Building, type GameState, type Unit, type UnitType } from './model';
+import { BOAT_CAPACITY, isBoatUnit, MAP_SIZE, worldSizeOf, type Building, type GameState, type Unit, type UnitType } from './model';
 import { BUILDING_CATALOG } from './buildingCatalog';
 
 export const EMBARK_RANGE = 6;
@@ -147,7 +147,8 @@ export function findLandingCells(
   buildings: Building[],
   units: Unit[],
   origin: { x: number; z: number },
-  need: number
+  need: number,
+  mapSize: number = MAP_SIZE
 ): { x: number; z: number }[] {
   if (need <= 0) return [];
   const originCellX = Math.floor(origin.x);
@@ -158,7 +159,7 @@ export function findLandingCells(
     for (let dx = -DISEMBARK_RADIUS_CELLS; dx <= DISEMBARK_RADIUS_CELLS; dx++) {
       const x = originCellX + dx + 0.5;
       const z = originCellZ + dz + 0.5;
-      if (x < 1 || z < 1 || x > MAP_SIZE - 1 || z > MAP_SIZE - 1) continue;
+      if (x < 1 || z < 1 || x > mapSize - 1 || z > mapSize - 1) continue;
       if (map.isWaterAt(x, z) || map.isImpassableAt(x, z)) continue;
       if (overlapsBuilding(x, z, buildings)) continue;
       if (units.some((unit) => distance(unit.position, { x, z }) < 0.9)) continue;
@@ -182,7 +183,7 @@ export function disembarkPassengers(state: GameState, boatId: string, map: Naval
     return { state, placed: [], remaining: 0 };
   }
 
-  const cells = findLandingCells(map, state.buildings, state.units, boat.position, boat.passengers.length);
+  const cells = findLandingCells(map, state.buildings, state.units, boat.position, boat.passengers.length, worldSizeOf(state));
   const capacity = Math.min(cells.length, boat.passengers.length);
   const placed = boat.passengers.slice(0, capacity).map((passenger, index) => ({
     ...toPassenger(passenger),
