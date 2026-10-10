@@ -53,7 +53,7 @@ export function LobbyScreen({
             </div>
 
             <div className="flex items-center gap-2 bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 text-xs font-mono">
-              <span className="text-slate-500">IP na Rede Local:</span>
+              <span className="text-slate-400">IP na Rede Local:</span>
               <span className="text-amber-300 font-bold flex-1 truncate">
                 http://{lanIps[0] || 'localhost'}:3000
               </span>
@@ -166,7 +166,7 @@ export function LobbyScreen({
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] text-slate-500 mt-1">
+              <p className="text-[10px] text-slate-400 mt-1">
                 {matchSize === 2
                   ? 'Você contra uma colônia rival.'
                   : `${matchSize - 1} colônias rivais controladas pela IA.`}

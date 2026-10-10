@@ -100,7 +100,7 @@ export const Tutorial = ({ onClose }: TutorialProps) => {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto">
-      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="tutorial-title" className="bg-slate-900/95 border border-cyan-500/40 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 outline-none">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="tutorial-title" className="max-h-[calc(100dvh-2rem)] overflow-y-auto bg-slate-900/95 border border-cyan-500/40 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 outline-none">
         <div className="flex items-center justify-between pb-3 border-b border-slate-800">
           <div className="flex items-center gap-2 text-amber-400 font-bold text-base">
             <GraduationCap className="w-5 h-5 text-cyan-400" />
@@ -121,7 +121,7 @@ export const Tutorial = ({ onClose }: TutorialProps) => {
               <Icon className="w-7 h-7" />
             </div>
             <div>
-              <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">
+              <div className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">
                 Passo {index + 1} de {TUTORIAL_STEPS.length}
               </div>
               <h3 className="text-lg font-bold text-white">{step.title}</h3>
@@ -164,7 +164,7 @@ export const Tutorial = ({ onClose }: TutorialProps) => {
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Anterior
           </button>
-          <span className="flex-1 text-center text-[11px] text-slate-500">
+          <span className="flex-1 text-center text-[11px] text-slate-400">
             Este tutorial reaparece pelo botão <strong className="text-slate-300">Controles</strong>
           </span>
           {isLast ? (

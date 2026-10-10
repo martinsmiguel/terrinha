@@ -706,7 +706,7 @@ export const Minimap: React.FC<MinimapProps> = ({
             <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" /> Ouro
           </span>
         </div>
-        <span className="text-slate-500 font-mono text-[9px]">Clique: Visão</span>
+        <span className="text-slate-400 font-mono text-[9px]">Clique: Visão</span>
       </div>
 
       {worldMapModal}
