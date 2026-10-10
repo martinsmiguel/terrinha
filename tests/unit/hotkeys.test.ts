@@ -128,3 +128,18 @@ describe('desfazer e refazer da configuração do HUD', () => {
     expect(resolveHotkey(press('j'), idle)).toEqual({ kind: 'toggle-hud-panel' });
   });
 });
+
+describe('talentos (Alt+T)', () => {
+  it('Alt+T abre os talentos sem colidir com as teclas de jogo (T do aldeão, P da pesca)', () => {
+    expect(resolveHotkey(press('t', { altKey: true }), idle)).toEqual({ kind: 'toggle-talents' });
+    expect(resolveHotkey(press('t'), { ...idle, hasVillagerSelected: true })).toEqual({ kind: 'build', building: 'mine' });
+    expect(resolveHotkey(press('p'), { ...idle, selectedBuilding: 'dock' })).toEqual({ kind: 'train', unit: 'fishing_boat' });
+  });
+
+  it('não abre em campo de texto, com Ctrl ou com overlay; com overlay só o Esc age', () => {
+    expect(resolveHotkey({ key: 't', altKey: true, target: { tagName: 'INPUT' } }, idle)).toBeNull();
+    expect(resolveHotkey(press('t', { altKey: true, ctrlKey: true }), idle)).toBeNull();
+    expect(resolveHotkey(press('t', { altKey: true }), { ...idle, overlays: ['talents'] })).toBeNull();
+    expect(resolveHotkey(press('Escape'), { ...idle, overlays: ['talents'] })).toEqual({ kind: 'close-overlay', overlay: 'talents' });
+  });
+});

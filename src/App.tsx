@@ -6,6 +6,7 @@
 import { creditAll, exploredSectorKeys } from './game/mastery';
 import { filterSnapshotFor } from './game/snapshotFilter';
 import { DeltaReceiver, DeltaSender, rulesRevisionOf } from './game/snapshotDelta';
+import { TalentPanel } from './components/TalentPanel';
 import { CommandPalette } from './components/CommandPalette';
 import { focusLocality, type PaletteEntry, type PaletteLocality } from './game/commandPalette';
 import { computeArchipelago } from './game/archipelago';
@@ -181,6 +182,7 @@ export default function App() {
   const [isWorkZoneModalOpen, setIsWorkZoneModalOpen] = useState(false);
   const [isTechPanelOpen, setIsTechPanelOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [isTalentsOpen, setIsTalentsOpen] = useState(false);
   const [focusedIsland, setFocusedIsland] = useState<number | null>(null);
   const [showWorkZones3D, setShowWorkZones3D] = useState(true);
   const [isStrictZoneLeash, setIsStrictZoneLeash] = useState(true);
@@ -1506,6 +1508,7 @@ export default function App() {
   if (showControlsModal) openOverlays.add('controls');
   if (showTutorial) openOverlays.add('tutorial');
   if (isPaletteOpen) openOverlays.add('palette');
+  if (isTalentsOpen) openOverlays.add('talents');
   overlayOrderRef.current = syncOverlayOrder(overlayOrderRef.current, openOverlays);
   const overlayOrder = overlayOrderRef.current;
 
@@ -1541,6 +1544,7 @@ export default function App() {
           else if (action.overlay === 'empire-catalog') setIsEmpireCatalogOpen(false);
           else if (action.overlay === 'controls') setShowControlsModal(false);
           else if (action.overlay === 'palette') setIsPaletteOpen(false);
+          else if (action.overlay === 'talents') setIsTalentsOpen(false);
           else closeTutorial();
           break;
         case 'cancel':
@@ -1577,6 +1581,10 @@ export default function App() {
         case 'toggle-work-zones':
           soundManager.playClickSound();
           setIsWorkZoneModalOpen((prev) => !prev);
+          break;
+        case 'toggle-talents':
+          e.preventDefault();
+          setIsTalentsOpen(true);
           break;
         case 'open-palette':
           e.preventDefault();
@@ -3227,6 +3235,19 @@ export default function App() {
         onMouseEnter={() => { if (!isHudPreviewMode) setIsHoverPeeking(true); }}
       />
 
+      {isTalentsOpen && (
+        <TalentPanel
+          state={gameState}
+          owner={playerSlot}
+          onClose={() => setIsTalentsOpen(false)}
+          onBuy={(id) => {
+            const cmd = { type: 'buy_talent', id };
+            if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+            else multiRef.current?.sendToHost(cmd);
+          }}
+        />
+      )}
+
       {isPaletteOpen && (
         <CommandPalette
           discovered={discoveredLocalities()}
@@ -3243,6 +3264,8 @@ export default function App() {
           canUndo={hud.canUndo}
           canRedo={hud.canRedo}
           onTogglePanel={() => hud.setPanelOpen((prev) => !prev)}
+          onOpenTalents={() => setIsTalentsOpen(true)}
+          talentPoints={gameState.mastery?.[playerSlot]?.points ?? 0}
           onSelectComposition={hud.setComposition}
           onToggleIdle={hud.setIdleCollapse}
           onUndo={hud.undo}
