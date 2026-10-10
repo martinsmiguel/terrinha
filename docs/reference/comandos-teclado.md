@@ -56,6 +56,7 @@
 | Cais Naval | `P` | Barco de Pesca |
 | Cais Naval | `M` | Barco Mercante |
 | Cais Naval | `G` | Barco de Guerra |
+| Cais Naval | `X` | Transporte Colonial |
 
 ## Regras de resolução
 

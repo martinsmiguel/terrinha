@@ -319,7 +319,7 @@ export const Minimap: React.FC<MinimapProps> = ({
         ctx.lineTo(pt.x, pt.y + 3);
         ctx.lineTo(pt.x - 3, pt.y);
         ctx.closePath();
-      } else if (u.type === 'fishing_boat' || u.type === 'trade_boat') {
+      } else if (u.type === 'fishing_boat' || u.type === 'trade_boat' || u.type === 'colonial_transport') {
         // Boat triangle facing forward
         ctx.moveTo(pt.x, pt.y - 3.5);
         ctx.lineTo(pt.x + 2.5, pt.y + 2.5);

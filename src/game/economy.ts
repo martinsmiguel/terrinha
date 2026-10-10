@@ -55,6 +55,8 @@ export const UNIT_COSTS: Record<UnitType, ResourceCost> = {
   warship: { wood: 120, gold: 80, planks: 40 },
   /** A carroça não é treinável; só nasce no início da partida. */
   wagon: {},
+  /** Transporte colonial: casco robusto e treino caro, sem renda nem ataque. */
+  colonial_transport: { wood: 180, gold: 40, planks: 50 },
 };
 
 /** 2 madeira refinadas viram 1 tábua por tick de cada Serralheria concluída. */

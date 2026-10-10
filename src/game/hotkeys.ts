@@ -69,6 +69,7 @@ export const HOTKEYS: readonly HotkeyDefinition[] = [
   train('dock', 'p', 'fishing_boat', 'Treinar barco de pesca'),
   train('dock', 'm', 'trade_boat', 'Treinar barco mercante'),
   train('dock', 'g', 'warship', 'Treinar barco de guerra'),
+  train('dock', 'x', 'colonial_transport', 'Treinar transporte colonial'),
 ];
 
 /**

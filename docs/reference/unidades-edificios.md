@@ -33,6 +33,7 @@
 | Cavalaria | 60 comida + 80 ouro | Quartel Militar | Choque rápido (0.3 m/tick, 32 dmg, alcance 2.5) |
 | Barco de Pesca | 75 madeira + 25 tábuas | Cais Naval | Coleta de peixe |
 | Barco Mercante | 100 madeira + 30 ouro + 30 tábuas | Cais Naval | +3 ouro/s |
+| Transporte Colonial | 180 madeira + 40 ouro + 50 tábuas | Cais Naval | 360 HP, sem ataque nem renda; 6 passageiros e porão de 200 (ou o kit de 150 madeira + 50 pedra); desembarca 1 a cada 0,5 s (0,25 s com talento) |
 | Barco de Guerra | 120 madeira + 80 ouro + 40 tábuas | Cais Naval | Combate naval (300 HP, 20 dmg, alcance 7) |
 
 - Fila de treino: máx. **5** por edifício; cancelamento reembolsa 100%.
