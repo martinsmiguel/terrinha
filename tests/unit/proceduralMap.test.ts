@@ -119,11 +119,15 @@ describe('generateProceduralTerrain', () => {
     });
   });
 
-  it('carrega quatro ilhas com perfis distintos e legiveis', () => {
+  it('carrega seis ilhas: quatro natais com perfis distintos e duas neutras com recursos', () => {
     SEEDS.forEach((seed) => {
       const map = getMap(seed);
-      expect(map.islands).toHaveLength(4);
-      const profiles = map.islands.map((i) => i.profile);
+      expect(map.islands).toHaveLength(6);
+      expect(map.islands.filter((i) => i.kind === 'neutral').map((i) => i.index)).toEqual([4, 5]);
+      for (const neutral of [4, 5]) {
+        expect(map.resourceNodes.some((node) => new RegExp(`-${neutral}-`).test(node.id)), `neutra ${neutral} sem recursos`).toBe(true);
+      }
+      const profiles = map.islands.filter((i) => i.kind === 'native').map((i) => i.profile);
       expect(new Set(profiles).size).toBe(4);
       expect(profiles).toContain('floresta');
 
@@ -254,7 +258,8 @@ describe('generateProceduralTerrain', () => {
       const reachable = spawns.map((s) => bfsLandFrom(map, s.x, s.z));
 
       map.resourceNodes
-        .filter((n) => n.type !== 'fish_school')
+        // As ilhas neutras (4 e 5) não têm nascedouro: só se chega a elas de barco.
+        .filter((n) => n.type !== 'fish_school' && !/^(?:tree|gold-mine|stone|food-bush)-[45]-/.test(n.id))
         .forEach((node) => {
           const gx = Math.floor(node.position.x);
           const gz = Math.floor(node.position.z);
