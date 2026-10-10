@@ -15,3 +15,22 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Alto contraste (AAA 7:1): textos secundários e de alerta sobem um degrau (medido em tests/unit/hudAccessibility.test.ts). */
+html[data-hud-contrast="aaa"] :is(.text-slate-400, .text-slate-500, .placeholder\:text-slate-500::placeholder) { color: #cbd5e1; }
+html[data-hud-contrast="aaa"] .text-red-400 { color: #fca5a5; }
+
+/* Alvos de toque de 44 px em celular: a área clicável cresce sem mudar o visual do botão. */
+@media (pointer: coarse) {
+  button:not(.absolute):not(.fixed):not(.sticky):not([hidden]),
+  [role="button"]:not(.absolute):not(.fixed):not(.sticky) { position: relative; }
+  :is(button, [role="button"]):not([hidden])::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}

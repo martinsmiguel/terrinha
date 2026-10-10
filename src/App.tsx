@@ -97,6 +97,7 @@ import { applyBuildingFoundation } from './game/buildingOrders';
 import { useSceneSynchronization } from './hooks/useSceneSynchronization';
 import { LobbyScreen } from './components/LobbyScreen';
 import { GameDialogs } from './components/GameDialogs';
+import { useHudAccessibility } from './hooks/useHudAccessibility';
 import { GameHeader } from './components/GameHeader';
 import { SelectionPanel } from './components/SelectionPanel';
 
@@ -154,6 +155,7 @@ export default function App() {
   // HUD Display modes: 'full' (completo) | 'compact' (compacto tático) | 'hidden' (cinemático)
   // A configuração do HUD (modo, composição, painéis) tem dono único, com histórico de desfazer/refazer só de configuração.
   const hud = useHudConfig({ startHidden: isHudPreviewMode });
+  const accessibility = useHudAccessibility();
   const hudMode = hud.config.mode;
   const setHudMode = hud.setMode;
   const isHudVisible = hudMode !== 'hidden';
@@ -1611,7 +1613,7 @@ export default function App() {
             ? selectedBuildingEntity.type
             : null,
         buildMode: buildMode !== null,
-      });
+      }, accessibility.hotkeys);
       if (!action) return;
 
       switch (action.kind) {
@@ -1747,7 +1749,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [buildMode, playerSlot, selectedEntity, overlayOrder]);
+  }, [buildMode, playerSlot, selectedEntity, overlayOrder, accessibility.hotkeys]);
 
   // Manage 3D Building Ghost in the scene during build mode
   useEffect(() => {
@@ -3711,6 +3713,7 @@ export default function App() {
       )}
 
       <GameDialogs
+        accessibility={accessibility}
         isHudVisible={isHudVisible}
         isChatOpen={isChatOpen}
         setIsChatOpen={setIsChatOpen}

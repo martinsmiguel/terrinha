@@ -163,7 +163,7 @@ export function isNativeKeyboardEvent(event: HotkeyEventLike): boolean {
  * Resolve uma tecla em no máximo uma ação. Com overlay aberto só o Esc age, e fecha
  * apenas o mais recente: seleção e ordens da partida não são tocadas.
  */
-export function resolveHotkey(event: HotkeyEventLike, context: HotkeyContext): HotkeyAction | null {
+export function resolveHotkey(event: HotkeyEventLike, context: HotkeyContext, definitions: readonly HotkeyDefinition[] = HOTKEYS): HotkeyAction | null {
   // Alt+R abre as regras da sessão (consulta para todos; edição só do host).
   if (event.key.toLowerCase() === 'r' && event.altKey && !event.ctrlKey && !event.metaKey && !isEditableTarget(event.target) && context.overlays.length === 0) {
     return { kind: 'toggle-rules' };
@@ -194,7 +194,7 @@ export function resolveHotkey(event: HotkeyEventLike, context: HotkeyContext): H
 
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
   let best: HotkeyDefinition | null = null;
-  for (const def of HOTKEYS) {
+  for (const def of definitions) {
     if (def.key !== key) continue;
     if (def.scope.type === 'villager' && !(context.hasVillagerSelected && !context.buildMode)) continue;
     if (def.scope.type === 'building' && def.scope.building !== context.selectedBuilding) continue;
