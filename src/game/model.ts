@@ -1,5 +1,6 @@
 import type { MatchStatus } from './victory';
 import type { TechState } from './tech';
+import type { RuleSettings } from './unitAttributes';
 
 export type UnitType = 'villager' | 'soldier' | 'cavalry' | 'fishing_boat' | 'trade_boat' | 'warship';
 
@@ -87,6 +88,8 @@ export interface PlayerResources {
 }
 
 export interface GameState {
+  /** Regras validadas ao criar a sessão; o host as aplica no tick e as envia no snapshot. */
+  ruleSettings?: RuleSettings;
   units: Unit[];
   buildings: Building[];
   resourceNodes: ResourceNode[];

@@ -17,6 +17,7 @@ import { resolveHotkey, syncOverlayOrder, type OverlayId } from './game/hotkeys'
 import { generateProceduralTerrain, findNearestOceanCell, ProceduralMapResult } from './game/proceduralMap';
 import { EmpireCatalogModal } from './components/EmpireCatalogModal';
 import { Tutorial } from './components/Tutorial';
+import { UNIT_ATTRIBUTES } from './game/unitAttributes';
 
 /** Marcador de que o tutorial de primeira partida ja foi exibido. */
 const TUTORIAL_SEEN_KEY = 'terrinha:tutorial-seen';
@@ -683,9 +684,9 @@ export default function App() {
       position: { x: spawn.x + offsetX, z: spawn.z + 2 },
       targetPosition: null,
       targetEntityId: null,
-      health: 100,
-      maxHealth: 100,
-      attackDamage: 5,
+      health: UNIT_ATTRIBUTES.villager.maxHealth,
+      maxHealth: UNIT_ATTRIBUTES.villager.maxHealth,
+      attackDamage: UNIT_ATTRIBUTES.villager.attackDamage,
       state: 'idle' as const,
     });
 
@@ -699,9 +700,9 @@ export default function App() {
         position: { x: spawn.x + 2.5, z: spawn.z - 1.5 },
         targetPosition: null,
         targetEntityId: null,
-        health: 150,
-        maxHealth: 150,
-        attackDamage: 18,
+        health: UNIT_ATTRIBUTES.soldier.maxHealth,
+        maxHealth: UNIT_ATTRIBUTES.soldier.maxHealth,
+        attackDamage: UNIT_ATTRIBUTES.soldier.attackDamage,
         state: 'idle',
       },
     ];
@@ -847,7 +848,7 @@ export default function App() {
   useEffect(() => {
     const sources = [...gameState.units, ...gameState.buildings]
       .filter((entity) => entity.owner === playerSlot)
-      .map((entity) => ({ x: entity.position.x, z: entity.position.z, radius: visionRadiusFor(entity) }));
+      .map((entity) => ({ x: entity.position.x, z: entity.position.z, radius: visionRadiusFor(entity, gameState.ruleSettings) }));
     const grid = revealVision(expireVision(visionGridRef.current), sources);
     visionGridRef.current = grid;
     engineRef.current?.setFogGrid(grid);

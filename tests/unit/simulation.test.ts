@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Building, GameState, PlayerResources, Unit } from '../../src/game/engine';
 import { tickGameState, type SimulationContext } from '../../src/game/simulation';
+import { parseRuleSettings } from '../../src/game/unitAttributes';
 
 const playerResources = (): PlayerResources => ({
   wood: 100,
@@ -61,6 +62,25 @@ const context = (overrides: Partial<SimulationContext> = {}): SimulationContext 
 });
 
 describe('tickGameState', () => {
+  it('credits only the remainder of a nearly exhausted deposit', () => {
+    const state = createState({
+      units: [createUnit({ targetEntityId: 'ore', state: 'gathering' })],
+      resourceNodes: [{ id: 'ore', type: 'stone', position: { x: 10.5, z: 10 }, remaining: 0.1 }],
+    });
+    const result = tickGameState(state, context());
+    expect(result.state.playerResources.player1.stone).toBeCloseTo(0.1);
+    expect(result.state.resourceNodes).toEqual([]);
+  });
+
+  it('does not let a civilian boat damage a target even with a forged attack state', () => {
+    const state = createState({ units: [
+      createUnit({ id: 'boat', type: 'trade_boat', state: 'attacking', targetEntityId: 'enemy' }),
+      createUnit({ id: 'enemy', owner: 'player2', position: { x: 11, z: 10 } }),
+    ] });
+    const result = tickGameState(state, context());
+    expect(result.state.units.find((unit) => unit.id === 'enemy')?.health).toBe(100);
+    expect(result.state.units.find((unit) => unit.id === 'boat')).toMatchObject({ state: 'idle', targetEntityId: null });
+  });
   it('moves units toward their target by one simulation step', () => {
     const state = createState({
       units: [createUnit({ targetPosition: { x: 12, z: 10 }, state: 'moving' })],
@@ -70,6 +90,14 @@ describe('tickGameState', () => {
 
     expect(result.state.units[0].position).toEqual({ x: 10.16, z: 10 });
     expect(state.units[0].position).toEqual({ x: 10, z: 10 });
+  });
+
+  it('uses a validated rules override in the authoritative tick', () => {
+    const state = createState({ units: [createUnit({ type: 'soldier', targetPosition: { x: 12, z: 10 }, state: 'moving' })] });
+    const ruleSettings = parseRuleSettings({ version: 1, units: { soldier: { movePerTick: 0.25 } } });
+    state.ruleSettings = ruleSettings;
+    const result = tickGameState(state, context());
+    expect(result.state.units[0].position.x).toBeCloseTo(10.25);
   });
 
   it('gathers resources and removes an exhausted deposit without mutating the input state', () => {
@@ -199,4 +227,67 @@ describe('simulation performance', () => {
     expect(state.units).toHaveLength(120);
     expect(elapsedMs).toBeLessThan(2000);
   });
+
+  describe('passos ilegais (F01)', () => {
+    // Terra para x < 12; água e oceano para x >= 12.
+    const map = {
+      isWaterAt: (x: number) => x >= 12,
+      isImpassableAt: (x: number) => x >= 12,
+      isOceanAt: (x: number) => x >= 12,
+    };
+    const run = (state: GameState, ticks = 40) => {
+      let current = state;
+      for (let i = 0; i < ticks; i += 1) current = tickGameState(current, context({ map })).state;
+      return current;
+    };
+
+    it('coletor não entra na água ao caminhar até um recurso do outro lado', () => {
+      const state = createState({
+        units: [createUnit({ position: { x: 10, z: 10 }, targetEntityId: 'tree', state: 'gathering' })],
+        resourceNodes: [{ id: 'tree', type: 'tree', position: { x: 16, z: 10 }, remaining: 100 }],
+      });
+      const unit = run(state).units[0];
+      expect(unit.position.x).toBeLessThan(12);
+      expect(unit.state).toBe('idle');
+      expect(unit.targetEntityId).toBeNull();
+    });
+
+    it('atacante terrestre não persegue o alvo para dentro da água', () => {
+      const state = createState({
+        units: [
+          createUnit({ id: 'soldier', type: 'soldier', position: { x: 10, z: 10 }, targetEntityId: 'enemy', state: 'attacking' }),
+          createUnit({ id: 'enemy', owner: 'player2', position: { x: 20, z: 10 } }),
+        ],
+      });
+      const soldier = run(state).units.find((unit) => unit.id === 'soldier')!;
+      expect(soldier.position.x).toBeLessThan(12);
+      expect(soldier.state).toBe('idle');
+    });
+
+    it('construtor e reparador não atravessam terreno intransitável', () => {
+      const building = createBuilding({ id: 'house', type: 'house', position: { x: 18, z: 10 }, isComplete: false, buildProgress: 0, health: 50, maxHealth: 500 });
+      const builder = run(createState({
+        units: [createUnit({ position: { x: 10, z: 10 }, targetEntityId: 'house', state: 'building' })],
+        buildings: [building],
+      })).units[0];
+      expect(builder.position.x).toBeLessThan(12);
+      const repairer = run(createState({
+        units: [createUnit({ position: { x: 10, z: 10 }, targetEntityId: 'house', state: 'repairing' })],
+        buildings: [{ ...building, isComplete: true, health: 100 }],
+      })).units[0];
+      expect(repairer.position.x).toBeLessThan(12);
+    });
+
+    it('barco de guerra não persegue alvo em terra e anda com a velocidade do catálogo', () => {
+      const ship = createUnit({ id: 'ship', type: 'warship', position: { x: 14, z: 10 }, targetEntityId: 'enemy', state: 'attacking' });
+      const enemy = createUnit({ id: 'enemy', owner: 'player2', position: { x: 4, z: 10 } });
+      const result = run(createState({ units: [ship, enemy] }));
+      expect(result.units.find((unit) => unit.id === 'ship')!.position.x).toBeGreaterThanOrEqual(12);
+      const free = tickGameState(createState({
+        units: [{ ...ship, position: { x: 14, z: 10 } }, { ...enemy, position: { x: 30, z: 10 } }],
+      }), context({ map })).state.units.find((unit) => unit.id === 'ship')!;
+      expect(free.position.x - 14).toBeCloseTo(0.16);
+    });
+  });
 });
+

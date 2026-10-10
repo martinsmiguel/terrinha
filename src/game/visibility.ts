@@ -4,6 +4,7 @@
  */
 
 import type { Building, Unit } from './model';
+import { unitAttribute, type RuleSettings } from './unitAttributes';
 
 /** Nunca vista pelo jogador (véu preto). */
 export const VISION_UNEXPLORED = 0;
@@ -34,9 +35,9 @@ export const createVisionGrid = (options: VisionOptions = {}): Uint8Array =>
   new Uint8Array((options.size ?? 60) * (options.size ?? 60));
 
 /** Raio de visão por entidade — espelha o cálculo usado no minimapa. */
-export const visionRadiusFor = (entity: Unit | Building): number => {
+export const visionRadiusFor = (entity: Unit | Building, settings?: RuleSettings): number => {
   if ('attackDamage' in entity) {
-    return entity.type === 'soldier' ? 11 : 8;
+    return unitAttribute(entity.type, 'visionRadius', settings);
   }
   if (entity.type === 'town_center') return 16;
   if (entity.type === 'barracks') return 12;
