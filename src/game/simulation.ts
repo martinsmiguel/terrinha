@@ -1,5 +1,5 @@
 import { healUnitsInTerritory } from './colonies';
-import { reconcileDepots, type LocalityResolver } from './depots';
+import { HOME, productionPaused, reconcileDepots, refineAt, type LocalityResolver } from './depots';
 import { isBoatUnit, worldSizeOf } from './model';
 import { boardArrivedPassengers } from './navalTransport';
 import type { BuildingType, GameState, Unit, UnitType } from './model';
@@ -740,6 +740,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
 
     const completedSawmills = updatedBuildings.filter(
       (building) => building.owner === slot && building.type === 'sawmill' && building.isComplete && building.health > 0
+        && (!pMap?.localityOf || pMap.localityOf(slot, building.position) === HOME)
     ).length;
     if (completedSawmills > 0) {
       updatedResources[slot] = refinePlanks(res, completedSawmills);
@@ -888,7 +889,19 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
   // Última construção de posto destruída: o estoque local da ilha se perde (pausa de produção segue de productionPaused).
   let updatedLocalStocks = state.localStocks;
   if (pMap?.localityOf && state.localStocks) {
-    const reconciled = reconcileDepots({ ...state, buildings: updatedBuildings, playerResources: updatedResources }, pMap.localityOf);
+    let local = { ...state, buildings: updatedBuildings, playerResources: updatedResources };
+    // Serralheria colonial refina o estoque da própria ilha, e só com posto concluído (produção local).
+    for (const [owner, byLocality] of Object.entries(state.localStocks)) {
+      for (const locality of Object.keys(byLocality)) {
+        const sawmills = updatedBuildings.filter((building) =>
+          building.owner === owner && building.type === 'sawmill' && building.isComplete && building.health > 0
+          && pMap.localityOf!(owner, building.position) === locality).length;
+        if (sawmills > 0 && !productionPaused(updatedBuildings, owner, locality, pMap.localityOf)) {
+          local = refineAt(local, owner, locality, sawmills);
+        }
+      }
+    }
+    const reconciled = reconcileDepots(local, pMap.localityOf);
     updatedLocalStocks = reconciled.state.localStocks;
     reconciled.lost.filter((entry) => entry.owner === playerSlot).forEach(() => {
       effects.push({ type: 'notification', message: 'O último posto da colônia caiu: o estoque local foi perdido.', level: 'warning' });

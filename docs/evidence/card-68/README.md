@@ -15,8 +15,8 @@ Controle negativo: se o estoque local cair no agregado da metrópole, 8 testes f
 
 ## Limites
 
-- Aplicado em obra e treino (comando, autorização e host). Refino (`refineAt`) e câmbio (`tradeAt`) existem e são testados, mas
-  o tick de refino e a tela do Mercadão ainda usam a metrópole; ligar isso à interface é do #69.
+- Aplicado em obra, treino e refino (serralheria colonial refina o estoque da ilha, só com posto concluído). O câmbio local (`tradeAt`)
+  existe e é testado, mas o comando `trade` não identifica o mercado usado; continua na metrópole até a seleção de mercado do #69.
 - Coleta de recursos ainda credita a metrópole; a coleta local por ilha entra com o transporte (#70/#72).
 - O primeiro posto de uma ilha sem depósito é pago pela metrópole (não há estoque local antes dele).
 - A pesquisa continua na metrópole, como pedido.

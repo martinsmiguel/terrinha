@@ -158,4 +158,20 @@ describe('integração: obras, treino e tick', () => {
     expect(first.effects.filter((effect) => effect.type === 'notification')).toHaveLength(1);
     expect(tickGameState(first.state, ctx).effects.filter((effect) => effect.type === 'notification')).toHaveLength(0);
   });
+
+  it('serralheria colonial refina o estoque da ilha e não toca a metrópole; sem posto concluído, não refina', () => {
+    const sawmill: Building = { id: 's', type: 'sawmill', owner: 'player1', position: { x: 150, z: 70 }, health: 550, maxHealth: 550, isComplete: true, trainingQueue: [] };
+    const ctx: SimulationContext = {
+      playerSlot: 'player1', mode: 'host', activeSlots: ['player1'], gatherRadiusLimit: 14, sustainableForestryEnabled: false,
+      buildingDefinitions: {}, random: () => 0.9, createId: () => 'id',
+      map: { isWaterAt: () => false, isImpassableAt: () => false, isOceanAt: () => false, localityOf },
+    };
+    const state = withLocal(base({ buildings: [outpost(), sawmill] }), 200);
+    const after = tickGameState(state, ctx).state;
+    expect(after.localStocks!.player1['1'].planks).toBeGreaterThan(0);
+    expect(after.localStocks!.player1['1'].wood).toBeLessThan(200);
+    expect(after.playerResources.player1.planks).toBe(1000);
+    const paused = tickGameState(withLocal(base({ buildings: [outpost({ isComplete: false }), sawmill] }), 200), ctx).state;
+    expect(paused.localStocks!.player1['1'].planks).toBe(0);
+  });
 });
