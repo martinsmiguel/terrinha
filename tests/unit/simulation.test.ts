@@ -329,5 +329,37 @@ describe('simulation performance', () => {
       expect(run(ai(true)).trainingQueue.length).toBeGreaterThan(0);
     });
   });
+
+  describe('eliminação e saída de jogadores', () => {
+    it('jogador eliminado perde ordens e fila de produção; quem segue vivo mantém as dele', () => {
+      const alive = createBuilding({ id: 'tc-1', owner: 'player1', trainingQueue: [{ unitType: 'villager', progress: 5 }] });
+      const dead = createBuilding({ id: 'house-2', type: 'house', owner: 'player2', trainingQueue: [{ unitType: 'soldier', progress: 5 }] });
+      const state = createState({
+        buildings: [alive, dead],
+        units: [
+          createUnit({ id: 'mine', owner: 'player1', state: 'moving', targetPosition: { x: 20, z: 20 } }),
+          createUnit({ id: 'theirs', owner: 'player2', state: 'moving', targetPosition: { x: 30, z: 30 } }),
+        ],
+      });
+      const result = tickGameState(state, context({ activeSlots: ['player1', 'player2', 'player3'] })).state;
+      expect(result.units.find((unit) => unit.id === 'theirs')).toMatchObject({ state: 'idle', targetPosition: null });
+      expect(result.buildings.find((building) => building.id === 'house-2')!.trainingQueue).toEqual([]);
+      expect(result.units.find((unit) => unit.id === 'mine')!.targetPosition).not.toBeNull();
+    });
+
+    it('convidado que saiu do host mantém as últimas ordens e nenhuma IA assume (modo host)', () => {
+      const state = createState({
+        buildings: [createBuilding({ id: 'tc-1', owner: 'player1' }), createBuilding({ id: 'tc-2', owner: 'player2' })],
+        playerResources: { player1: playerResources(), player2: { ...playerResources(), food: 900, gold: 900 } },
+        units: [createUnit({ id: 'left', owner: 'player2', state: 'moving', targetPosition: { x: 40, z: 40 } })],
+      });
+      let current = state;
+      for (let tick = 0; tick < 5; tick += 1) current = tickGameState(current, context({ mode: 'host', activeSlots: ['player1'] })).state;
+      const unit = current.units.find((candidate) => candidate.id === 'left')!;
+      expect(unit.targetPosition).toEqual({ x: 40, z: 40 });
+      expect(unit.position.x).toBeGreaterThan(10);
+      expect(current.buildings.find((building) => building.id === 'tc-2')!.trainingQueue).toEqual([]);
+    });
+  });
 });
 

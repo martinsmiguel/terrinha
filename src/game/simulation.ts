@@ -10,7 +10,7 @@ import { applyPopDelta, countDeathsByOwner } from './population';
 import { advanceResearch, gatherMultiplier, TECH_DEFS, unitDamageMultiplier } from './tech';
 import type { TechState } from './tech';
 import { evaluateMatch } from './victory';
-import { advanceFoundation } from './foundation';
+import { advanceFoundation, clearEliminatedOrders, lifePhase } from './foundation';
 import { UNIT_ATTRIBUTES, effectiveAttribute, unitAttribute, type RuleSettings } from './unitAttributes';
 
 export interface SimulationMap {
@@ -749,6 +749,16 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         return pos ? { ...unit, position: pos } : unit;
       });
     }
+  }
+
+  // Eliminação só existe numa partida com pelo menos dois contendores (mesma regra da vitória).
+  const eliminated = activeSlots.length >= 2
+    ? activeSlots.filter((slot) => lifePhase(slot, updatedBuildings, updatedUnits) === 'eliminated')
+    : [];
+  if (eliminated.length > 0) {
+    const cleared = clearEliminatedOrders(updatedUnits, updatedBuildings, eliminated);
+    updatedUnits = cleared.units;
+    updatedBuildings = cleared.buildings;
   }
 
   return {

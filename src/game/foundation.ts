@@ -151,3 +151,26 @@ export function homeAnchor(owner: string, buildings: readonly Building[], units:
   const wagon = own.find((unit) => unit.type === 'wagon') ?? own[0];
   return wagon ? { x: wagon.position.x, z: wagon.position.z } : null;
 }
+
+/**
+ * Limpa o que um jogador eliminado ainda tinha em andamento: ordens das unidades e filas de
+ * produção. Não remove entidades nem devolve recursos; é idempotente e não toca em quem segue vivo.
+ */
+export function clearEliminatedOrders(
+  units: readonly Unit[],
+  buildings: readonly Building[],
+  eliminated: readonly string[]
+): { units: Unit[]; buildings: Building[] } {
+  if (eliminated.length === 0) return { units: [...units], buildings: [...buildings] };
+  const out = new Set(eliminated);
+  return {
+    units: units.map((unit) =>
+      out.has(unit.owner) && (unit.state !== 'idle' || unit.targetPosition || unit.targetEntityId)
+        ? { ...unit, state: 'idle', targetPosition: null, targetEntityId: null, gatherOrigin: undefined, gatherShiftSecondsRemaining: undefined }
+        : unit
+    ),
+    buildings: buildings.map((building) =>
+      out.has(building.owner) && building.trainingQueue.length > 0 ? { ...building, trainingQueue: [] } : building
+    ),
+  };
+}

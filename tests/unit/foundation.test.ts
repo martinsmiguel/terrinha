@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Building, GameState, Unit } from '../../src/game/model';
 import {
-  CAPITAL_BUILD_SECONDS, CAPITAL_MAX_HEALTH, FOUNDATION_KIT, advanceFoundation, createStartingForce, findCapitalSites, foundCapital, homeAnchor, lifePhase,
+  CAPITAL_BUILD_SECONDS, CAPITAL_MAX_HEALTH, FOUNDATION_KIT, advanceFoundation, clearEliminatedOrders, createStartingForce, findCapitalSites, foundCapital, homeAnchor, lifePhase,
 } from '../../src/game/foundation';
 import { evaluateMatch, localOutcome } from '../../src/game/victory';
 import { UNIT_ATTRIBUTES } from '../../src/game/unitAttributes';
@@ -182,5 +182,29 @@ describe('homeAnchor', () => {
     expect(homeAnchor('player1', [], [wagon('player1')])).toEqual({ x: 10, z: 10 });
     expect(homeAnchor('player1', [], [wagon('player1', { health: 0 }), wagon('player1', { id: 'v', type: 'villager', position: { x: 4, z: 5 } })])).toEqual({ x: 4, z: 5 });
     expect(homeAnchor('player2', [capital('player1')], [wagon('player1')])).toBeNull();
+  });
+});
+
+describe('clearEliminatedOrders', () => {
+  const busy = (owner: string, id: string): Unit => ({ ...wagon(owner), id, type: 'villager', state: 'gathering', targetEntityId: 'tree', targetPosition: { x: 1, z: 1 } });
+  const queued = (owner: string): Building => ({ ...capital(owner, { id: `q-${owner}` }), trainingQueue: [{ unitType: 'villager', progress: 10 }] });
+
+  it('zera ordens e filas só de quem foi eliminado, sem remover entidades', () => {
+    const result = clearEliminatedOrders([busy('player1', 'a'), busy('player2', 'b')], [queued('player1'), queued('player2')], ['player1']);
+    expect(result.units.find((unit) => unit.id === 'a')).toMatchObject({ state: 'idle', targetPosition: null, targetEntityId: null });
+    expect(result.units.find((unit) => unit.id === 'b')).toMatchObject({ state: 'gathering', targetEntityId: 'tree' });
+    expect(result.buildings.find((building) => building.owner === 'player1')!.trainingQueue).toEqual([]);
+    expect(result.buildings.find((building) => building.owner === 'player2')!.trainingQueue).toHaveLength(1);
+    expect(result.units).toHaveLength(2);
+    expect(result.buildings).toHaveLength(2);
+  });
+  it('é idempotente e devolve as mesmas referências quando não há nada a limpar', () => {
+    const idleUnit = wagon('player1');
+    const first = clearEliminatedOrders([busy('player1', 'a')], [queued('player1')], ['player1']);
+    const second = clearEliminatedOrders(first.units, first.buildings, ['player1']);
+    expect(second.units[0]).toBe(first.units[0]);
+    expect(second.buildings[0]).toBe(first.buildings[0]);
+    expect(clearEliminatedOrders([idleUnit], [], ['player1']).units[0]).toBe(idleUnit);
+    expect(clearEliminatedOrders([busy('player1', 'a')], [], []).units[0].state).toBe('gathering');
   });
 });
