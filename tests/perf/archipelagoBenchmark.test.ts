@@ -3,7 +3,7 @@ import { cpus, totalmem } from 'node:os';
 import { dirname } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { describe, expect, it } from 'vitest';
-import { generateProceduralTerrain, findNearestOceanCell, type ProceduralMapResult } from '../../src/game/proceduralMap';
+import { generateProceduralTerrain, type ProceduralMapResult } from '../../src/game/proceduralMap';
 import { findPath } from '../../src/game/movement/pathfinding';
 import { tickGameState, type SimulationContext } from '../../src/game/simulation';
 import { applyEmbarkOrder, disembarkPassengers } from '../../src/game/navalTransport';
@@ -79,6 +79,21 @@ function landComponents(map: ProceduralMapResult): { x: number; z: number }[][] 
     }
   }
   return components.sort((a, b) => b.length - a.length);
+}
+
+/** Centro de célula de mar aberto (a célula e as quatro vizinhas são oceano) mais próximo de um ponto. */
+function nearestOpenSeaCell(map: ProceduralMapResult, from: { x: number; z: number }): { x: number; z: number } {
+  let best: { x: number; z: number } | null = null;
+  let bestDistance = Infinity;
+  for (let x = 1; x < map.mapSize - 1; x += 1) {
+    for (let z = 1; z < map.mapSize - 1; z += 1) {
+      const open = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].every(([dx, dz]) => map.isOceanAt(x + dx + 0.5, z + dz + 0.5));
+      const distance = Math.hypot(x + 0.5 - from.x, z + 0.5 - from.z);
+      if (open && distance < bestDistance) { bestDistance = distance; best = { x: x + 0.5, z: z + 0.5 }; }
+    }
+  }
+  expect(best, 'sem mar aberto no mapa de teste').toBeTruthy();
+  return best!;
 }
 
 function movementScenario(map: ProceduralMapResult, unitCount: number, unreachableShare: number) {
@@ -158,7 +173,8 @@ describe('tamanhos de mapa no gerador e no A*', () => {
 describe('ciclo naval completo sem cheats', () => {
   it('constrói o cais, treina o barco, embarca, viaja e desembarca em outra ilha dentro do orçamento', () => {
     const map = generateProceduralTerrain(60, 42);
-    const home = landComponents(map)[0];
+    const componentOf = (point: { x: number; z: number }) => landComponents(map).find((cells) => cells.some((c) => Math.hypot(c.x - point.x, c.z - point.z) < 1.5))!;
+    const home = componentOf(map.player1Spawn);
     const toHere = (x: number, z: number) => x >= 4 && z >= 4 && x <= 56 && z <= 56;
     // Sítio de cais: terra válida para 'dock' com oceano navegável por perto.
     const site = home.find((cell) => toHere(cell.x, cell.z) && checkBuildingPlacementValid('dock', cell.x, cell.z, [], [], 60, map.isWaterAt, map.isCliffAt, map.getHeightAt, map.isOceanAt).isValid);
@@ -203,7 +219,7 @@ describe('ciclo naval completo sem cheats', () => {
     runUntil('embarque', () => (boat().passengers?.length ?? 0) === 2, 2000);
 
     // Destino: costa de outra ilha (a chegada do jogador 2).
-    const target = findNearestOceanCell(map, map.player2Spawn.x, map.player2Spawn.z, 12);
+    const target = nearestOpenSeaCell(map, map.player2Spawn);
     state = { ...state, units: state.units.map((u) => (u.id === boat().id ? { ...u, targetPosition: target, state: 'moving' } : u)) };
     runUntil('viagem', () => boat().state === 'idle', 4000);
 

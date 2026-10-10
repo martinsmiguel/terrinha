@@ -53,9 +53,13 @@ export interface RiverSpec {
   maxZ: number;
 }
 
+export type IslandKind = 'native' | 'neutral';
+
 export interface IslandSpec {
-  /** 0..3 -> slot do jogador (player1..player4). */
+  /** 0..3 -> ilha natal do jogador (player1..player4); 4 e 5 -> ilhas neutras. */
   index: number;
+  /** Natal: nascedouro de um jogador. Neutra: exploração e disputa, sem nascedouro. */
+  kind: IslandKind;
   profile: IslandProfile;
   name: string;
   center: { x: number; z: number };
@@ -168,10 +172,12 @@ function lerp(a: number, b: number, t: number): number {
 
 /** Canto de nascedouros: mesma jaula quadrada do mapa original (16..44 em 60). */
 const ISLAND_SLOTS = [
-  { fx: 16 / 60, fz: 16 / 60 }, // player1 (noroeste)
-  { fx: 44 / 60, fz: 44 / 60 }, // player2 (sudeste)
-  { fx: 16 / 60, fz: 44 / 60 }, // player3 (sudoeste)
-  { fx: 44 / 60, fz: 16 / 60 }, // player4 (nordeste)
+  { fx: 16 / 60, fz: 16 / 60, kind: 'native' as const, radiusFactor: 0.1333 }, // player1 (noroeste)
+  { fx: 44 / 60, fz: 44 / 60, kind: 'native' as const, radiusFactor: 0.1333 }, // player2 (sudeste)
+  { fx: 16 / 60, fz: 44 / 60, kind: 'native' as const, radiusFactor: 0.1333 }, // player3 (sudoeste)
+  { fx: 44 / 60, fz: 16 / 60, kind: 'native' as const, radiusFactor: 0.1333 }, // player4 (nordeste)
+  { fx: 0.5, fz: 0.1, kind: 'neutral' as const, radiusFactor: 0.075 }, // neutra do norte
+  { fx: 0.5, fz: 0.9, kind: 'neutral' as const, radiusFactor: 0.075 }, // neutra do sul
 ];
 
 /** Pool: floresta e sempre incluida (garante lago + rio na partida). */
@@ -404,13 +410,16 @@ export function computeArchipelago(mapSize: number, seed: number): ArchipelagoLa
   // floresta sempre presente + 3 sorteadas do pool (4 perfis distintos por partida).
   const chosen = shuffle(PROFILE_POOL, rng).slice(0, 3);
   chosen.splice(Math.floor(rng.next() * 4), 0, 'floresta');
+  // As ilhas neutras sorteiam seu perfil do pool completo (podem repetir um perfil natal).
+  const neutralProfiles = [0, 1].map(() => PROFILE_POOL[Math.floor(rng.next() * PROFILE_POOL.length)]);
 
   const islands: IslandSpec[] = ISLAND_SLOTS.map((slot, index) => {
-    const profile = chosen[index];
-    const baseRadius = mapSize * 0.1333 * (0.95 + rng.next() * 0.15);
+    const profile = slot.kind === 'native' ? chosen[index] : neutralProfiles[index - 4];
+    const baseRadius = mapSize * slot.radiusFactor * (0.95 + rng.next() * 0.12);
     const center = { x: mapSize * slot.fx, z: mapSize * slot.fz };
     const island: IslandSpec = {
       index,
+      kind: slot.kind,
       profile,
       name: ISLAND_PROFILE_LABELS[profile],
       center,
