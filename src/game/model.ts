@@ -115,6 +115,12 @@ export interface GameState {
   mapSize?: number;
   /** Kit de fundacao reservado por jogador ate a capital ser fundada (separado do suprimento). */
   foundationKits?: Record<string, { wood: number; stone: number }>;
+  /** Plantas e monumentos das ilhas (estado do host). */
+  relics?: import('./mysticism').Relic[];
+  /** Efeitos temporários por dono (bênção da planta). */
+  buffs?: Record<string, { blessing?: number }>;
+  /** Segundos de partida simulados (estações). */
+  elapsed?: number;
   /** Talentos comprados por dono (IDs únicos; sem respec). */
   talents?: Record<string, string[]>;
   /** Maestrias e pontos por dono (XP só do host, por eventos autoritativos; só desta sessão). */

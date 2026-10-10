@@ -27,6 +27,8 @@ export function filterSnapshotFor(state: GameState, owner: string, vision: Owner
     playerResources: pick(state.playerResources) ?? {},
     ...(state.techs ? { techs: pick(state.techs) } : {}),
     ...(state.foundationKits ? { foundationKits: pick(state.foundationKits) } : {}),
+    // Relíquias: só as de células já exploradas pelo destinatário.
+    ...(state.relics ? { relics: hasVision ? state.relics.filter((relic) => isExploredBy(vision, owner, relic.position.x, relic.position.z)) : [] } : {}),
     ...(state.talents ? { talents: pick(state.talents) } : {}),
     ...(state.localStocks ? { localStocks: pick(state.localStocks) } : {}),
     // XP só do próprio dono, sem o registro de eventos já creditados (é só do host e pesaria em todo snapshot).
