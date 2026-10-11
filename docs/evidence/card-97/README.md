@@ -1,21 +1,12 @@
-# Card #97 — protótipo de personalização local do HUD, para avaliação humana
+# Card #97 — personalização local do HUD: protótipo e decisão
 
-**Nenhuma decisão foi tomada.** O protótipo existe para o jogador decidir quais controles agregam valor e se a personalização avança, é reformulada ou é encerrada (#56).
-Se não for aprovada, o card fecha como descartado, sem fingir entrega.
+## Decisão: descartado
 
-## Como avaliar
+O responsável do produto avaliou o protótipo e **encerrou a personalização local como descartada** (10/10/2026), sem a avaliação estruturada com jogador (#56) nem revisão independente. Nada foi integrado ao jogo.
+O protótipo (`/poc-personalizacao.html`, `src/game/hudLayoutProfile.ts`) foi **removido do `main`** no card #166; o código continua no histórico, no commit `f24a8c8` (PR #165).
+A escala global do HUD e o remapeamento de teclas continuam disponíveis pelo card #115.
 
-`npm run dev` e abra `http://localhost:3000/poc-personalizacao.html` (em produção, a mesma rota).
-
-- Clique em uma caixa do palco (ou use o seletor) para editar: visível, âncora, deslocamento X e Y, escala, opacidade e grupo.
-- Toda mudança é **prévia**; o perfil em uso só muda em **Aplicar**. **Cancelar** descarta; **Restaurar padrão** também entra como prévia.
-- Perfis nomeados ficam no navegador (máximo de 8). Exportar e importar usam JSON validado; importar só abre prévia.
-- Desfazer e refazer (botões ou Ctrl/Cmd+Z) guardam **só a configuração**, até 20 passos.
-- A página guarda sua decisão e observações só no navegador.
-
-O conteúdo dos painéis é **ilustrativo (mock)**. Nada aqui executa ação da partida, e o jogo não lê estes perfis.
-
-## O que está implementado (`src/game/hudLayoutProfile.ts`, 21 testes)
+## O que o protótipo cobria (`src/game/hudLayoutProfile.ts`, 21 testes, hoje só no histórico)
 
 | Critério do card | Estado no protótipo |
 | --- | --- |

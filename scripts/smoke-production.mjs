@@ -7,8 +7,6 @@ const pages = [
   ['/poc.html', 'Terrinha — Partida RTS'],
   ['/poc-hud.html', 'Terrinha — PoC de HUD'],
   ['/poc-avaliacao.html', 'Terrinha — Avaliação da PoC de HUD'],
-  ['/poc-personalizacao.html', 'Terrinha — Protótipo de personalização do HUD'],
-  ['/poc-radial.html', 'Terrinha — Protótipo do menu radial'],
 ];
 for (const [route, title] of pages) {
   const response = await fetch(new URL(route, base), { signal: AbortSignal.timeout(10000) });

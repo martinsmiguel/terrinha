@@ -21,10 +21,6 @@ services:
         - action: rebuild
           path: ./poc-avaliacao.html
         - action: rebuild
-          path: ./poc-personalizacao.html
-        - action: rebuild
-          path: ./poc-radial.html
-        - action: rebuild
           path: ./vite.server.config.ts
         - action: rebuild
           path: ./vite.config.ts
