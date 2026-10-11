@@ -21,7 +21,9 @@ function visit(file, chain) {
   }
   for (const spec of module.dependencySpecifiers) {
     if (!spec.startsWith('.')) throw new Error(`Dependência runtime externa: ${chain.join(' → ')} → ${spec}`);
-    const next = path.resolve(path.dirname(file), spec + (path.extname(spec) ? '' : '.ts'));
+    const base = path.resolve(path.dirname(file), spec);
+    // `./pasta` resolve para `./pasta/index.ts`, como no TypeScript e no Vite.
+    const next = path.extname(spec) ? base : fs.existsSync(`${base}.ts`) ? `${base}.ts` : path.join(base, 'index.ts');
     if (!next.startsWith(rulesDir + path.sep)) throw new Error(`Dependência fora das regras: ${chain.join(' → ')} → ${spec}`);
     visit(next, [...chain, path.basename(next)]);
   }

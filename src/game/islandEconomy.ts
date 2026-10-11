@@ -1,4 +1,5 @@
 import { resourcePlanFor, type IslandKind, type IslandProfile, type IslandResourcePlan } from './archipelago';
+import { ITEM_IDS } from './items';
 import { BUILDING_CATALOG } from './buildingCatalog';
 import { UNIT_COSTS, type ResourceCost } from './economy';
 import { ERA_UPGRADES } from './tech';
@@ -99,7 +100,7 @@ export function economyTotals(nodes: readonly { type: string; remaining: number 
 export const CORE_BUILDINGS = ['house', 'house', 'house', 'barracks', 'sawmill', 'mine', 'market', 'farm', 'dock'] as const;
 
 const add = (total: Required<ResourceCost>, cost: ResourceCost) => {
-  for (const key of ['wood', 'food', 'gold', 'stone', 'planks'] as const) total[key] += cost[key] ?? 0;
+  for (const key of ITEM_IDS) total[key] += cost[key] ?? 0;
 };
 
 /** O que a jornada natal gasta: três eras, a cadeia mínima de produção, 2 barcos de pesca e 8 aldeões. */

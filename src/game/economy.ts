@@ -3,47 +3,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { applyContinuousRecipe } from './itemGraph';
+import { ITEM_IDS, itemField, type ItemId } from './items';
 import type { PlayerResources, UnitType } from './model';
+import { planksFromWood } from './recipes';
 
 export type MarketResourceType = 'wood' | 'food' | 'stone';
 
-/** Recursos que podem compor um custo (edifícios e unidades). */
-export type CostKey = 'wood' | 'food' | 'gold' | 'stone' | 'planks';
+/** Itens que podem compor um custo (edifícios e unidades): todos os do registro em `src/game/items/`. */
+export type CostKey = ItemId;
 
-export interface ResourceCost {
-  wood?: number;
-  food?: number;
-  gold?: number;
-  stone?: number;
-  planks?: number;
-}
+export type ResourceCost = Partial<Record<ItemId, number>>;
 
-export const COST_SHORT: Record<CostKey, string> = {
-  wood: 'M',
-  food: 'C',
-  gold: 'O',
-  stone: 'P',
-  planks: 'T',
-};
+export const COST_SHORT: Record<CostKey, string> = itemField('short');
 
-export const COST_LABEL: Record<CostKey, string> = {
-  wood: 'Madeira',
-  food: 'Comida',
-  gold: 'Ouro',
-  stone: 'Pedra',
-  planks: 'Tábuas',
-};
+export const COST_LABEL: Record<CostKey, string> = itemField('name');
 
 /** Cor de exibição de cada chip de custo na UI. */
-export const COST_CHIP_CLASS: Record<CostKey, string> = {
-  wood: 'text-amber-400 font-bold',
-  food: 'text-red-300 font-bold',
-  gold: 'text-yellow-300 font-bold',
-  stone: 'text-slate-300 font-bold',
-  planks: 'text-orange-300 font-bold',
-};
+export const COST_CHIP_CLASS: Record<CostKey, string> = itemField('chipClass');
 
-const COST_KEYS: CostKey[] = ['wood', 'food', 'gold', 'stone', 'planks'];
+const COST_KEYS: readonly CostKey[] = ITEM_IDS;
 
 /** Custo de cada unidade treinável (fonte única de verdade). */
 export const UNIT_COSTS: Record<UnitType, ResourceCost> = {
@@ -60,8 +39,9 @@ export const UNIT_COSTS: Record<UnitType, ResourceCost> = {
 };
 
 /** 2 madeira refinadas viram 1 tábua por tick de cada Serralheria concluída. */
-export const SAWMILL_WOOD_PER_TICK = 0.1;
-export const SAWMILL_PLANKS_PER_TICK = 0.05;
+/** Madeira e tábuas por passo e por serralheria: lidas da receita `planksFromWood`. */
+export const SAWMILL_WOOD_PER_TICK = planksFromWood.inputs[0].amount;
+export const SAWMILL_PLANKS_PER_TICK = planksFromWood.outputs[0].amount;
 
 export const canAfford = (resources: PlayerResources, cost: ResourceCost): boolean =>
   COST_KEYS.every((key) => (resources[key] || 0) >= (cost[key] || 0));
@@ -124,16 +104,7 @@ export const halfCost = (cost: ResourceCost): ResourceCost => {
 export const refinePlanks = (
   resources: PlayerResources,
   completedSawmills: number
-): PlayerResources => {
-  if (completedSawmills <= 0) return resources;
-  const woodUsed = Math.min(resources.wood, completedSawmills * SAWMILL_WOOD_PER_TICK);
-  if (woodUsed <= 0) return resources;
-  return {
-    ...resources,
-    wood: resources.wood - woodUsed,
-    planks: resources.planks + woodUsed * (SAWMILL_PLANKS_PER_TICK / SAWMILL_WOOD_PER_TICK),
-  };
-};
+): PlayerResources => applyContinuousRecipe(resources, planksFromWood, completedSawmills);
 
 export interface MarketRate {
   buyPrice: number;

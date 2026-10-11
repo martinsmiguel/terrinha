@@ -1,4 +1,5 @@
 import { HOME, creditAt, debitAt, depotsIn, stockAt, type LocalityResolver } from './depots';
+import { ITEM_IDS, emptyItems } from './items';
 import { findLandingCells, type NavalMap } from './navalTransport';
 import type { GameState, Unit, UnitType } from './model';
 import { BOAT_CAPACITY, worldSizeOf } from './model';
@@ -19,8 +20,8 @@ export const COLONIAL_TRANSPORT = {
 export const MERCHANT_CARGO = { base: 100, talent: 125 } as const;
 
 export type Cargo = NonNullable<Unit['cargo']>;
-const KEYS = ['wood', 'food', 'gold', 'stone', 'planks'] as const;
-const emptyCargo = (): Cargo => ({ wood: 0, food: 0, gold: 0, stone: 0, planks: 0 });
+const KEYS = ITEM_IDS;
+const emptyCargo = (): Cargo => emptyItems();
 export const cargoTotal = (cargo: Partial<Cargo> | undefined): number => KEYS.reduce((sum, key) => sum + (cargo?.[key] ?? 0), 0);
 
 /** Capacidade de carga do porão: 200 no transporte colonial, 100 (125 com talento) no mercante. */

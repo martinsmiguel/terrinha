@@ -1,0 +1,6 @@
+import type { ItemDef } from './types';
+
+export const gold = {
+  id: 'gold', name: 'Ouro', short: 'O', era: 'colonial', source: 'coleta',
+  tags: ['metal', 'moeda', 'bruto'], chipClass: 'text-yellow-300 font-bold',
+} as const satisfies ItemDef;
