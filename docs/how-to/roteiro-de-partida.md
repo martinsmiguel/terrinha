@@ -15,7 +15,7 @@ SCENARIO_REPORT=docs/evidence/roteiro/execucao.json npx vitest run tests/scenari
 
 ## Resultado da última execução
 
-8667 passos (**7.2 min** de jogo), simulados em cerca de 4 s de CPU. Edifícios próprios concluídos em duas localidades (`home`, `1`). Vitória: `{"status":"finished","winner":"player1","players":["player1","player2"]}`.
+8652 passos (**7.2 min** de jogo), simulados em cerca de 4 s de CPU. Edifícios próprios concluídos em duas localidades (`home`, `1`). Vitória: `{"status":"finished","winner":"player1","players":["player1","player2"]}`.
 
 | Etapa | Fase | Frames | Passos | Orçamento | O que acontece | Comando | Verificação |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -41,8 +41,8 @@ SCENARIO_REPORT=docs/evidence/roteiro/execucao.json npx vitest run tests/scenari
 | E19 | 5 Reforços | F6424 → F8263 | 1839 (92.0 s) | 12000 | Navegar de novo até a costa da segunda ilha | `move` do transporte à costa | transporte na costa da segunda ilha |
 | E20 | 5 Reforços | F8263 → F8319 | 56 (2.8 s) | 600 | Desembarcar os reforços junto do posto avançado | `disembark` | 10 soldados na segunda ilha |
 | E21 | 6 Combate | F8319 → F8350 | 31 (1.6 s) | 1500 | Marchar em formação até avistar o inimigo (o host só deixa atacar o que se vê) | `move` em formação (planejador de grupo) | algum inimigo visível |
-| E22 | 6 Combate | F8350 → F8667 | 317 (15.8 s) | 14000 | Atacar: o soldado inimigo primeiro, depois as demais unidades visíveis e a capital, até a vitória | `attack` (soldado inimigo primeiro, depois unidades visíveis, depois a capital) | único sobrevivente é o jogador 1 |
-| E23 | 6 Combate | F8667 → F8667 | 0 (0.0 s) | - | Vitória registrada (evaluateMatch: único sobrevivente é o jogador 1) | avaliação da vitória | `evaluateMatch` = finished, winner player1 |
+| E22 | 6 Combate | F8350 → F8652 | 302 (15.1 s) | 14000 | Atacar: o soldado inimigo primeiro, depois as demais unidades visíveis e a capital, até a vitória | `attack` (soldado inimigo primeiro, depois unidades visíveis, depois a capital) | único sobrevivente é o jogador 1 |
+| E23 | 6 Combate | F8652 → F8652 | 0 (0.0 s) | - | Vitória registrada (evaluateMatch: único sobrevivente é o jogador 1) | avaliação da vitória | `evaluateMatch` = finished, winner player1 |
 
 ## Regras do jogo que o roteiro obedece (e que um jogador também encontra)
 
@@ -52,6 +52,7 @@ SCENARIO_REPORT=docs/evidence/roteiro/execucao.json npx vitest run tests/scenari
 - **Transporte colonial** custa 50 tábuas, e só a serralheria refina tábuas: ela precisa estar de pé uns 200 passos antes (E10).
 - **Capacidade do transporte: 6.** O inimigo tem 1 soldado e vários aldeões que também lutam, então 4 soldados perdem. O roteiro faz duas viagens: 2 aldeões + 4 soldados (para fundar o posto) e depois mais 6 soldados.
 - **Aldeões não voltam sozinhos ao trabalho** depois de construir: o roteiro os recoloca.
+- **Tropa parada revida:** soldado ou cavalaria sem ordem que leva tiro (ou vê um aliado do mesmo dono levar, dentro do seu campo de visão) passa a atacar o agressor visível mais próximo. Quem marcha, coleta, constrói ou já ataca mantém a ordem, e aldeões não revidam sozinhos. O inimigo também revida.
 
 ## Limites
 

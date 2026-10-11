@@ -42,8 +42,14 @@ Ambiente: macOS arm64, Node 25.6.1, Vitest 5.0.2; mundo 280, semente 4242 (o gru
 - **Correção:** o dano a unidades é somado num registro e aplicado depois do \`map\`, em qualquer ordem (\`src/game/simulation.ts\`).
 - **Teste:** \`tests/unit/combatOrder.test.ts\`: os 4 testes **falham no código anterior** e passam no novo, incluindo a simetria (trocar a ordem na lista não muda o resultado).
 
+## 7. Soldado parado não revidava (corrigido a pedido)
+
+- **Sintoma:** tropa sem ordem levava tiro sem reagir; as ordens de ataque precisavam ser dadas uma a uma.
+- **Correção:** `src/game/retaliation.ts`. Militar parado (soldado, cavalaria, barco de guerra) sob ataque, ou cujo aliado do mesmo dono é atacado a até seu raio de visão, passa a atacar o agressor visível mais próximo. Quem marcha, coleta, constrói ou já ataca mantém a ordem; aldeão não revida sozinho; barco de guerra só responde a barco; nunca contra aliado do mesmo dono nem contra agressor que o dono não vê. O inimigo também revida.
+- **Teste:** `tests/unit/retaliation.test.ts` (12 casos, incluindo a simulação; 2 falham sem a regra). O combate do roteiro passou de 317 para 302 passos.
+
 ## Não corrigido, para decisão
 
-- **Soldado parado não revida.** Tropas sem ordem levam tiro sem reagir (as ordens de ataque precisam ser dadas). É uma escolha de projeto possível, mas é incomum em RTS; vale decidir.
 - **A IA inimiga reage de verdade** (aldeões também lutam): um jogador precisa de pelo menos ~10 soldados para tomar a capital do inimigo padrão.
 - **Aldeões não voltam ao trabalho sozinhos** depois de construir.
+- **O revide só vale para a tropa parada:** unidades em marcha ou coletando continuam sem reagir até receberem ordem, e a perseguição acaba quando o agressor sai da visão.
