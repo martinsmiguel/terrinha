@@ -31,6 +31,7 @@ desenvolvimento: para servidor fixo, usar `docker compose up --build -d`.
 | `/poc.html` | Prévia solo da partida |
 | `/poc-hud.html` | PoC de HUD sobre a prévia |
 | `/poc-avaliacao.html` | Página de avaliação da PoC |
+| `/poc-personalizacao.html` | Protótipo de personalização local do HUD (#97), para avaliação |
 | `/api/lan-info` | JSON com port e localIps |
 
 As PoCs são avaliação, não funcionalidades de HUD aprovadas. A prévia solo e a
