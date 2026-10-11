@@ -27,6 +27,7 @@ import type { TechState } from './tech';
 import type { Building } from './model';
 import { evaluateMatch } from './victory';
 import { advanceFoundation, clearEliminatedOrders, lifePhase } from './foundation';
+import { applyRetaliation } from './retaliation';
 import { canTarget, type OwnerVision } from './visionAuthority';
 import { bodyOf, moveCost, type BodyId, type Surface } from './bodyModel';
 import { UNIT_ATTRIBUTES, effectiveAttribute, unitAttribute, type RuleSettings } from './unitAttributes';
@@ -394,6 +395,9 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
   });
 
   updatedUnits = boardArrivedPassengers(updatedUnits);
+
+  // Revide: tropa parada sob ataque passa a atacar o agressor visível mais próximo (ordens dadas nunca são trocadas).
+  updatedUnits = applyRetaliation(updatedUnits, context.vision);
 
   // Dano a unidades neste passo: o `map` abaixo recria as unidades que agem, então mutar o alvo achado em `updatedUnits` perdia o
   // dano de quem era processado depois do alvo (um soldado em combate ficava imune a atacantes mais novos na lista). O dano
