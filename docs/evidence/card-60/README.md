@@ -1,17 +1,10 @@
-# Card #60 — protótipo do menu radial, para avaliação humana
+# Card #60 — menu radial: protótipo e decisão
 
-**Nenhuma decisão foi tomada.** Este protótipo existe para o jogador decidir manter, reformular ou encerrar o radial (#56). Se for encerrado, o card
-fecha como descartado, sem implementação.
+## Decisão: descartado
 
-## Como avaliar
-
-`npm run dev` e abra `http://localhost:3000/poc-radial.html` (em produção, a mesma rota). Clique no palco para escolher o cursor, abra o radial com
-**Alt+Q** (ou o botão), escolha um comando com Enter ou clique (nunca por hover), use as setas para mover o foco e **Esc** para fechar; o foco volta ao
-elemento anterior. "Medir todas as resoluções" roda 9 posições de cursor em 4 resoluções, com o painel contextual aberto e fechado. A página guarda
-sua decisão e suas observações só no navegador.
-
-Os seis comandos são **de interface** (painel, minimapa, catálogo, busca, centralizar, ocultar HUD) e todos já existem por teclado ou botão. Nada é enviado à
-partida. O radial da PoC grande (`poc-hud.html`) continua como estava.
+O responsável do produto avaliou o protótipo e **encerrou o menu radial como descartado** (10/10/2026), sem a avaliação estruturada com jogador (#56) nem revisão independente. Nada foi implementado no jogo.
+O protótipo (`/poc-radial.html`, `src/game/radialPlacement.ts`) foi **removido do `main`** no card #166; o código continua no histórico, no commit `ba2192e` (PR #164), e a medição bruta está em [`medicao.json`](medicao.json).
+O radial da PoC grande (`poc-hud.html`) não foi tocado.
 
 ## O que foi medido (modelo, `medicao.json`)
 
@@ -40,7 +33,7 @@ diâmetro quando preciso (mínimo 158 px, que acomoda alvos de 44 px). Cursor em
    Alt+T e Alt+R já podem não funcionar em Mac; vale conferir antes de pôr mais atalhos Alt.
 3. Se aprovado, o radial precisa de um atalho livre, do cuidado com os atalhos Alt no Mac e da medição sobre o HUD real.
 
-## Critérios do card
+## Critérios do card (resultado final: descartado, sem implementação)
 
 | Critério | Estado |
 | --- | --- |

@@ -9,8 +9,6 @@ async function smoke(fallback: boolean) {
     '/poc.html': 'Terrinha — Partida RTS',
     '/poc-hud.html': 'Terrinha — PoC de HUD',
     '/poc-avaliacao.html': 'Terrinha — Avaliação da PoC de HUD',
-    '/poc-personalizacao.html': 'Terrinha — Protótipo de personalização do HUD',
-    '/poc-radial.html': 'Terrinha — Protótipo do menu radial',
   };
   const http = createServer((req, res) => {
     if (req.url === '/api/lan-info') {
