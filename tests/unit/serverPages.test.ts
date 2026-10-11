@@ -7,6 +7,7 @@ describe('páginas de avaliação no servidor de desenvolvimento', () => {
     expect(pageForUrl('/poc-hud.html')).toBe('poc-hud.html');
     expect(pageForUrl('/poc-avaliacao.html?x=1')).toBe('poc-avaliacao.html');
     expect(pageForUrl('/poc-personalizacao.html')).toBe('poc-personalizacao.html');
+    expect(pageForUrl('/poc-radial.html')).toBe('poc-radial.html');
     expect(pageForUrl('/poc.html?hud-preview=1#topo')).toBe('poc.html');
   });
 

@@ -8,7 +8,7 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss()],
     build: {
       rollupOptions: {
-        input: ['index.html', 'poc.html', 'poc-hud.html', 'poc-avaliacao.html', 'poc-personalizacao.html'],
+        input: ['index.html', 'poc.html', 'poc-hud.html', 'poc-avaliacao.html', 'poc-personalizacao.html', 'poc-radial.html'],
       },
     },
     resolve: {
