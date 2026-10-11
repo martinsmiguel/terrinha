@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Terrinha — Medição das camadas gráficas</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #0e1310; color: #e9e2d1; font: 12px ui-monospace, monospace; overflow: hidden; }
+      #palco { position: fixed; inset: 0; }
+      #painel { position: fixed; left: 8px; top: 8px; z-index: 5; max-width: 46ch; padding: 8px 10px; border: 1px solid rgba(255,255,255,.2); border-radius: 8px; background: rgba(8,12,9,.82); }
+      #painel button { margin: 2px 2px 2px 0; padding: 4px 8px; font: inherit; color: inherit; background: #1d2a20; border: 1px solid rgba(255,255,255,.25); border-radius: 6px; cursor: pointer; }
+      #saida { white-space: pre-wrap; max-height: 40vh; overflow: auto; margin-top: 6px; }
+    </style>
+  </head>
+  <body>
+    <div id="palco"></div>
+    <div id="painel">
+      <div id="info">Medição das camadas gráficas (somente desenvolvimento).</div>
+      <button id="rodar" type="button">Medir tudo</button>
+      <button id="resolucao" type="button">Medir resoluções</button>
+      <div id="saida" role="status"></div>
+    </div>
+    <script type="module" src="/src/poc/grafico.ts"></script>
+  </body>
+</html>

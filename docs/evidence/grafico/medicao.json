@@ -1,0 +1,561 @@
+{
+  "ambiente": {
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1)",
+    "webgl": "WebGL 2.0",
+    "navegador": "Chromium 152 (painel do app Claude)",
+    "canvas": "1920x1080, pixelRatio 1",
+    "mundo": 280,
+    "semente": 4242,
+    "malhasDeObjetos": 730,
+    "voxel": {
+      "triangulos": 174774,
+      "construcaoMs": "113 a 155"
+    }
+  },
+  "metodo": "quadro = render + readPixels de 1 pixel (força a GPU a terminar); 12 quadros de aquecimento; 3 rodadas de 60 quadros; mediana das medianas; sem teto de vsync",
+  "avisoContagem": "chamadas e triângulos de configs com pós-processamento na bateria principal estão como null: o contador do Three zerava a cada passe; a bateria de orçamento usa a contagem corrigida",
+  "principal": [
+    {
+      "grupo": "A base",
+      "config": "Como o jogo hoje",
+      "vista": "perto",
+      "medianaMs": 4.8,
+      "p95Ms": 6,
+      "quadrosPorSegundo": 208,
+      "chamadasDeDesenho": 690,
+      "trianguloMil": 259
+    },
+    {
+      "grupo": "A base",
+      "config": "Sem sombras",
+      "vista": "perto",
+      "medianaMs": 3.1,
+      "p95Ms": 3.7,
+      "quadrosPorSegundo": 323,
+      "chamadasDeDesenho": 322,
+      "trianguloMil": 234
+    },
+    {
+      "grupo": "A base",
+      "config": "Só terreno (sem objetos)",
+      "vista": "perto",
+      "medianaMs": 3.3,
+      "p95Ms": 5.2,
+      "quadrosPorSegundo": 303,
+      "chamadasDeDesenho": 11,
+      "trianguloMil": 210
+    },
+    {
+      "grupo": "B luz e cor",
+      "config": "Tone mapping + céu + luz quente + névoa + sombra 2048",
+      "vista": "perto",
+      "medianaMs": 5.3,
+      "p95Ms": 6.2,
+      "quadrosPorSegundo": 189,
+      "chamadasDeDesenho": 691,
+      "trianguloMil": 259
+    },
+    {
+      "grupo": "C pós",
+      "config": "Composer vazio (alvo HDR + MSAA 4x + saída)",
+      "vista": "perto",
+      "medianaMs": 9.6,
+      "p95Ms": 11.2,
+      "quadrosPorSegundo": 104,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    },
+    {
+      "grupo": "C pós",
+      "config": "+ SMAA (sem MSAA)",
+      "vista": "perto",
+      "medianaMs": 8.4,
+      "p95Ms": 9.6,
+      "quadrosPorSegundo": 119,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    },
+    {
+      "grupo": "C pós",
+      "config": "+ Bloom",
+      "vista": "perto",
+      "medianaMs": 15.9,
+      "p95Ms": 17.8,
+      "quadrosPorSegundo": 63,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    },
+    {
+      "grupo": "C pós",
+      "config": "+ Oclusão ambiente (GTAO)",
+      "vista": "perto",
+      "medianaMs": 29.1,
+      "p95Ms": 31.6,
+      "quadrosPorSegundo": 34,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    },
+    {
+      "grupo": "C pós",
+      "config": "+ Cor graduada e vinheta",
+      "vista": "perto",
+      "medianaMs": 13.1,
+      "p95Ms": 15.1,
+      "quadrosPorSegundo": 76,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    },
+    {
+      "grupo": "C pós",
+      "config": "+ Tilt-shift (2 passes)",
+      "vista": "perto",
+      "medianaMs": 17.2,
+      "p95Ms": 19.1,
+      "quadrosPorSegundo": 58,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    },
+    {
+      "grupo": "C pós",
+      "config": "Tudo: luz e cor + bloom + GTAO + cor + tilt-shift",
+      "vista": "perto",
+      "medianaMs": 44.5,
+      "p95Ms": 49.2,
+      "quadrosPorSegundo": 22,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    },
+    {
+      "grupo": "D objetos",
+      "config": "Instanciado (mesmos objetos)",
+      "vista": "perto",
+      "medianaMs": 4.1,
+      "p95Ms": 5.7,
+      "quadrosPorSegundo": 244,
+      "chamadasDeDesenho": 31,
+      "trianguloMil": 276
+    },
+    {
+      "grupo": "E grama",
+      "config": "20k lâminas instanciadas com vento",
+      "vista": "perto",
+      "medianaMs": 6.4,
+      "p95Ms": 7.1,
+      "quadrosPorSegundo": 156,
+      "chamadasDeDesenho": 691,
+      "trianguloMil": 379
+    },
+    {
+      "grupo": "E grama",
+      "config": "100k lâminas",
+      "vista": "perto",
+      "medianaMs": 8.3,
+      "p95Ms": 9.8,
+      "quadrosPorSegundo": 120,
+      "chamadasDeDesenho": 691,
+      "trianguloMil": 859
+    },
+    {
+      "grupo": "E grama",
+      "config": "400k lâminas",
+      "vista": "perto",
+      "medianaMs": 12.9,
+      "p95Ms": 14.4,
+      "quadrosPorSegundo": 78,
+      "chamadasDeDesenho": 691,
+      "trianguloMil": 2659
+    },
+    {
+      "grupo": "G blocos",
+      "config": "Terreno em blocos, cor por vértice",
+      "vista": "perto",
+      "medianaMs": 5.2,
+      "p95Ms": 6.8,
+      "quadrosPorSegundo": 192,
+      "chamadasDeDesenho": 716,
+      "trianguloMil": 128
+    },
+    {
+      "grupo": "G blocos",
+      "config": "Blocos com textura gerada por código",
+      "vista": "perto",
+      "medianaMs": 5.1,
+      "p95Ms": 6.4,
+      "quadrosPorSegundo": 196,
+      "chamadasDeDesenho": 716,
+      "trianguloMil": 128
+    },
+    {
+      "grupo": "G blocos",
+      "config": "Blocos com textura + luz e cor",
+      "vista": "perto",
+      "medianaMs": 5.3,
+      "p95Ms": 6.4,
+      "quadrosPorSegundo": 189,
+      "chamadasDeDesenho": 717,
+      "trianguloMil": 128
+    },
+    {
+      "grupo": "G blocos",
+      "config": "Blocos com textura + alvo completo",
+      "vista": "perto",
+      "medianaMs": 46,
+      "p95Ms": 51.9,
+      "quadrosPorSegundo": 22,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    },
+    {
+      "grupo": "F alvo",
+      "config": "Alvo completo (tudo + instanciado + 100k grama)",
+      "vista": "perto",
+      "medianaMs": 46.3,
+      "p95Ms": 52.3,
+      "quadrosPorSegundo": 22,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    },
+    {
+      "grupo": "A base",
+      "config": "Como o jogo hoje",
+      "vista": "longe",
+      "medianaMs": 7.3,
+      "p95Ms": 8.2,
+      "quadrosPorSegundo": 137,
+      "chamadasDeDesenho": 654,
+      "trianguloMil": 241
+    },
+    {
+      "grupo": "A base",
+      "config": "Sem sombras",
+      "vista": "longe",
+      "medianaMs": 5.4,
+      "p95Ms": 7.5,
+      "quadrosPorSegundo": 185,
+      "chamadasDeDesenho": 654,
+      "trianguloMil": 241
+    },
+    {
+      "grupo": "A base",
+      "config": "Só terreno (sem objetos)",
+      "vista": "longe",
+      "medianaMs": 5.7,
+      "p95Ms": 7.2,
+      "quadrosPorSegundo": 175,
+      "chamadasDeDesenho": 34,
+      "trianguloMil": 210
+    },
+    {
+      "grupo": "B luz e cor",
+      "config": "Tone mapping + céu + luz quente + névoa + sombra 2048",
+      "vista": "longe",
+      "medianaMs": 7.1,
+      "p95Ms": 8.3,
+      "quadrosPorSegundo": 141,
+      "chamadasDeDesenho": 655,
+      "trianguloMil": 241
+    },
+    {
+      "grupo": "C pós",
+      "config": "Composer vazio (alvo HDR + MSAA 4x + saída)",
+      "vista": "longe",
+      "medianaMs": 10.1,
+      "p95Ms": 12.7,
+      "quadrosPorSegundo": 99,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    },
+    {
+      "grupo": "C pós",
+      "config": "+ SMAA (sem MSAA)",
+      "vista": "longe",
+      "medianaMs": 8.8,
+      "p95Ms": 11,
+      "quadrosPorSegundo": 114,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    },
+    {
+      "grupo": "C pós",
+      "config": "+ Bloom",
+      "vista": "longe",
+      "medianaMs": 16.3,
+      "p95Ms": 17.8,
+      "quadrosPorSegundo": 61,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    },
+    {
+      "grupo": "C pós",
+      "config": "+ Oclusão ambiente (GTAO)",
+      "vista": "longe",
+      "medianaMs": 29,
+      "p95Ms": 32.7,
+      "quadrosPorSegundo": 34,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    },
+    {
+      "grupo": "C pós",
+      "config": "+ Cor graduada e vinheta",
+      "vista": "longe",
+      "medianaMs": 13.2,
+      "p95Ms": 16.5,
+      "quadrosPorSegundo": 76,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    },
+    {
+      "grupo": "C pós",
+      "config": "+ Tilt-shift (2 passes)",
+      "vista": "longe",
+      "medianaMs": 17.3,
+      "p95Ms": 20.2,
+      "quadrosPorSegundo": 58,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    },
+    {
+      "grupo": "C pós",
+      "config": "Tudo: luz e cor + bloom + GTAO + cor + tilt-shift",
+      "vista": "longe",
+      "medianaMs": 45.7,
+      "p95Ms": 50,
+      "quadrosPorSegundo": 22,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    },
+    {
+      "grupo": "D objetos",
+      "config": "Instanciado (mesmos objetos)",
+      "vista": "longe",
+      "medianaMs": 6.1,
+      "p95Ms": 7.7,
+      "quadrosPorSegundo": 164,
+      "chamadasDeDesenho": 49,
+      "trianguloMil": 253
+    },
+    {
+      "grupo": "E grama",
+      "config": "20k lâminas",
+      "vista": "longe",
+      "medianaMs": 7.4,
+      "p95Ms": 9.1,
+      "quadrosPorSegundo": 135,
+      "chamadasDeDesenho": 655,
+      "trianguloMil": 361
+    },
+    {
+      "grupo": "E grama",
+      "config": "100k lâminas",
+      "vista": "longe",
+      "medianaMs": 9.8,
+      "p95Ms": 11.5,
+      "quadrosPorSegundo": 102,
+      "chamadasDeDesenho": 655,
+      "trianguloMil": 841
+    },
+    {
+      "grupo": "E grama",
+      "config": "400k lâminas",
+      "vista": "longe",
+      "medianaMs": 15.3,
+      "p95Ms": 16.7,
+      "quadrosPorSegundo": 65,
+      "chamadasDeDesenho": 655,
+      "trianguloMil": 2641
+    },
+    {
+      "grupo": "G blocos",
+      "config": "Terreno em blocos, cor por vértice",
+      "vista": "longe",
+      "medianaMs": 8,
+      "p95Ms": 8.7,
+      "quadrosPorSegundo": 125,
+      "chamadasDeDesenho": 715,
+      "trianguloMil": 206
+    },
+    {
+      "grupo": "G blocos",
+      "config": "Blocos com textura gerada por código",
+      "vista": "longe",
+      "medianaMs": 7.6,
+      "p95Ms": 9.3,
+      "quadrosPorSegundo": 132,
+      "chamadasDeDesenho": 715,
+      "trianguloMil": 206
+    },
+    {
+      "grupo": "G blocos",
+      "config": "Blocos com textura + luz e cor",
+      "vista": "longe",
+      "medianaMs": 7.9,
+      "p95Ms": 10.3,
+      "quadrosPorSegundo": 127,
+      "chamadasDeDesenho": 716,
+      "trianguloMil": 206
+    },
+    {
+      "grupo": "G blocos",
+      "config": "Blocos com textura + alvo completo",
+      "vista": "longe",
+      "medianaMs": 47.4,
+      "p95Ms": 52.4,
+      "quadrosPorSegundo": 21,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    },
+    {
+      "grupo": "F alvo",
+      "config": "Alvo completo (tudo + instanciado + 100k grama)",
+      "vista": "longe",
+      "medianaMs": 48.4,
+      "p95Ms": 59.7,
+      "quadrosPorSegundo": 21,
+      "chamadasDeDesenho": null,
+      "trianguloMil": null
+    }
+  ],
+  "orcamento": [
+    {
+      "grupo": "H orçamento",
+      "config": "Luz e cor + instanciado + 100k grama (sem pós)",
+      "vista": "perto",
+      "medianaMs": 6,
+      "p95Ms": 6.9,
+      "quadrosPorSegundo": 167,
+      "chamadasDeDesenho": 33,
+      "trianguloMil": 876
+    },
+    {
+      "grupo": "H orçamento",
+      "config": "Recomendado: + SMAA + cor graduada (sem GTAO, sem MSAA)",
+      "vista": "perto",
+      "medianaMs": 9.3,
+      "p95Ms": 11.5,
+      "quadrosPorSegundo": 108,
+      "chamadasDeDesenho": 38,
+      "trianguloMil": 876
+    },
+    {
+      "grupo": "H orçamento",
+      "config": "Recomendado + bloom",
+      "vista": "perto",
+      "medianaMs": 12,
+      "p95Ms": 13.9,
+      "quadrosPorSegundo": 83,
+      "chamadasDeDesenho": 51,
+      "trianguloMil": 876
+    },
+    {
+      "grupo": "H orçamento",
+      "config": "Recomendado com terreno em blocos texturizado",
+      "vista": "perto",
+      "medianaMs": 9.9,
+      "p95Ms": 12.1,
+      "quadrosPorSegundo": 101,
+      "chamadasDeDesenho": 64,
+      "trianguloMil": 745
+    },
+    {
+      "grupo": "H orçamento",
+      "config": "Recomendado + GTAO",
+      "vista": "perto",
+      "medianaMs": 22.1,
+      "p95Ms": 24.5,
+      "quadrosPorSegundo": 45,
+      "chamadasDeDesenho": 74,
+      "trianguloMil": 1753
+    },
+    {
+      "grupo": "H orçamento",
+      "config": "Referência: como o jogo hoje",
+      "vista": "perto",
+      "medianaMs": 5.4,
+      "p95Ms": 6.5,
+      "quadrosPorSegundo": 185,
+      "chamadasDeDesenho": 690,
+      "trianguloMil": 259
+    },
+    {
+      "grupo": "H orçamento",
+      "config": "Luz e cor + instanciado + 100k grama (sem pós)",
+      "vista": "longe",
+      "medianaMs": 7.7,
+      "p95Ms": 9.6,
+      "quadrosPorSegundo": 130,
+      "chamadasDeDesenho": 51,
+      "trianguloMil": 853
+    },
+    {
+      "grupo": "H orçamento",
+      "config": "Recomendado: + SMAA + cor graduada (sem GTAO, sem MSAA)",
+      "vista": "longe",
+      "medianaMs": 10.4,
+      "p95Ms": 12.8,
+      "quadrosPorSegundo": 96,
+      "chamadasDeDesenho": 56,
+      "trianguloMil": 853
+    },
+    {
+      "grupo": "H orçamento",
+      "config": "Recomendado + bloom",
+      "vista": "longe",
+      "medianaMs": 12.6,
+      "p95Ms": 14.9,
+      "quadrosPorSegundo": 79,
+      "chamadasDeDesenho": 69,
+      "trianguloMil": 853
+    },
+    {
+      "grupo": "H orçamento",
+      "config": "Recomendado com terreno em blocos texturizado",
+      "vista": "longe",
+      "medianaMs": 11.1,
+      "p95Ms": 13.4,
+      "quadrosPorSegundo": 90,
+      "chamadasDeDesenho": 117,
+      "trianguloMil": 819
+    },
+    {
+      "grupo": "H orçamento",
+      "config": "Recomendado + GTAO",
+      "vista": "longe",
+      "medianaMs": 23,
+      "p95Ms": 26.1,
+      "quadrosPorSegundo": 43,
+      "chamadasDeDesenho": 110,
+      "trianguloMil": 1707
+    },
+    {
+      "grupo": "H orçamento",
+      "config": "Referência: como o jogo hoje",
+      "vista": "longe",
+      "medianaMs": 7.4,
+      "p95Ms": 8.8,
+      "quadrosPorSegundo": 135,
+      "chamadasDeDesenho": 654,
+      "trianguloMil": 241
+    }
+  ],
+  "resolucoes": [
+    {
+      "resolucao": "1280x720",
+      "jogoHojeMs": 3.5,
+      "recomendadoMs": 6.1,
+      "alvoCompletoMs": 24.6
+    },
+    {
+      "resolucao": "1920x1080",
+      "jogoHojeMs": 5.3,
+      "recomendadoMs": 10.2,
+      "alvoCompletoMs": 47.3
+    },
+    {
+      "resolucao": "2560x1440",
+      "jogoHojeMs": 7.5,
+      "recomendadoMs": 15.5,
+      "alvoCompletoMs": 77.4
+    }
+  ]
+}
