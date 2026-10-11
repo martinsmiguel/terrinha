@@ -37,6 +37,8 @@ import { Tutorial } from './components/Tutorial';
 import { FOUNDATION_KIT, createStartingForce, findCapitalSites, foundCapital, homeAnchor } from './game/foundation';
 import { evaluateCapitalSite, type CapitalSiteTerrain } from './game/capitalSite';
 import { bodyOf } from './game/bodyModel';
+import { planGroupMove } from './game/groupMove';
+import { attackOrder } from './game/unitOrders';
 import { updateOwnerVision, visionSourcesFor, type OwnerVision } from './game/visionAuthority';
 
 /** Marcador de que o tutorial de primeira partida ja foi exibido. */
@@ -81,7 +83,7 @@ import {
 } from './game/tech';
 import { FACTION_COLORS } from './game/factions';
 import { pickFrontMostCandidate, resolveClickSelection } from './game/entitySelection';
-import { applyEmbarkOrder, boatCapacity } from './game/navalTransport';
+import { applyEmbarkOrder, boatCapacity, boatDestination } from './game/navalTransport';
 import { boatMarkers, collectAlerts, healthMemoryOf, type HealthMemory } from './game/alerts';
 import { flowRows, pushSample, sampleFlows, type FlowSample } from './game/flows';
 import { BRIDGE, bridgeFoundation, checkBridge, withBridges } from './game/bridges';
@@ -1211,14 +1213,16 @@ export default function App() {
     if (cmd.type === 'move') {
       let target = cmd.target;
       const moving = gameStateRef.current.units.find((u) => u.id === cmd.unitId);
-      if (
-        moving && isBoatUnit(moving.type) && proceduralMapRef.current &&
-        !proceduralMapRef.current.isNavigableAt(target.x, target.z)
-      ) {
-        // Barco: leva o destino à água com calado mais margem (1,0 de fundo) mais próxima.
-        const navigable = { isOceanAt: proceduralMapRef.current.isNavigableAt, mapSize: proceduralMapRef.current.mapSize };
-        const oceanCell = findNearestOceanCell(navigable, target.x, target.z);
-        if (oceanCell) target = oceanCell;
+      if (moving && isBoatUnit(moving.type) && proceduralMapRef.current) {
+        // Barco: leva o destino à água com calado mais margem (1,0 de fundo) mais próxima, até 64 células (`BOAT_DESTINATION_RADIUS`).
+        const map = proceduralMapRef.current;
+        const destination = boatDestination(map.isNavigableAt, map.mapSize, target);
+        if (!destination) {
+          triggerNotification('Não há mar navegável perto desse destino.', 'warning');
+          return;
+        }
+        if (destination.snapped) triggerNotification('Destino em terra: o barco segue ao mar navegável mais próximo.', 'info');
+        target = destination.target;
       }
       const finalTarget = target;
       setGameState((prev) => ({
@@ -1386,7 +1390,7 @@ export default function App() {
     } else if (cmd.type === 'attack') {
       setGameState((prev) => ({
         ...prev,
-        units: prev.units.map((u) => (u.id === cmd.unitId ? { ...u, targetEntityId: cmd.targetId, state: 'attacking' } : u)),
+        units: prev.units.map((u) => (u.id === cmd.unitId ? attackOrder(u, cmd.targetId) : u)),
       }));
     } else if (cmd.type === 'build_order') {
       setGameState((prev) => ({
@@ -2214,80 +2218,28 @@ export default function App() {
       return;
     }
 
-    // Direction vector of march from current squad center to target
-    const avgX = units.reduce((sum, u) => sum + u.position.x, 0) / count;
-    const avgZ = units.reduce((sum, u) => sum + u.position.z, 0) / count;
-
-    const dirX = targetX - avgX;
-    const dirZ = targetZ - avgZ;
-    const len = Math.hypot(dirX, dirZ);
-
-    let fwdX = 0;
-    let fwdZ = 1;
-    let perpX = 1;
-    let perpZ = 0;
-
-    if (len > 0.01) {
-      fwdX = dirX / len;
-      fwdZ = dirZ / len;
-      // Perpendicular vector to forward (flank left-to-right vector)
-      perpX = -fwdZ;
-      perpZ = fwdX;
+    // O host recusa em silêncio destinos onde o corpo não pode ficar; o planejador só envia destinos válidos.
+    const map = proceduralMapRef.current;
+    const plan = planGroupMove(
+      units.map((u) => ({ id: u.id, position: u.position, body: bodyOf(u.type) })),
+      { x: targetX, z: targetZ },
+      squadFormationRef.current,
+      worldSizeRef.current,
+      map ? withBridges(map, gameStateRef.current.buildings).canStandAt : () => true
+    );
+    if (plan.orders.length === 0) {
+      triggerNotification('Destino inacessível para o grupo: água funda ou rochedo ao redor.', 'warning');
+      return;
     }
+    if (plan.centerMoved) triggerNotification('Destino ajustado ao terreno firme mais próximo.', 'info');
+    else if (plan.unplaced.length > 0) triggerNotification(`${plan.unplaced.length} unidade(s) sem lugar livre perto do destino ficaram paradas.`, 'warning');
 
-    const formation = squadFormationRef.current;
+    plan.orders.forEach((order) => {
+      // Marcador visual do slot de cada unidade na formação, na altura do terreno
+      const waypointY = map ? map.getHeightAt(order.target.x, order.target.z) : 0;
+      engineRef.current?.spawnClickMarker(order.target.x, order.target.z, 'move', waypointY);
 
-    units.forEach((unit, idx) => {
-      let finalX = targetX;
-      let finalZ = targetZ;
-
-      if (formation === 'line') {
-        // Line formation (Linha de Batalha): Frontal ranks abreast perpendicular to march vector
-        const maxRank = count > 8 ? Math.ceil(count / 2) : count;
-        const rankIndex = idx % maxRank;
-        const rankRow = Math.floor(idx / maxRank);
-        const colOffset = (rankIndex - (maxRank - 1) / 2) * 1.6;
-        const rowOffset = -rankRow * 1.8;
-
-        finalX = targetX + perpX * colOffset + fwdX * rowOffset;
-        finalZ = targetZ + perpZ * colOffset + fwdZ * rowOffset;
-      } else if (formation === 'spread') {
-        // Spread formation (Dispersa): Staggered circular loose spacing
-        const angle = (idx / count) * Math.PI * 2;
-        const radius = 1.8 + (idx % 2) * 1.4;
-        finalX = targetX + Math.cos(angle) * radius;
-        finalZ = targetZ + Math.sin(angle) * radius;
-      } else {
-        // Box formation (Caixa / Bloco): Compact tactical marching grid
-        const cols = Math.ceil(Math.sqrt(count));
-        const rows = Math.ceil(count / cols);
-        const spacing = 1.4;
-        const col = idx % cols;
-        const row = Math.floor(idx / cols);
-
-        const colOffset = (col - (cols - 1) / 2) * spacing;
-        const rowOffset = -(row - (rows - 1) / 2) * spacing;
-
-        finalX = targetX + perpX * colOffset + fwdX * rowOffset;
-        finalZ = targetZ + perpZ * colOffset + fwdZ * rowOffset;
-      }
-
-      const clampedX = Math.max(2, Math.min(worldSizeRef.current - 2, finalX));
-      const clampedZ = Math.max(2, Math.min(worldSizeRef.current - 2, finalZ));
-
-      // Visual ground waypoint pip for each unit's slot in the formation at correct elevation
-      const waypointY = proceduralMapRef.current ? proceduralMapRef.current.getHeightAt(clampedX, clampedZ) : 0;
-      engineRef.current?.spawnClickMarker(clampedX, clampedZ, 'move', waypointY);
-
-      const cmd = {
-        type: 'move',
-        unitId: unit.id,
-        target: {
-          x: clampedX,
-          z: clampedZ,
-        },
-      };
-
+      const cmd = { type: 'move', unitId: order.unitId, target: order.target };
       if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
       else multiRef.current?.sendToHost(cmd);
     });

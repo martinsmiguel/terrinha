@@ -1,0 +1,429 @@
+{
+  "mundo": 280,
+  "semente": 4242,
+  "passosPorSegundo": 20,
+  "passosTotais": 8667,
+  "duracaoSimulada": "7.2 min",
+  "ilhas": [
+    "home",
+    "1"
+  ],
+  "vitoria": {
+    "status": "finished",
+    "winner": "player1",
+    "players": [
+      "player1",
+      "player2"
+    ]
+  },
+  "etapas": [
+    {
+      "id": "E01",
+      "fase": "1 Capital",
+      "nome": "F0: fundar a capital com a carroça no melhor sítio",
+      "inicio": 0,
+      "fim": 400,
+      "orcamento": 450,
+      "passos": 400,
+      "recursos": {
+        "wood": 350,
+        "food": 350,
+        "gold": 200,
+        "stone": 100,
+        "planks": 0,
+        "pop": "3/15"
+      }
+    },
+    {
+      "id": "E02",
+      "fase": "2 Economia",
+      "nome": "F400: treinar 4 aldeões no Centro (200 comida)",
+      "inicio": 400,
+      "fim": 600,
+      "orcamento": 600,
+      "passos": 200,
+      "recursos": {
+        "wood": 350,
+        "food": 150,
+        "gold": 200,
+        "stone": 100,
+        "planks": 0,
+        "pop": "7/15"
+      }
+    },
+    {
+      "id": "E03",
+      "fase": "2 Economia",
+      "nome": "Aldeões coletam madeira, comida e ouro (só em recurso explorado)",
+      "inicio": 600,
+      "fim": 688,
+      "orcamento": 400,
+      "passos": 88,
+      "recursos": {
+        "wood": 411,
+        "food": 156,
+        "gold": 216,
+        "stone": 100,
+        "planks": 0,
+        "pop": "7/15"
+      }
+    },
+    {
+      "id": "E04",
+      "fase": "2 Economia",
+      "nome": "Construir a casa (60 madeira, 8 s): +5 de população máxima",
+      "inicio": 688,
+      "fim": 809,
+      "orcamento": 500,
+      "passos": 121,
+      "recursos": {
+        "wood": 411,
+        "food": 264,
+        "gold": 276,
+        "stone": 100,
+        "planks": 0,
+        "pop": "7/20"
+      }
+    },
+    {
+      "id": "E04b",
+      "fase": "2 Economia",
+      "nome": "Construir a fazenda (75 madeira, 9 s): comida passiva (+2/s), porque arbusto acaba",
+      "inicio": 809,
+      "fim": 899,
+      "orcamento": 500,
+      "passos": 90,
+      "recursos": {
+        "wood": 375,
+        "food": 354,
+        "gold": 321,
+        "stone": 100,
+        "planks": 0,
+        "pop": "7/20"
+      }
+    },
+    {
+      "id": "E05",
+      "fase": "2 Economia",
+      "nome": "Construir o quartel (120 madeira + 30 ouro, 14 s)",
+      "inicio": 899,
+      "fim": 1064,
+      "orcamento": 700,
+      "passos": 165,
+      "recursos": {
+        "wood": 337,
+        "food": 537,
+        "gold": 373,
+        "stone": 100,
+        "planks": 0,
+        "pop": "7/20"
+      }
+    },
+    {
+      "id": "E06",
+      "fase": "2 Economia",
+      "nome": "Construir a serralheria junto das árvores (110 madeira, 11 s): refina tábuas",
+      "inicio": 1064,
+      "fim": 1200,
+      "orcamento": 600,
+      "passos": 136,
+      "recursos": {
+        "wood": 294,
+        "food": 657,
+        "gold": 441,
+        "stone": 100,
+        "planks": 0,
+        "pop": "7/20"
+      }
+    },
+    {
+      "id": "E07",
+      "fase": "3 Costa e exército",
+      "nome": "Explorar a costa: o soldado inicial anda até o futuro cais (obra exige local explorado)",
+      "inicio": 1200,
+      "fim": 1297,
+      "orcamento": 1500,
+      "passos": 97,
+      "recursos": {
+        "wood": 395,
+        "food": 764,
+        "gold": 504,
+        "stone": 100,
+        "planks": 5,
+        "pop": "7/20"
+      }
+    },
+    {
+      "id": "E08",
+      "fase": "3 Costa e exército",
+      "nome": "Construir o cais na margem do oceano navegável (140 madeira, 15 s)",
+      "inicio": 1297,
+      "fim": 1542,
+      "orcamento": 700,
+      "passos": 245,
+      "recursos": {
+        "wood": 395,
+        "food": 1036,
+        "gold": 627,
+        "stone": 100,
+        "planks": 17,
+        "pop": "7/20"
+      }
+    },
+    {
+      "id": "E09",
+      "fase": "3 Costa e exército",
+      "nome": "Treinar 9 soldados no quartel (80 comida + 40 ouro cada), enfileirando conforme o ouro chega: 10 com o inicial",
+      "inicio": 1542,
+      "fim": 1992,
+      "orcamento": 12000,
+      "passos": 450,
+      "recursos": {
+        "wood": 406,
+        "food": 450,
+        "gold": 677,
+        "stone": 100,
+        "planks": 40,
+        "pop": "16/20"
+      }
+    },
+    {
+      "id": "E10",
+      "fase": "3 Costa e exército",
+      "nome": "Esperar 50 tábuas refinadas pela serralheria (custo do transporte colonial)",
+      "inicio": 1992,
+      "fim": 2200,
+      "orcamento": 4000,
+      "passos": 208,
+      "recursos": {
+        "wood": 722,
+        "food": 473,
+        "gold": 857,
+        "stone": 100,
+        "planks": 50,
+        "pop": "16/20"
+      }
+    },
+    {
+      "id": "E11",
+      "fase": "4 Mar e segunda ilha",
+      "nome": "Treinar o transporte colonial no cais (180 madeira + 40 ouro + 50 tábuas)",
+      "inicio": 2200,
+      "fim": 2250,
+      "orcamento": 6000,
+      "passos": 50,
+      "recursos": {
+        "wood": 669,
+        "food": 479,
+        "gold": 867,
+        "stone": 100,
+        "planks": 3,
+        "pop": "17/20"
+      }
+    },
+    {
+      "id": "E12",
+      "fase": "4 Mar e segunda ilha",
+      "nome": "Carregar o kit de colonização (150 madeira + 50 pedra) no porão",
+      "inicio": 2250,
+      "fim": 2250,
+      "orcamento": 60,
+      "passos": 0,
+      "recursos": {
+        "wood": 519,
+        "food": 479,
+        "gold": 867,
+        "stone": 50,
+        "planks": 3,
+        "pop": "17/20"
+      }
+    },
+    {
+      "id": "E13",
+      "fase": "4 Mar e segunda ilha",
+      "nome": "Embarcar 2 aldeões e 4 soldados (capacidade 6): primeira viagem",
+      "inicio": 2250,
+      "fim": 2394,
+      "orcamento": 2500,
+      "passos": 144,
+      "recursos": {
+        "wood": 675,
+        "food": 495,
+        "gold": 939,
+        "stone": 50,
+        "planks": 10,
+        "pop": "17/20"
+      }
+    },
+    {
+      "id": "E14",
+      "fase": "4 Mar e segunda ilha",
+      "nome": "Navegar até a costa da ilha do inimigo",
+      "inicio": 2394,
+      "fim": 4230,
+      "orcamento": 12000,
+      "passos": 1836,
+      "recursos": {
+        "wood": 492,
+        "food": 684,
+        "gold": 1570,
+        "stone": 50,
+        "planks": 102,
+        "pop": "17/20"
+      }
+    },
+    {
+      "id": "E15",
+      "fase": "4 Mar e segunda ilha",
+      "nome": "Desembarcar a tropa (uma unidade a cada 0,5 s) e entregar o kit",
+      "inicio": 4230,
+      "fim": 4286,
+      "orcamento": 600,
+      "passos": 56,
+      "recursos": {
+        "wood": 486,
+        "food": 689,
+        "gold": 1570,
+        "stone": 50,
+        "planks": 104,
+        "pop": "17/20"
+      }
+    },
+    {
+      "id": "E16",
+      "fase": "4 Mar e segunda ilha",
+      "nome": "Fundar o posto avançado (kit) na segunda ilha: duas ilhas ocupadas",
+      "inicio": 4306,
+      "fim": 4515,
+      "orcamento": 900,
+      "passos": 209,
+      "recursos": {
+        "wood": 313,
+        "food": 710,
+        "gold": 1570,
+        "stone": 0,
+        "planks": 116,
+        "pop": "17/20"
+      }
+    },
+    {
+      "id": "E17",
+      "fase": "5 Reforços",
+      "nome": "Voltar ao cais: o transporte navega de volta à ilha natal",
+      "inicio": 4515,
+      "fim": 6298,
+      "orcamento": 12000,
+      "passos": 1783,
+      "recursos": {
+        "wood": 135,
+        "food": 870,
+        "gold": 1570,
+        "stone": 0,
+        "planks": 205,
+        "pop": "17/20"
+      }
+    },
+    {
+      "id": "E18",
+      "fase": "5 Reforços",
+      "nome": "Embarcar os 6 soldados que ficaram na ilha natal",
+      "inicio": 6298,
+      "fim": 6424,
+      "orcamento": 2500,
+      "passos": 126,
+      "recursos": {
+        "wood": 122,
+        "food": 881,
+        "gold": 1570,
+        "stone": 0,
+        "planks": 211,
+        "pop": "17/20"
+      }
+    },
+    {
+      "id": "E19",
+      "fase": "5 Reforços",
+      "nome": "Navegar de novo até a costa da segunda ilha",
+      "inicio": 6424,
+      "fim": 8263,
+      "orcamento": 12000,
+      "passos": 1839,
+      "recursos": {
+        "wood": 0,
+        "food": 1068,
+        "gold": 1570,
+        "stone": 0,
+        "planks": 272,
+        "pop": "17/20"
+      }
+    },
+    {
+      "id": "E20",
+      "fase": "5 Reforços",
+      "nome": "Desembarcar os reforços junto do posto avançado",
+      "inicio": 8263,
+      "fim": 8319,
+      "orcamento": 600,
+      "passos": 56,
+      "recursos": {
+        "wood": 0,
+        "food": 1074,
+        "gold": 1570,
+        "stone": 0,
+        "planks": 272,
+        "pop": "17/20"
+      }
+    },
+    {
+      "id": "E21",
+      "fase": "6 Combate",
+      "nome": "Marchar em formação até avistar o inimigo (o host só deixa atacar o que se vê)",
+      "inicio": 8319,
+      "fim": 8350,
+      "orcamento": 1500,
+      "passos": 31,
+      "recursos": {
+        "wood": 0,
+        "food": 1078,
+        "gold": 1570,
+        "stone": 0,
+        "planks": 272,
+        "pop": "17/20"
+      }
+    },
+    {
+      "id": "E22",
+      "fase": "6 Combate",
+      "nome": "Atacar: o soldado inimigo primeiro, depois as demais unidades visíveis e a capital, até a vitória",
+      "inicio": 8350,
+      "fim": 8667,
+      "orcamento": 14000,
+      "passos": 317,
+      "recursos": {
+        "wood": 0,
+        "food": 1113,
+        "gold": 1570,
+        "stone": 0,
+        "planks": 272,
+        "pop": "17/20"
+      }
+    },
+    {
+      "id": "E23",
+      "fase": "6 Combate",
+      "nome": "Vitória registrada (evaluateMatch: único sobrevivente é o jogador 1)",
+      "inicio": 8667,
+      "fim": 8667,
+      "orcamento": 0,
+      "passos": 0,
+      "recursos": {
+        "wood": 0,
+        "food": 1113,
+        "gold": 1570,
+        "stone": 0,
+        "planks": 272,
+        "pop": "17/20"
+      }
+    }
+  ]
+}
