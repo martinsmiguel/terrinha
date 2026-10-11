@@ -37,6 +37,15 @@ export default defineConfig(() => {
         {
           extends: true,
           test: {
+            name: 'scenario',
+            include: ['tests/scenario/**/*.test.ts'],
+            // Partidas inteiras simuladas passo a passo: pesadas, mas sem asserção de tempo real.
+            testTimeout: 600_000,
+          },
+        },
+        {
+          extends: true,
+          test: {
             name: 'perf',
             include: ['tests/perf/**/*.test.ts'],
             // O orçamento de 50 ms por tick mede tempo real: roda depois dos demais, sem disputar CPU com eles.

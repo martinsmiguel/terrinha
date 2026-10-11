@@ -198,3 +198,30 @@ export function disembarkPassengers(state: GameState, boatId: string, map: Naval
 
   return { state: nextState, placed, remaining: remaining.length };
 }
+
+export const BOAT_DESTINATION_RADIUS = 64;
+
+/**
+ * Destino de uma ordem de barco: o próprio ponto se já for mar navegável; senão o mar navegável mais próximo num raio de
+ * `maxRadius` células. Devolve `null` quando não há mar por perto, e o chamador recusa a ordem com um aviso em vez de
+ * deixar o barco parado com um alvo em terra.
+ */
+export function boatDestination(
+  isNavigableAt: (x: number, z: number) => boolean,
+  mapSize: number,
+  target: { x: number; z: number },
+  maxRadius: number = BOAT_DESTINATION_RADIUS
+): { target: { x: number; z: number }; snapped: boolean } | null {
+  if (isNavigableAt(target.x, target.z)) return { target, snapped: false };
+  for (let radius = 1; radius <= maxRadius; radius += 1) {
+    const steps = Math.max(8, Math.floor(radius * 6));
+    for (let i = 0; i < steps; i += 1) {
+      const angle = (i / steps) * Math.PI * 2;
+      const x = target.x + Math.cos(angle) * radius;
+      const z = target.z + Math.sin(angle) * radius;
+      if (x < 0 || z < 0 || x > mapSize || z > mapSize) continue;
+      if (isNavigableAt(x, z)) return { target: { x, z }, snapped: true };
+    }
+  }
+  return null;
+}

@@ -158,6 +158,40 @@ function routeFrom(
 ): { x: number; z: number }[] {
   const isBlocked = (x: number, z: number) => !Number.isFinite(weight(x, z));
   const options = { mapSize, maxExpanded: 2400, weight };
+  // O objetivo também pode estar num ponto válido cuja célula tem o centro bloqueado (beira da costa): o A* devolveria rota
+  // vazia e a unidade andaria em linha reta até parar na costa. A rota vai ao centro livre mais próximo do objetivo.
+  const goalRoute = nearestFreeCenter(goal, isBlocked);
+  if (!goalRoute) return [];
+  return routeToFreeGoal(from, goalRoute, isBlocked, options);
+}
+
+/** Centro de célula livre mais próximo do ponto (o próprio centro da célula, ou um vizinho até 2 células); `null` se não houver. */
+function nearestFreeCenter(point: { x: number; z: number }, isBlocked: (x: number, z: number) => boolean): { x: number; z: number } | null {
+  const cellX = Math.floor(point.x);
+  const cellZ = Math.floor(point.z);
+  if (!isBlocked(cellX + 0.5, cellZ + 0.5)) return point;
+  let best: { x: number; z: number } | null = null;
+  let bestDistance = Infinity;
+  for (let dx = -2; dx <= 2; dx += 1) {
+    for (let dz = -2; dz <= 2; dz += 1) {
+      const center = { x: cellX + dx + 0.5, z: cellZ + dz + 0.5 };
+      if (isBlocked(center.x, center.z)) continue;
+      const distance = Math.hypot(center.x - point.x, center.z - point.z);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = center;
+      }
+    }
+  }
+  return best;
+}
+
+function routeToFreeGoal(
+  from: { x: number; z: number },
+  goal: { x: number; z: number },
+  isBlocked: (x: number, z: number) => boolean,
+  options: { mapSize: number; maxExpanded: number; weight: (x: number, z: number) => number }
+): { x: number; z: number }[] {
   const direct = findPath(from, goal, isBlocked, options);
   if (direct.length > 0) return direct;
   const cellX = Math.floor(from.x);
@@ -360,6 +394,11 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
   });
 
   updatedUnits = boardArrivedPassengers(updatedUnits);
+
+  // Dano a unidades neste passo: o `map` abaixo recria as unidades que agem, então mutar o alvo achado em `updatedUnits` perdia o
+  // dano de quem era processado depois do alvo (um soldado em combate ficava imune a atacantes mais novos na lista). O dano
+  // é somado aqui e aplicado depois do `map`, em qualquer ordem.
+  const unitDamage = new Map<string, number>();
 
   updatedUnits = updatedUnits.map((unit) => {
     if (unit.state === 'repairing' && unit.targetEntityId) {
@@ -567,7 +606,9 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         return { ...unit, state: 'idle' as const, targetEntityId: null, targetPosition: null };
       }
 
-      if (target && target.health > 0) {
+      const pendingDamage = targetEnemy ? unitDamage.get(targetEnemy.id) ?? 0 : 0;
+      const effectiveHealth = target ? target.health - pendingDamage : 0;
+      if (target && effectiveHealth > 0) {
         const dx = target.position.x - unit.position.x;
         const dz = target.position.z - unit.position.z;
         const dist = Math.sqrt(dx * dx + dz * dz);
@@ -585,9 +626,11 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
 
         const damage = Math.round(effectiveAttribute(unitAttribute(unit.type, 'attackDamage', ruleSettings), [],
           [unitDamageMultiplier(updatedTechs[unit.owner], unit.type) - 1]));
-        const prevHealth = target.health;
-        target.health = Math.max(0, target.health - damage);
-        xpEvents.push({ owner: unit.owner, event: { kind: 'damage', amount: prevHealth - target.health } });
+        const prevHealth = effectiveHealth;
+        const nextHealth = Math.max(0, prevHealth - damage);
+        if (targetEnemy) unitDamage.set(targetEnemy.id, pendingDamage + (prevHealth - nextHealth));
+        else target.health = nextHealth;
+        xpEvents.push({ owner: unit.owner, event: { kind: 'damage', amount: prevHealth - nextHealth } });
 
         const isMusket = unit.type === 'soldier';
         effects.push({
@@ -599,7 +642,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         });
         effects.push({ type: 'sound', sound: 'combat-hit', musket: isMusket });
 
-        if (prevHealth > 0 && target.health <= 0) {
+        if (prevHealth > 0 && nextHealth <= 0) {
           if (targetEnemy && isBoatUnit(targetEnemy.type)) {
             effects.push({ type: 'boat-sinking', x: target.position.x, z: target.position.z });
           } else {
@@ -670,6 +713,9 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     return unit;
   });
 
+  if (unitDamage.size > 0) {
+    updatedUnits = updatedUnits.map((unit) => (unitDamage.has(unit.id) ? { ...unit, health: Math.max(0, unit.health - unitDamage.get(unit.id)!) } : unit));
+  }
   const deathsByOwner = countDeathsByOwner(updatedUnits);
   updatedUnits = updatedUnits.filter((unit) => unit.health > 0);
   const liveUnitIds = new Set(updatedUnits.map((unit) => unit.id));
