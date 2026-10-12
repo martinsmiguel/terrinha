@@ -8,17 +8,17 @@ import { bridgeVersion, completedBridges, relocateFromDestroyed, withBridges } f
 import { buildFlowField, followFlowField, type FlowField } from './movement/flowField';
 import { applyStormDamage, stormAt, stormPhase } from './storms';
 import { BLESSING_FARM, BRISA_SPEED, hasTalent } from './talents';
-import { BOT_STUDY_INTERVAL_SECONDS, botStudyChoice, canUseRecipe, craftLevels, creditAll, studyCraft, type XpEvent } from './mastery';
+import { BOT_STUDY_INTERVAL_SECONDS, botStudyChoice, craftLevels, creditAll, studyCraft, type XpEvent } from './mastery';
 import { isUnlocked } from './unlocks';
 import { blessingMultiplier, seasonFarmFactor, seasonOf, tickBuffs } from './mysticism';
 import { isExploredBy } from './visionAuthority';
 import { stepRoute } from './tradeRoutes';
-import { HOME, productionPaused, reconcileDepots, refineAt, stockAt, type LocalityResolver } from './depots';
-import { planksFromWood } from './recipes';
+import { HOME, productionPaused, reconcileDepots, stockAt, withStockAt, type LocalityResolver } from './depots';
+import { hasStoneTool, runStations, stationRecipes, STONE_TOOL_GATHER_BONUS, STONE_TOOL_WEAR_PER_TICK } from './production';
 import { isBoatUnit, worldSizeOf } from './model';
 import { applyEmbarkOrder, boardArrivedPassengers } from './navalTransport';
 import type { BuildingType, GameState, Unit, UnitType } from './model';
-import { applyCost, canAfford, refinePlanks, UNIT_COSTS } from './economy';
+import { applyCost, canAfford, UNIT_COSTS } from './economy';
 import { findDockOceanSpawnCell } from './dockPlacement';
 import { consumeReachedWaypoints, findPath } from './movement/pathfinding';
 import { resolveSeparation } from './movement/separation';
@@ -491,6 +491,9 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
 
         gatherRate *= gatherMultiplier(updatedTechs[unit.owner], targetNode.type);
         gatherRate *= blessingMultiplier(state.buffs, unit.owner);
+        // Ferramenta de pedra (#178): aldeão em terra coleta mais enquanto houver ferramenta na metrópole; ela se gasta.
+        const withTool = unit.type === 'villager' && targetNode.type !== 'fish_school' && hasStoneTool(updatedResources[unit.owner]);
+        if (withTool) gatherRate *= STONE_TOOL_GATHER_BONUS;
 
         const gathered = Math.min(gatherRate, targetNode.remaining);
         targetNode.remaining -= gathered;
@@ -512,6 +515,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
             [unit.owner]: {
               ...updatedResources[unit.owner],
               [resKey]: updatedResources[unit.owner][resKey] + gathered,
+              ...(withTool ? { stone_tool: (updatedResources[unit.owner].stone_tool ?? 0) - STONE_TOOL_WEAR_PER_TICK } : {}),
             },
           };
         }
@@ -853,15 +857,13 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     ).length;
     if (completedMarkets > 0) res.gold = (res.gold || 0) + completedMarkets * 0.05;
 
-    const completedSawmills = updatedBuildings.filter(
-      (building) => building.owner === slot && building.type === 'sawmill' && building.isComplete && building.health > 0
-        && (!pMap?.localityOf || pMap.localityOf(slot, building.position) === HOME)
-    ).length;
-    if (completedSawmills > 0 && canUseRecipe(state.mastery, slot, planksFromWood)) {
-      const before = res.planks;
-      updatedResources[slot] = refinePlanks(res, completedSawmills);
-      const made = updatedResources[slot].planks - before;
-      if (made > 0) xpEvents.push({ owner: slot, event: { kind: 'production', craft: planksFromWood.craft, amount: made } });
+    // Receitas (#178): cada estação da metrópole roda a receita escolhida (ou a padrão) se o dono tem era e ofício.
+    const stations = updatedBuildings.filter((building) => building.owner === slot && building.isComplete && building.health > 0
+      && stationRecipes(building.type).length > 0 && (!pMap?.localityOf || pMap.localityOf(slot, building.position) === HOME));
+    if (stations.length > 0) {
+      const run = runStations(res, stations, slot, { techs: updatedTechs, mastery: state.mastery });
+      updatedResources[slot] = run.bag;
+      run.produced.forEach((made) => xpEvents.push({ owner: slot, event: { kind: 'production', craft: made.craft, amount: made.amount } }));
     }
   });
 
@@ -1169,17 +1171,16 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
   let updatedLocalStocks = localStocksFromRoutes ?? state.localStocks;
   if (pMap?.localityOf && updatedLocalStocks) {
     let local = { ...state, localStocks: updatedLocalStocks, buildings: updatedBuildings, playerResources: updatedResources };
-    // Serralheria colonial refina o estoque da própria ilha, e só com posto concluído (produção local).
+    // Estações coloniais (receitas, #178) produzem com o estoque da própria ilha, e só com posto concluído (produção local).
     for (const [owner, byLocality] of Object.entries(updatedLocalStocks)) {
       for (const locality of Object.keys(byLocality)) {
-        const sawmills = updatedBuildings.filter((building) =>
-          building.owner === owner && building.type === 'sawmill' && building.isComplete && building.health > 0
-          && pMap.localityOf!(owner, building.position) === locality).length;
-        if (sawmills > 0 && !productionPaused(updatedBuildings, owner, locality, pMap.localityOf) && canUseRecipe(state.mastery, owner, planksFromWood)) {
-          const before = stockAt(local, owner, locality).planks;
-          local = refineAt(local, owner, locality, sawmills);
-          const made = stockAt(local, owner, locality).planks - before;
-          if (made > 0) xpEvents.push({ owner, event: { kind: 'production', craft: planksFromWood.craft, amount: made } });
+        const stations = updatedBuildings.filter((building) =>
+          building.owner === owner && building.isComplete && building.health > 0 && stationRecipes(building.type).length > 0
+          && pMap.localityOf!(owner, building.position) === locality);
+        if (stations.length > 0 && !productionPaused(updatedBuildings, owner, locality, pMap.localityOf)) {
+          const run = runStations(stockAt(local, owner, locality), stations, owner, { techs: updatedTechs, mastery: state.mastery });
+          local = withStockAt(local, owner, locality, run.bag);
+          run.produced.forEach((made) => xpEvents.push({ owner, event: { kind: 'production', craft: made.craft, amount: made.amount } }));
         }
       }
     }

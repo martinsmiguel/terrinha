@@ -20,10 +20,11 @@ describe('registro de itens e receitas', () => {
   });
 
   it('os 5 recursos de antes migraram com a mesma ordem, nomes, abreviações e cores', () => {
-    expect(ITEM_IDS).toEqual(['wood', 'food', 'gold', 'stone', 'planks']);
-    expect(COST_LABEL).toEqual({ wood: 'Madeira', food: 'Comida', gold: 'Ouro', stone: 'Pedra', planks: 'Tábuas' });
-    expect(COST_SHORT).toEqual({ wood: 'M', food: 'C', gold: 'O', stone: 'P', planks: 'T' });
-    expect(COST_CHIP_CLASS).toEqual({
+    expect(ITEM_IDS.slice(0, 5)).toEqual(['wood', 'food', 'gold', 'stone', 'planks']);
+    expect(COST_LABEL).toMatchObject({ wood: 'Madeira', food: 'Comida', gold: 'Ouro', stone: 'Pedra', planks: 'Tábuas' });
+    expect(COST_SHORT).toMatchObject({ wood: 'M', food: 'C', gold: 'O', stone: 'P', planks: 'T' });
+    expect(new Set(Object.values(COST_SHORT)).size).toBe(ITEM_IDS.length); // abreviações únicas
+    expect(COST_CHIP_CLASS).toMatchObject({
       wood: 'text-amber-400 font-bold', food: 'text-red-300 font-bold', gold: 'text-yellow-300 font-bold',
       stone: 'text-slate-300 font-bold', planks: 'text-orange-300 font-bold',
     });
@@ -44,7 +45,7 @@ describe('registro de itens e receitas', () => {
     expect(itemById('planks')?.source).toBe('refino');
     expect(isItemId('wood')).toBe(true);
     expect(isItemId('mana')).toBe(false);
-    expect(emptyItems()).toEqual({ wood: 0, food: 0, gold: 0, stone: 0, planks: 0 });
+    expect(emptyItems()).toEqual(Object.fromEntries(ITEM_IDS.map((id) => [id, 0])));
   });
 });
 

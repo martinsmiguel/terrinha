@@ -1,5 +1,5 @@
 import { HOME, creditAt, debitAt, depotsIn, stockAt, type LocalityResolver } from './depots';
-import { ITEM_IDS, emptyItems } from './items';
+import { ITEM_DEFS, ITEM_IDS, emptyItems } from './items';
 import { findLandingCells, type NavalMap } from './navalTransport';
 import type { GameState, Unit, UnitType } from './model';
 import { BOAT_CAPACITY, worldSizeOf } from './model';
@@ -88,7 +88,7 @@ export interface LoadPreview {
   origin: string;
 }
 
-const NAMES: Record<(typeof KEYS)[number], string> = { wood: 'madeira', food: 'comida', gold: 'ouro', stone: 'pedra', planks: 'tábuas' };
+const NAMES = Object.fromEntries(ITEM_DEFS.map((item) => [item.id, item.name.toLowerCase()])) as Record<(typeof KEYS)[number], string>;
 
 function previewPayload(
   state: GameState, boatId: string, locality: string, payload: Partial<Cargo>, resolve: LocalityResolver, talent: boolean, requireKitBoat: boolean
@@ -107,7 +107,7 @@ function previewPayload(
   else if (hold.used + amount > hold.capacity) reasons.push(`Porão cheio: ${hold.used + amount} acima da capacidade de ${hold.capacity}.`);
   const stock = stockAt(state, boat.owner, locality);
   for (const key of KEYS) {
-    const missing = (payload[key] ?? 0) - stock[key];
+    const missing = (payload[key] ?? 0) - (stock[key] ?? 0);
     if (missing > 0) reasons.push(`Falta ${Math.ceil(missing)} de ${NAMES[key]} no estoque de ${localityLabel(locality)}.`);
   }
   return { ok: reasons.length === 0, reasons, origin: locality };

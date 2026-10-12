@@ -1,5 +1,5 @@
 import { resourcePlanFor, type IslandKind, type IslandProfile, type IslandResourcePlan } from './archipelago';
-import { ITEM_IDS } from './items';
+import { ITEM_IDS, emptyItems } from './items';
 import { BUILDING_CATALOG } from './buildingCatalog';
 import { UNIT_COSTS, type ResourceCost } from './economy';
 import { ERA_UPGRADES } from './tech';
@@ -105,7 +105,7 @@ const add = (total: Required<ResourceCost>, cost: ResourceCost) => {
 
 /** O que a jornada natal gasta: três eras, a cadeia mínima de produção, 2 barcos de pesca e 8 aldeões. */
 export function journeyCost(): Required<ResourceCost> {
-  const total: Required<ResourceCost> = { wood: 0, food: 0, gold: 0, stone: 0, planks: 0 };
+  const total = emptyItems() as Required<ResourceCost>;
   for (const era of ERA_UPGRADES) add(total, era.cost);
   for (const type of CORE_BUILDINGS) add(total, BUILDING_CATALOG[type].cost);
   add(total, { wood: UNIT_COSTS.fishing_boat.wood, planks: UNIT_COSTS.fishing_boat.planks });

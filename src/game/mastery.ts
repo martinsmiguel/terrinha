@@ -38,7 +38,7 @@ export type XpEvent =
   | { kind: 'study'; craft: MasteryId; xp: number };
 
 /** Ofício treinado pela coleta de cada item. */
-export const GATHER_CRAFT: Record<ItemId, MasteryId> = { wood: 'carpintaria', stone: 'cantaria', gold: 'mineracao', food: 'agricultura', planks: 'carpintaria' };
+export const GATHER_CRAFT: Partial<Record<ItemId, MasteryId>> = { wood: 'carpintaria', stone: 'cantaria', gold: 'mineracao', food: 'agricultura', planks: 'carpintaria' };
 
 /** XP de produção por unidade produzida. */
 export const PRODUCTION_XP = 0.5;
@@ -51,7 +51,7 @@ export function xpGains(event: XpEvent): { craft: MasteryId; xp: number }[] {
     case 'monument': return [{ craft: 'exploracao', xp: 40 }];
     case 'fishing': return [{ craft: 'navegacao', xp: event.amount * 0.2 }];
     case 'freight': return [{ craft: 'navegacao', xp: event.amount * 0.15 }, { craft: 'comercio', xp: event.amount * 0.15 }];
-    case 'extraction': return [{ craft: GATHER_CRAFT[event.item ?? 'food'], xp: event.amount * 0.1 }];
+    case 'extraction': return [{ craft: GATHER_CRAFT[event.item ?? 'food'] ?? 'agricultura', xp: event.amount * 0.1 }];
     case 'foundation': return [{ craft: 'colonizacao', xp: 60 }];
     case 'damage': return [{ craft: 'guerra', xp: event.amount * 0.05 }];
     case 'production': return [{ craft: event.craft, xp: event.amount * PRODUCTION_XP }];

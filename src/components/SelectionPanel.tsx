@@ -73,6 +73,9 @@ interface SelectionPanelProps {
   handleTrainUnit(unitType: UnitType, count?: number): void;
   /** O que falta para treinar a unidade (null = desbloqueada); mesma regra do host (`unlocks.ts`). */
   unitLock?: (unitType: UnitType) => string | null;
+  /** Receitas da construção selecionada (estação), com a ativa e o que falta para cada uma (#178). */
+  recipeOptions?: { id: string; name: string; recipe: string; active: boolean; lock: string | null }[];
+  onSetRecipe?: (recipeId: string) => void;
   handleCancelTrain(buildingId: string, queueIndex: number): void;
   handleTradeResource(type: 'wood' | 'food' | 'stone', action: 'buy' | 'sell', amount: number): void;
   handleSetGroveHarvestMode(targetId: string, mode: 'sustainable' | 'clear_cut'): void;
@@ -116,7 +119,7 @@ export function SelectionPanel(props: SelectionPanelProps) {
     handleAssignVillagersToResource, handleAssignSelectedSquadToResource, handleRemoveResourceImmediately,
     renderVillagerBuildCatalog, nearestVillagerToSelectedBuilding, handleRepairBuilding,
     handleDemolishBuilding, handleDisembark, routePorts, holdPreview, disembarkPreview, handleLoadCargo, getCapitalSites, focusPoint, triggerNotification, multiRef, onPointerEnterUI, onPointerLeaveUI,
-    unitLock,
+    unitLock, recipeOptions, onSetRecipe,
   } = props;
   const lockOf = (unitType: UnitType): string | null => unitLock?.(unitType) ?? null;
   const canTrain = (unitType: UnitType): boolean => canAfford(myResources, UNIT_COSTS[unitType]) && !lockOf(unitType);
@@ -1059,6 +1062,35 @@ export function SelectionPanel(props: SelectionPanelProps) {
                           </div>
                         )}
                       </>
+                    )}
+
+                    {/* Produção por receita (#178): escolher o que a estação faz */}
+                    {selectedBuilding.owner === playerSlot && recipeOptions && recipeOptions.length > 0 && (
+                      <div className="space-y-1.5" data-testid="recipe-options">
+                        <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Produção</div>
+                        {recipeOptions.map((option) => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            disabled={Boolean(option.lock) || option.active}
+                            onClick={() => onSetRecipe?.(option.id)}
+                            title={option.lock ? `Bloqueada: falta ${option.lock}` : option.recipe}
+                            className={`w-full p-2 rounded-xl border text-left text-[11px] transition-all ${
+                              option.active
+                                ? 'bg-emerald-900/40 border-emerald-500/60 text-emerald-200 font-bold'
+                                : option.lock
+                                ? 'bg-slate-900 border-slate-800 text-slate-500 cursor-not-allowed'
+                                : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span>{option.name}{option.active ? ' · em produção' : ''}</span>
+                              <span className="font-mono text-[10px] text-slate-400">{option.recipe}</span>
+                            </div>
+                            {option.lock && <div className="text-[10px] text-red-300">Falta: {option.lock}</div>}
+                          </button>
+                        ))}
+                      </div>
                     )}
 
                     {/* Recruitment Action Buttons by Building Type */}

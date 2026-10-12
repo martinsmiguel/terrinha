@@ -31,6 +31,8 @@ import { update3DHealthBar, align3DHealthBarToCamera } from './game/healthBar';
 import { createBuildingGhost, updateBuildingGhost, checkBuildingPlacementValid } from './game/buildingGhost';
 import { BUILDING_CATALOG, BuildingType } from './game/buildingCatalog';
 import { describeMissing, missingFor } from './game/unlocks';
+import { activeRecipe, describeRecipe, recipeLock, setRecipe, stationRecipes } from './game/production';
+import { recipeById } from './game/recipes';
 import { resolveHotkey, syncOverlayOrder, type OverlayId } from './game/hotkeys';
 import { generateProceduralTerrain, findNearestOceanCell, ProceduralMapResult } from './game/proceduralMap';
 import { EmpireCatalogModal } from './components/EmpireCatalogModal';
@@ -1313,6 +1315,9 @@ export default function App() {
       if (!bought.check.ok) { triggerNotification(bought.check.message ?? 'Talento recusado.', 'warning'); return; }
       setGameState((prev) => buyTalent(prev, commandOwner, cmd.id).state);
       triggerNotification(`Talento adquirido: ${talentById(cmd.id)?.name}.`, 'success');
+    } else if (cmd.type === 'set_recipe') {
+      setGameState((prev) => setRecipe(prev, commandOwner, cmd.buildingId, cmd.recipeId));
+      triggerNotification(`Produção: ${recipeById(cmd.recipeId)?.name ?? cmd.recipeId}.`, 'success');
     } else if (cmd.type === 'study_craft') {
       const studied = studyCraft(gameStateRef.current, commandOwner, cmd.craft);
       if (!studied.check.ok) { triggerNotification(studied.check.reason, 'warning'); return; }
@@ -3610,6 +3615,24 @@ export default function App() {
 
         <SelectionPanel
           unitLock={unitLock}
+          recipeOptions={(() => {
+            const selected = selectedEntity?.kind === 'building' ? gameState.buildings.find((b) => b.id === selectedEntity.id) : undefined;
+            if (!selected) return undefined;
+            const active = activeRecipe(selected);
+            return stationRecipes(selected.type).map((recipe) => ({
+              id: recipe.id,
+              name: recipe.name,
+              recipe: describeRecipe(recipe),
+              active: active?.id === recipe.id,
+              lock: recipeLock(gameState, playerSlot, recipe),
+            }));
+          })()}
+          onSetRecipe={(recipeId) => {
+            if (!selectedEntity || selectedEntity.kind !== 'building') return;
+            const cmd = { type: 'set_recipe', buildingId: selectedEntity.id, recipeId };
+            if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+            else multiRef.current?.sendToHost(cmd);
+          }}
           getCapitalSites={(wagon) =>
             capitalSitesFor(gameState, wagon).map(({ x, z }) => ({
               x,

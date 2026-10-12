@@ -1,5 +1,5 @@
 import { isCraftId } from './crafts';
-import { ITEM_DEFS, ITEM_IDS, type ItemDef, type ItemId } from './items';
+import { ITEM_DEFS, ITEM_IDS, type ItemBalance, type ItemDef, type ItemId } from './items';
 import { RECIPE_DEFS, type RecipeDef, type RecipeInput } from './recipes';
 
 /**
@@ -81,7 +81,7 @@ export function validateItemGraph(items: readonly ItemDef[] = ITEM_DEFS, recipes
   return errors;
 }
 
-export type ItemBag = Record<ItemId, number>;
+export type ItemBag = ItemBalance;
 
 /** Quanto de cada entrada há no saldo (etiqueta = soma dos itens com ela). */
 const available = (bag: ItemBag, input: RecipeInput): number =>
@@ -95,14 +95,14 @@ export function consumeInput(bag: ItemBag, input: RecipeInput, amount: number = 
   if (available(bag, input) + 1e-9 < amount) return null;
   const next = { ...bag };
   if ('item' in input) {
-    next[input.item] -= amount;
+    next[input.item] = (next[input.item] ?? 0) - amount;
     return next;
   }
   let left = amount;
   for (const item of tagged(ITEM_DEFS, input.tag)) {
     const id = item.id as ItemId;
     const take = Math.min(next[id] ?? 0, left);
-    next[id] -= take;
+    next[id] = (next[id] ?? 0) - take;
     left -= take;
     if (left <= 1e-12) break;
   }

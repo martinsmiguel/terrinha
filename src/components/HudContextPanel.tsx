@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { type FlowRow } from '../game/flows';
+import { itemField } from '../game/items';
+
+const ITEM_NAME = itemField('name');
 import { PanelLeftClose, PanelLeftOpen, Redo2, Undo2 } from 'lucide-react';
 import {
   COMPOSITION_INDICATORS, COMPOSITION_LABEL, COMPOSITION_ORDER, HISTORY_LIMIT, indicatorsFor,
@@ -149,7 +152,7 @@ export function HudContextPanel(props: HudContextPanelProps) {
                   const partial = row.empire.partial && row.empire.perMinute !== null;
                   return (
                     <tr key={row.key}>
-                      <td className="text-left text-slate-400">{{ wood: 'Madeira', food: 'Comida', gold: 'Ouro', stone: 'Pedra', planks: 'Tábuas', pop: 'Pop.' }[row.key]}</td>
+                      <td className="text-left text-slate-400">{row.key === 'pop' ? 'Pop.' : ITEM_NAME[row.key]}</td>
                       <td title={partial ? `janela parcial: ${Math.round(row.empire.seconds)} s` : 'janela de 60 s'}>{fmt(row.empire)}{partial ? '*' : ''}</td>
                       <td>{fmt(row.colonies)}</td>
                       <td>{fmt(row.transit)}</td>

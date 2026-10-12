@@ -20,6 +20,8 @@ export interface RecipeDef {
   outputs: readonly RecipeOutput[];
   /** Ofício treinado por esta produção. */
   craft: CraftId;
-  /** Exigências para usar a receita: era e nível mínimo do ofício (pesquisa entra no card de desbloqueios). */
+  /** Receita que a construção usa enquanto o dono não escolhe outra (uma por estação, no máximo). */
+  default?: true;
+  /** Exigências para usar a receita: era e nível mínimo do ofício.*/
   requires: { era: Era; craftLevel: number };
 }
