@@ -1,4 +1,4 @@
-import { MASTERY_LABEL, type MasteryId } from './mastery';
+import { MASTERY_LABEL, normalizeMastery, type MasteryId } from './mastery';
 import type { GameState } from './model';
 
 export type TalentId = 'brisa' | 'comboio' | 'desembarque' | 'carpintaria' | 'bencao' | 'farol';
@@ -18,12 +18,12 @@ export interface TalentDef {
 
 /** Seis talentos propostos (valores a revisar): cada efeito é real e vem do pipeline do jogo. */
 export const TALENTS: readonly TalentDef[] = [
-  { id: 'brisa', name: 'Brisa', mastery: 'seafaring', level: 2, cost: 1, effect: '+15% de velocidade dos barcos em mar já conhecido' },
-  { id: 'comboio', name: 'Comboio', mastery: 'seafaring', level: 3, requires: 'brisa', cost: 1, effect: 'Porão do mercante de 100 para 125' },
-  { id: 'desembarque', name: 'Desembarque ágil', mastery: 'settlement', level: 2, cost: 1, effect: 'Desembarque de 0,5 s para 0,25 s por passageiro' },
-  { id: 'carpintaria', name: 'Carpintaria', mastery: 'settlement', level: 3, requires: 'desembarque', cost: 1, effect: '-20 de madeira no custo de posto e cais' },
-  { id: 'bencao', name: 'Bênção agrícola', mastery: 'extraction', level: 2, cost: 1, effect: '+10% de comida das fazendas' },
-  { id: 'farol', name: 'Farol', mastery: 'exploration', level: 2, cost: 1, effect: 'Visão 14 em cais e postos' },
+  { id: 'brisa', name: 'Brisa', mastery: 'navegacao', level: 2, cost: 1, effect: '+15% de velocidade dos barcos em mar já conhecido' },
+  { id: 'comboio', name: 'Comboio', mastery: 'navegacao', level: 3, requires: 'brisa', cost: 1, effect: 'Porão do mercante de 100 para 125' },
+  { id: 'desembarque', name: 'Desembarque ágil', mastery: 'colonizacao', level: 2, cost: 1, effect: 'Desembarque de 0,5 s para 0,25 s por passageiro' },
+  { id: 'carpintaria', name: 'Carpintaria', mastery: 'colonizacao', level: 3, requires: 'desembarque', cost: 1, effect: '-20 de madeira no custo de posto e cais' },
+  { id: 'bencao', name: 'Bênção agrícola', mastery: 'agricultura', level: 2, cost: 1, effect: '+10% de comida das fazendas' },
+  { id: 'farol', name: 'Farol', mastery: 'exploracao', level: 2, cost: 1, effect: 'Visão 14 em cais e postos' },
 ];
 
 export const talentById = (id: string): TalentDef | undefined => TALENTS.find((talent) => talent.id === id);
@@ -47,7 +47,7 @@ export function canBuyTalent(state: Pick<GameState, 'mastery' | 'talents'>, owne
   if (!def) return { ok: false, refusal: 'unknown', message: 'Talento desconhecido.' };
   if (state.talents?.[owner]?.includes(def.id)) return { ok: false, refusal: 'owned', message: 'Talento já comprado.' };
   const mastery = state.mastery?.[owner];
-  if (!mastery || mastery.level[def.mastery] < def.level) {
+  if (!mastery || (normalizeMastery(mastery)?.level[def.mastery] ?? 1) < def.level) {
     return { ok: false, refusal: 'level', message: `Exige ${MASTERY_LABEL[def.mastery]} nível ${def.level}.` };
   }
   if (def.requires && !state.talents?.[owner]?.includes(def.requires)) {

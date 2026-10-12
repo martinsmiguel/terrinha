@@ -15,7 +15,7 @@ SCENARIO_REPORT=docs/evidence/roteiro/execucao.json npx vitest run tests/scenari
 
 ## Resultado da última execução
 
-8667 passos (**7.2 min** de jogo), simulados em cerca de 4 s de CPU. Edifícios próprios concluídos em duas localidades (`home`, `1`). Vitória: `{"status":"finished","winner":"player1","players":["player1","player2"]}`.
+8652 passos (**7.2 min** de jogo), simulados em cerca de 4 s de CPU. Edifícios próprios concluídos em duas localidades (`home`, `1`). Vitória: `{"status":"finished","winner":"player1","players":["player1","player2"]}`.
 
 | Etapa | Fase | Frames | Passos | Orçamento | O que acontece | Comando | Verificação |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -41,8 +41,8 @@ SCENARIO_REPORT=docs/evidence/roteiro/execucao.json npx vitest run tests/scenari
 | E19 | 5 Reforços | F6424 → F8263 | 1839 (92.0 s) | 12000 | Navegar de novo até a costa da segunda ilha | `move` do transporte à costa | transporte na costa da segunda ilha |
 | E20 | 5 Reforços | F8263 → F8319 | 56 (2.8 s) | 600 | Desembarcar os reforços junto do posto avançado | `disembark` | 10 soldados na segunda ilha |
 | E21 | 6 Combate | F8319 → F8350 | 31 (1.6 s) | 1500 | Marchar em formação até avistar o inimigo (o host só deixa atacar o que se vê) | `move` em formação (planejador de grupo) | algum inimigo visível |
-| E22 | 6 Combate | F8350 → F8667 | 317 (15.8 s) | 14000 | Atacar: o soldado inimigo primeiro, depois as demais unidades visíveis e a capital, até a vitória | `attack` (soldado inimigo primeiro, depois unidades visíveis, depois a capital) | único sobrevivente é o jogador 1 |
-| E23 | 6 Combate | F8667 → F8667 | 0 (0.0 s) | - | Vitória registrada (evaluateMatch: único sobrevivente é o jogador 1) | avaliação da vitória | `evaluateMatch` = finished, winner player1 |
+| E22 | 6 Combate | F8350 → F8652 | 302 (15.1 s) | 14000 | Atacar: o soldado inimigo primeiro, depois as demais unidades visíveis e a capital, até a vitória | `attack` (soldado inimigo primeiro, depois unidades visíveis, depois a capital) | único sobrevivente é o jogador 1 |
+| E23 | 6 Combate | F8652 → F8652 | 0 (0.0 s) | - | Vitória registrada (evaluateMatch: único sobrevivente é o jogador 1) | avaliação da vitória | `evaluateMatch` = finished, winner player1 |
 
 ## Regras do jogo que o roteiro obedece (e que um jogador também encontra)
 
@@ -56,5 +56,5 @@ SCENARIO_REPORT=docs/evidence/roteiro/execucao.json npx vitest run tests/scenari
 ## Limites
 
 - **O host do roteiro espelha os efeitos dos comandos de `handleIncomingCommand` (`src/App.tsx`)**: a autorização, a simulação e as regras puras são as do jogo, mas o corpo de cada comando em estado está reescrito em `host.ts` (com a origem anotada). Se aquele trecho mudar, o espelho precisa mudar. O passo natural é extrair um aplicador puro de comandos.
-- O inimigo é a IA do slot 2 com o perfil padrão, sem intervenção. A semente 4242 é um cenário, não uma garantia para todas.
+- O inimigo é a IA do slot 2 com o perfil padrão, sem intervenção. Desde o card #176 ela estuda ofícios a cada 30 s (gasta da própria metrópole), o que encurtou o combate de 317 para 302 passos. A semente 4242 é um cenário, não uma garantia para todas.
 - Mede simulação, não renderização, som nem rede.

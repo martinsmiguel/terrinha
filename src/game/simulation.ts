@@ -8,11 +8,12 @@ import { bridgeVersion, completedBridges, relocateFromDestroyed, withBridges } f
 import { buildFlowField, followFlowField, type FlowField } from './movement/flowField';
 import { applyStormDamage, stormAt, stormPhase } from './storms';
 import { BLESSING_FARM, BRISA_SPEED, hasTalent } from './talents';
-import { creditAll, type XpEvent } from './mastery';
+import { BOT_STUDY_INTERVAL_SECONDS, botStudyChoice, canUseRecipe, creditAll, studyCraft, type XpEvent } from './mastery';
 import { blessingMultiplier, seasonFarmFactor, seasonOf, tickBuffs } from './mysticism';
 import { isExploredBy } from './visionAuthority';
 import { stepRoute } from './tradeRoutes';
-import { HOME, productionPaused, reconcileDepots, refineAt, type LocalityResolver } from './depots';
+import { HOME, productionPaused, reconcileDepots, refineAt, stockAt, type LocalityResolver } from './depots';
+import { planksFromWood } from './recipes';
 import { isBoatUnit, worldSizeOf } from './model';
 import { applyEmbarkOrder, boardArrivedPassengers } from './navalTransport';
 import type { BuildingType, GameState, Unit, UnitType } from './model';
@@ -492,7 +493,9 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
 
         const gathered = Math.min(gatherRate, targetNode.remaining);
         targetNode.remaining -= gathered;
-        xpEvents.push({ owner: unit.owner, event: { kind: targetNode.type === 'fish_school' ? 'fishing' : 'extraction', amount: gathered } });
+        xpEvents.push({ owner: unit.owner, event: targetNode.type === 'fish_school'
+          ? { kind: 'fishing', amount: gathered }
+          : { kind: 'extraction', amount: gathered, item: targetNode.type === 'tree' ? 'wood' : targetNode.type === 'gold_mine' ? 'gold' : targetNode.type === 'stone' ? 'stone' : 'food' } });
 
         const resKey =
           targetNode.type === 'tree'
@@ -853,8 +856,11 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
       (building) => building.owner === slot && building.type === 'sawmill' && building.isComplete && building.health > 0
         && (!pMap?.localityOf || pMap.localityOf(slot, building.position) === HOME)
     ).length;
-    if (completedSawmills > 0) {
+    if (completedSawmills > 0 && canUseRecipe(state.mastery, slot, planksFromWood)) {
+      const before = res.planks;
       updatedResources[slot] = refinePlanks(res, completedSawmills);
+      const made = updatedResources[slot].planks - before;
+      if (made > 0) xpEvents.push({ owner: slot, event: { kind: 'production', craft: planksFromWood.craft, amount: made } });
     }
   });
 
@@ -1001,6 +1007,19 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         if (command.type === 'attack') { unit.targetEntityId = command.targetId; unit.targetPosition = null; unit.state = 'attacking'; }
         else { unit.targetPosition = { ...command.target }; unit.targetEntityId = null; unit.state = 'moving'; }
       }
+      // Ofícios: a cada intervalo a IA estuda o ofício de economia mais atrasado, guardando reserva (mesma autorização do jogador).
+      if (Math.floor(botElapsed / BOT_STUDY_INTERVAL_SECONDS) !== Math.floor((state.elapsed ?? 0) / BOT_STUDY_INTERVAL_SECONDS)) {
+        const snapshot = { ...state, units: updatedUnits, buildings: updatedBuildings, playerResources: updatedResources, techs: updatedTechs };
+        const craft = botStudyChoice(snapshot, aiSlot);
+        const command = craft ? { type: 'study_craft' as const, craft } : null;
+        if (command && isAuthorizedPlayerCommand(snapshot, command, aiSlot as PlayerSlot, context.vision)) {
+          const studied = studyCraft(snapshot, aiSlot, command.craft);
+          if (studied.check.ok) {
+            updatedResources = studied.state.playerResources;
+            xpEvents.push({ owner: aiSlot, event: { kind: 'study', craft: command.craft, xp: studied.check.xp } });
+          }
+        }
+      }
     }
     botClocksOut = clocks;
   }
@@ -1140,8 +1159,11 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         const sawmills = updatedBuildings.filter((building) =>
           building.owner === owner && building.type === 'sawmill' && building.isComplete && building.health > 0
           && pMap.localityOf!(owner, building.position) === locality).length;
-        if (sawmills > 0 && !productionPaused(updatedBuildings, owner, locality, pMap.localityOf)) {
+        if (sawmills > 0 && !productionPaused(updatedBuildings, owner, locality, pMap.localityOf) && canUseRecipe(state.mastery, owner, planksFromWood)) {
+          const before = stockAt(local, owner, locality).planks;
           local = refineAt(local, owner, locality, sawmills);
+          const made = stockAt(local, owner, locality).planks - before;
+          if (made > 0) xpEvents.push({ owner, event: { kind: 'production', craft: planksFromWood.craft, amount: made } });
         }
       }
     }

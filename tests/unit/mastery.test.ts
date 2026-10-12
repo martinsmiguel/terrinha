@@ -9,19 +9,20 @@ describe('níveis e pontos', () => {
     expect(xpToNext(1)).toBe(100);
     expect(xpToNext(2)).toBe(Math.ceil(100 * 2 ** 1.95));
     let m = newMastery();
-    expect(m.level.extraction).toBe(1);
-    m = creditXp(m, { kind: 'extraction', amount: 1000 }); // 100 XP
-    expect(m.level.extraction).toBe(2);
+    expect(m.level.agricultura).toBe(1);
+    m = creditXp(m, { kind: 'extraction', amount: 1000, item: 'food' }); // 100 XP
+    expect(m.level.agricultura).toBe(2);
     expect(m.points).toBe(1);
   });
 
   it('acumula frações e respeita o teto 10', () => {
     let m = newMastery();
     for (let i = 0; i < 10; i += 1) m = creditXp(m, { kind: 'fishing', amount: 0.5 });
-    expect(m.xp.seafaring).toBeCloseTo(1, 5);
+    expect(m.xp.navegacao).toBeCloseTo(1, 5);
     for (let i = 0; i < 400; i += 1) m = creditXp(m, { kind: 'freight', amount: 100000 });
-    expect(m.level.seafaring).toBe(MASTERY_MAX_LEVEL);
-    expect(m.points).toBe(MASTERY_MAX_LEVEL - 1);
+    expect(m.level.navegacao).toBe(MASTERY_MAX_LEVEL);
+    expect(m.level.comercio).toBe(MASTERY_MAX_LEVEL); // o frete treina navegação e comércio
+    expect(m.points).toBe(2 * (MASTERY_MAX_LEVEL - 1));
   });
 });
 
@@ -31,10 +32,10 @@ describe('eventos únicos não repetem crédito', () => {
     m = creditXp(m, { kind: 'discovery', key: '1,1' });
     const again = creditXp(m, { kind: 'discovery', key: '1,1' });
     expect(again).toBe(m);
-    expect(creditXp(m, { kind: 'discovery', key: '1,2' }).xp.exploration).toBe(20);
+    expect(creditXp(m, { kind: 'discovery', key: '1,2' }).xp.exploracao).toBe(20);
     const f = creditXp(m, { kind: 'foundation', key: 'b1' });
     expect(creditXp(f, { kind: 'foundation', key: 'b1' })).toBe(f);
-    expect(creditXp(creditXp(m, { kind: 'plant', key: 'p' }), { kind: 'monument', key: 'p' }).xp.exploration).toBe(10 + 25 + 40);
+    expect(creditXp(creditXp(m, { kind: 'plant', key: 'p' }), { kind: 'monument', key: 'p' }).xp.exploracao).toBe(10 + 25 + 40);
   });
 
   it('o mesmo lote de eventos reaplicado (reconstrução) não paga de novo o que é único', () => {
@@ -64,20 +65,20 @@ describe('eventos autoritativos na simulação', () => {
     resourceNodes: [{ id: 'n', type: nodeType, position: { x: 10.5, z: 10 }, remaining: 100 }], playerResources: { player1: res, player2: res },
   });
 
-  it('extração e pesca dão XP em maestrias diferentes, só do dono', () => {
+  it('cortar madeira treina Carpintaria e pescar treina Navegação, só do dono', () => {
     const wood = tickGameState(world([unit({ state: 'gathering', targetEntityId: 'n' })]), ctx()).state;
-    expect(wood.mastery!.player1.xp.extraction).toBeGreaterThan(0);
-    expect(wood.mastery!.player1.xp.seafaring).toBe(0);
+    expect(wood.mastery!.player1.xp.carpintaria).toBeGreaterThan(0);
+    expect(wood.mastery!.player1.xp.navegacao).toBe(0);
     expect(wood.mastery!.player2).toBeUndefined();
     const fish = tickGameState(world([unit({ type: 'fishing_boat', state: 'gathering', targetEntityId: 'n' })], 'fish_school'), ctx()).state;
-    expect(fish.mastery!.player1.xp.seafaring).toBeGreaterThan(0);
-    expect(fish.mastery!.player1.xp.extraction).toBe(0);
+    expect(fish.mastery!.player1.xp.navegacao).toBeGreaterThan(0);
+    expect(fish.mastery!.player1.xp.carpintaria).toBe(0);
   });
 
-  it('dano efetivo paga combate pelo que foi realmente tirado', () => {
+  it('dano efetivo paga Guerra pelo que foi realmente tirado', () => {
     const state = world([unit({ type: 'soldier', state: 'attacking', targetEntityId: 'foe', attackDamage: 24, position: { x: 20, z: 20 } }), unit({ id: 'foe', owner: 'player2', position: { x: 21, z: 20 }, health: 5 })]);
     const result = tickGameState(state, ctx()).state;
-    expect(result.mastery?.player1.xp.combat ?? 0).toBeLessThanOrEqual(5 * 0.05 + 1e-9);
+    expect(result.mastery?.player1.xp.guerra ?? 0).toBeLessThanOrEqual(5 * 0.05 + 1e-9);
   });
 
   it('sem eventos o estado não ganha XP nem registro de maestria', () => {
@@ -90,6 +91,6 @@ describe('eventos autoritativos na simulação', () => {
     const view = filterSnapshotFor(state, 'player1', undefined);
     expect(Object.keys(view.mastery!)).toEqual(['player1']);
     expect(view.mastery!.player1.credited).toEqual({});
-    expect(view.mastery!.player1.xp.exploration).toBe(10);
+    expect(view.mastery!.player1.xp.exploracao).toBe(10);
   });
 });

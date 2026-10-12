@@ -16,9 +16,9 @@ Recursos, itens e receitas são **dados**: um arquivo por item e um por receita.
 
 ## Receitas atuais
 
-| Id | Onde | Entradas → saídas (por passo, por construção) |
-| --- | --- | --- |
-| `planks-from-wood` | Serralheria | 0,1 madeira → 0,05 tábua |
+| Id | Onde | Entradas → saídas (por passo, por construção) | Ofício treinado | Nível exigido |
+| --- | --- | --- | --- | --- |
+| `planks-from-wood` | Serralheria | 0,1 madeira → 0,05 tábua | Carpintaria | 1 |
 
 ## Acrescentar um item
 
@@ -28,7 +28,7 @@ Recursos, itens e receitas são **dados**: um arquivo por item e um por receita.
 
 ## Acrescentar uma receita
 
-1. Criar `src/game/recipes/<nome>.ts` com `station`, `mode: 'contínua'`, `inputs`, `outputs` e `requires`.
+1. Criar `src/game/recipes/<nome>.ts` com `station`, `mode: 'contínua'`, `inputs`, `outputs`, `craft` (ofício treinado) e `requires` (era e nível mínimo do ofício).
 2. Uma entrada pode ser um item (`{ item: 'wood', amount }`) ou **qualquer item com uma etiqueta** (`{ tag: 'combustível', amount }`), consumido na ordem do registro.
 3. Incluir em `RECIPE_DEFS`.
 
@@ -38,5 +38,5 @@ Sem item ou receita repetidos; toda entrada e saída aponta para item existente;
 
 ## Limites desta primeira fatia
 
-- Só as receitas contínuas (refino passivo por construção) existem; receitas por lote, ofícios e pesquisa como exigência entram em #176 e #177.
+- Só as receitas contínuas (refino passivo por construção) existem; receitas por lote e pesquisa como exigência entram em #177. Ofícios: ver [ofícios do império](oficios.md).
 - O mercado continua trocando madeira, comida e pedra, que são os itens com a etiqueta `comercializável`.
