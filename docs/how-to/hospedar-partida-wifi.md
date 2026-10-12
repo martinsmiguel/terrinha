@@ -4,17 +4,26 @@
 
 ## 1. Suba o servidor
 
+Direto na máquina:
+
 ```bash
 npm run dev
 ```
 
-## 2. Descubra o IP da máquina host
+Ou no Docker, informando o IP desta máquina na rede (o container só enxerga o próprio IP interno, como `172.17.0.2`, que não existe na sua rede):
 
-O jogo mostra o IP automaticamente no lobby, ou consulte:
+```bash
+LAN_HOST=$(scripts/lan-ip.sh) docker compose up -d --build
+```
+
+
+## 2. Descubra o endereço
+
+O lobby mostra o **Link na Rede Local** quando sabe o IP: com o servidor fora do Docker, com `LAN_HOST` ou quando a página foi aberta pelo IP da rede. Sem isso, ele avisa "IP desta máquina não detectado" e explica onde achar o IP (Ajustes do Sistema › Wi-Fi › Detalhes); nunca mostra um link que só funciona no próprio aparelho (`127.0.0.1`, `localhost`) ou dentro do Docker.
 
 ```bash
 curl http://localhost:3000/api/lan-info
-# {"port":3000,"localIps":["192.168.1.50"]}
+# {"port":3000,"localIps":["192.168.1.50"]}   (no Docker sem LAN_HOST: [])
 ```
 
 ## 3. Compartilhe
@@ -34,6 +43,6 @@ Se ninguém conectar, libere a porta 3000 TCP no firewall da máquina host.
 
 | Sintoma | Causa provável |
 | --- | --- |
-| Página não abre | porta 3000 bloqueada ou IP errado |
+| Página não abre | porta 3000 bloqueada, IP errado (`127.0.0.1` e `172.17.x` não servem para outro aparelho) ou aparelhos em redes diferentes (rede de convidados isola os aparelhos) |
 | Entram mas não sincroniza | host fechou o navegador (o host é autoritativo) |
 | Jogador sem resposta | recarregue a página; ele reentra na sala |

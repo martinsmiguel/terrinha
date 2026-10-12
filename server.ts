@@ -7,22 +7,15 @@ import fs from 'fs';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import { GAME_STATE_COMPRESSION_OPTIONS } from './src/game/networkSync';
+import { lanAddresses } from './src/game/lanAddress';
 import { registerGameSocketHandlers } from './src/game/socketServer';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/** IPs para o convite da rede local (#192): `LAN_HOST` quando informado; no Docker, nenhum (o IP visto lá dentro é interno). */
 function getLocalIpAddresses() {
-  const interfaces = os.networkInterfaces();
-  const addresses: string[] = [];
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name] || []) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        addresses.push(iface.address);
-      }
-    }
-  }
-  return addresses;
+  return lanAddresses({ lanHost: process.env.LAN_HOST, inContainer: fs.existsSync('/.dockerenv'), interfaces: os.networkInterfaces() });
 }
 
 async function startServer() {

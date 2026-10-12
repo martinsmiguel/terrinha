@@ -12,6 +12,7 @@ import { canUndoBatch, previewBatch, recordBatch, undoBatch, type BatchCommand, 
 import { RulesPanel } from './components/RulesPanel';
 import { applyRules, canEditRules } from './game/rulesAdmin';
 import { TalentPanel } from './components/TalentPanel';
+import { lanShareUrl } from './game/lanAddress';
 import { CommandPalette } from './components/CommandPalette';
 import { focusLocality, type PaletteEntry, type PaletteLocality } from './game/commandPalette';
 import { computeArchipelago } from './game/archipelago';
@@ -133,7 +134,9 @@ export default function App() {
   const [playerName, setPlayerName] = useState('Comandante');
   const [playerSlot, setPlayerSlot] = useState<PlayerSlot>('player1');
   const [lobbyError, setLobbyError] = useState<string | null>(null);
-  const [lanIps, setLanIps] = useState<string[]>([]);
+  const [lanInfo, setLanInfo] = useState<{ ips: string[]; port?: number }>({ ips: [] });
+  // Link de convite alcançável na rede (#192); sem endereço confiável, o lobby explica como descobrir o IP.
+  const lanUrl = lanShareUrl({ pageHost: window.location.hostname, pagePort: window.location.port, serverIps: lanInfo.ips, serverPort: lanInfo.port });
   const [copiedIp, setCopiedIp] = useState(false);
   const [, setConnectedPlayers] = useState(1);
   const [sessionEndedMessage, setSessionEndedMessage] = useState<string | null>(null);
@@ -555,13 +558,11 @@ export default function App() {
     fetch('/api/lan-info')
       .then((res) => res.json())
       .then((data) => {
-        if (data.localIps && data.localIps.length > 0) {
-          setLanIps(data.localIps);
-        }
+        setLanInfo({ ips: Array.isArray(data.localIps) ? data.localIps : [], port: typeof data.port === 'number' ? data.port : undefined });
       })
       .catch(() => {
-        // Fallback if running offline without api or standalone
-        setLanIps([window.location.hostname]);
+        // Sem a API (página estática): só o host da própria página, se for alcançável.
+        setLanInfo({ ips: [] });
       });
   }, []);
 
@@ -2982,9 +2983,8 @@ export default function App() {
   };
 
   const copyLanUrl = () => {
-    const ip = lanIps[0] || window.location.hostname;
-    const url = `http://${ip}:3000`;
-    navigator.clipboard.writeText(url);
+    if (!lanUrl) return;
+    navigator.clipboard.writeText(lanUrl);
     setCopiedIp(true);
     setTimeout(() => setCopiedIp(false), 2500);
   };
@@ -3066,7 +3066,7 @@ export default function App() {
   if (!isGameStarted) {
     return (
       <LobbyScreen
-        lanIps={lanIps}
+        lanUrl={lanUrl}
         copiedIp={copiedIp}
         copyLanUrl={copyLanUrl}
         playerName={playerName}
