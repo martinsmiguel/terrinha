@@ -30,7 +30,7 @@ const id = () => 'new-capital';
 
 describe('carroça e kit (defaults)', () => {
   it('carroça: 300 HP, 0,16 por passo, visão 10 e sem ataque', () => {
-    expect(UNIT_ATTRIBUTES.wagon).toMatchObject({ maxHealth: 300, movePerTick: 0.16, visionRadius: 10, canAttack: false, attackDamage: 0 });
+    expect(UNIT_ATTRIBUTES.wagon).toMatchObject({ maxHealth: 300, movePerTick: 0.16, visionRadius: 16, canAttack: false, attackDamage: 0 });
   });
   it('kit reservado 400 madeira e 200 pedra, fundação de 20 s e capital de 2400 HP', () => {
     expect(FOUNDATION_KIT).toEqual({ wood: 400, stone: 200 });

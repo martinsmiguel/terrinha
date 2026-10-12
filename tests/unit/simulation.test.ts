@@ -399,13 +399,14 @@ describe('simulation performance', () => {
       const enemy = createUnit({ id: 'enemy', owner: 'player2', position: { x: 38, z: 30 } });
       const hasScout = (state: GameState) => [...state.units];
       const blindState = createState({ buildings: [tower, createBuilding({ id: 'tc-2', owner: 'player2', position: { x: 50, z: 50 } })], units: hasScout({ units: [enemy] } as GameState) });
-      // A torre (visão 9) alcança 12; o inimigo a 8 de distância está visível, então leva dano.
+      // A torre alcança 12 e enxerga 14 (#194); o inimigo a 8 de distância está visível, então leva dano.
       expect(tickGameState(blindState, withVision(blindState)).state.units[0].health).toBeLessThan(100);
 
-      // Inimigo a 11 (dentro do alcance 12, fora da visão 9 da torre): não é alvo.
+      // Inimigo a 11, dentro do alcance, mas o dono não o enxerga (visão do dono sem a torre): não é alvo.
       const edge = { ...enemy, position: { x: 41, z: 30 } };
       const edgeState = createState({ buildings: blindState.buildings.map((b) => (b.id === 'tower' ? tower : b)), units: [edge] });
-      expect(tickGameState(edgeState, withVision(edgeState)).state.units[0].health).toBe(100);
+      const blind = { ...edgeState, buildings: edgeState.buildings.filter((b) => b.id !== 'tower') };
+      expect(tickGameState(edgeState, withVision(blind)).state.units[0].health).toBe(100);
     });
 
     it('ao esgotar um recurso o coletor só passa para outro que o dono já explorou', () => {

@@ -15,3 +15,23 @@ Todo deslocamento da simulação (movimento, coleta, obra, reparo e perseguiçã
 nunca ultrapassa o alvo e um passo para terreno proibido é recusado: terra transitável para unidades
 terrestres, oceano para barcos. Quando o passo é recusado a unidade fica ociosa e perde a ordem.
 Profundidade, declive e apoio ainda não são modelados; entram com a integração ao terreno real (#99, N02-02).
+
+## Visão (#194)
+
+Raios em células, usados pela névoa do jogador e pela autorização do host (alvo só se visível):
+
+| Unidade ou edifício | Visão |
+| --- | --- |
+| Aldeão | 13 |
+| Soldado | 16 |
+| Cavalaria | 14 |
+| Carroça de fundação | 16 |
+| Barco de pesca, mercante, transporte colonial | 11 |
+| Barco de guerra | 13 |
+| Centro da Vila | 24 |
+| Quartel | 18 |
+| Demais edifícios | 14 (21 em cais e posto com o talento Farol) |
+
+Os raios cresceram cerca de 60% no #194, depois que as ilhas ficaram 20× maiores (#161). Na tela, o que já foi
+explorado fica bem mais claro que o nunca visto (brilho 170 de 255; o visível segue pleno).
+
