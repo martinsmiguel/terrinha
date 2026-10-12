@@ -40,8 +40,8 @@ docker compose up --watch
 Alterações em `src/`, `server.ts`, `index.html` e na configuração de build
 reconstroem o serviço automaticamente. Encerre com `docker compose down`.
 
-Multiplayer: seus amigos abrem `http://<seu-ip>:3000` — use o botão
-**Criar Partida** / **Entrar via Código**. Detalhes em
+Multiplayer: no menu principal, **Multiplayer na rede › Criar sala**; no jogo, **Menu (Esc) › Convidar** dá o
+link que abre direto na sala. Detalhes em
 [docs/how-to/hospedar-partida-wifi.md](docs/how-to/hospedar-partida-wifi.md).
 
 ## Documentação

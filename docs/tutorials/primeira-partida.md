@@ -23,9 +23,14 @@ Abra <http://localhost:3000>.
 
 ## 2. Escolha o modo
 
-- **Treino Solo** — partida contra a IA, direto no ar.
-- **Criar Partida** — você vira host na rede local.
-- **Entrar via Código** — entra na partida de alguém na mesma rede.
+No **menu principal**, escolha seu nome e civilização e depois:
+
+- **Jogar solo** — partida contra a IA (quantos rivais, comportamento da IA e tamanho do mundo).
+- **Multiplayer na rede** — **Criar sala** (você hospeda) ou **Entrar na sala** de alguém na mesma rede.
+- **Ajuda** — primeiros passos e controles de teclado e toque.
+
+Durante a partida, **Esc** (sem nada selecionado) ou o botão **☰ Menu** abre o menu do jogo: voltar, convidar
+amigos (link que abre direto na sala), jogadores, ajuda, controles e sair. A partida continua rodando por trás.
 
 ## 3. Fundamentos (sobreviver os primeiros 2 minutos)
 

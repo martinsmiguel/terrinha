@@ -2,9 +2,11 @@
 
 > Quadrante **How-to**.
 
-1. Peça o **IP do host** e o **ID da sala**.
-2. Abra `http://<ip-do-host>:3000` no navegador.
-3. Digite seu nome, o ID da sala e clique em **Entrar**.
+1. Peça ao host o **link de convite** (no jogo dele: **Menu › Convidar**). Ele tem a forma
+   `http://<ip-do-host>:3000/?sala=<código>`.
+2. Abra o link no navegador, na mesma Wi-Fi: o menu já abre em **Multiplayer na rede** com a sala preenchida.
+   Sem link, abra `http://<ip-do-host>:3000`, vá em **Multiplayer na rede** e digite o código da sala.
+3. Escolha seu nome e uma civilização livre e clique em **Entrar na sala**.
 4. Aguarde o host iniciar — o estado do jogo chega sincronizado.
 
 O cliente não roda simulação: ele renderiza o estado autoritativo do host e

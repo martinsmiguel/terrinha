@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  HOTKEYS, RESOLVED_CONFLICTS, findKeyCollisions, isNativeKeyboardEvent, resolveHotkey, syncOverlayOrder,
+  HOTKEYS, RESOLVED_CONFLICTS, escapeTarget, findKeyCollisions, isNativeKeyboardEvent, resolveHotkey, syncOverlayOrder,
   type HotkeyContext, type HotkeyEventLike, type OverlayId,
 } from '../../src/game/hotkeys';
 
@@ -155,5 +155,20 @@ describe('livro do império (Alt+L)', () => {
     expect(resolveHotkey({ key: 'l', altKey: true, target: { tagName: 'INPUT' } }, idle)).toBeNull();
     expect(resolveHotkey(press('l', { altKey: true }), { ...idle, overlays: ['talents'] })).toBeNull();
     expect(resolveHotkey(press('Escape'), { ...idle, overlays: ['talents', 'recipe-book'] })).toEqual({ kind: 'close-overlay', overlay: 'recipe-book' });
+  });
+});
+
+describe('Esc e o menu do jogo (#200)', () => {
+  it('Esc cancela ponte, construção e seleção, nessa ordem; sem nada a cancelar, abre o menu', () => {
+    expect(escapeTarget({ bridgeMode: true, buildMode: true, hasSelection: true })).toBe('bridge');
+    expect(escapeTarget({ bridgeMode: false, buildMode: true, hasSelection: true })).toBe('build');
+    expect(escapeTarget({ bridgeMode: false, buildMode: false, hasSelection: true })).toBe('selection');
+    expect(escapeTarget({ bridgeMode: false, buildMode: false, hasSelection: false })).toBe('menu');
+  });
+
+  it('sem overlay o Esc vira cancelar; com o menu aberto, o Esc fecha só o menu', () => {
+    expect(resolveHotkey(press('Escape'), idle)).toEqual({ kind: 'cancel' });
+    expect(resolveHotkey(press('Escape'), { ...idle, overlays: ['pause'] })).toEqual({ kind: 'close-overlay', overlay: 'pause' });
+    expect(resolveHotkey(press('Escape'), { ...idle, overlays: ['pause', 'controls'] })).toEqual({ kind: 'close-overlay', overlay: 'controls' });
   });
 });

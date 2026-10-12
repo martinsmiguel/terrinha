@@ -21,6 +21,8 @@ interface HudContextPanelProps {
   onOpenTalents(): void;
   /** Abre o livro do império (receitas e ofícios). */
   onOpenRecipeBook?(): void;
+  /** Abre o menu do jogo (#200). */
+  onOpenMenu?(): void;
   bridgeActive: boolean;
   onToggleBridge(): void;
   flows: FlowRow[];
@@ -96,6 +98,18 @@ export function HudContextPanel(props: HudContextPanelProps) {
         {config.panelOpen ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
         Painel <kbd className="rounded bg-slate-800 px-1 font-mono text-[10px]">J</kbd>
       </button>
+
+      {props.onOpenMenu && (
+        <button
+          type="button"
+          onClick={props.onOpenMenu}
+          title="Menu do jogo (Esc)"
+          aria-label="Abrir o menu do jogo"
+          className="pointer-events-auto flex min-h-8 items-center gap-1.5 rounded-full border border-amber-500/50 bg-slate-950/90 px-2.5 py-1 text-[11px] font-bold text-amber-200 hover:border-amber-400"
+        >
+          ☰ Menu <kbd className="rounded bg-slate-800 px-1 font-mono text-[10px]">Esc</kbd>
+        </button>
+      )}
 
       <button
         type="button"

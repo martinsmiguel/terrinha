@@ -2,7 +2,7 @@ import type { BuildingType as BuildableType } from './buildingCatalog';
 import type { BuildingType, UnitType } from './model';
 
 /** Overlays modais, na ordem em que foram abertos (o último é o mais recente). */
-export type OverlayId = 'world-map' | 'work-zone' | 'empire-catalog' | 'controls' | 'tutorial' | 'palette' | 'talents' | 'rules' | 'batch' | 'recipe-book';
+export type OverlayId = 'world-map' | 'work-zone' | 'empire-catalog' | 'controls' | 'tutorial' | 'palette' | 'talents' | 'rules' | 'batch' | 'recipe-book' | 'pause';
 
 export type SquadFormation = 'box' | 'line' | 'spread';
 
@@ -215,4 +215,12 @@ export function syncOverlayOrder(previous: readonly OverlayId[], open: ReadonlyS
   const kept = previous.filter((id) => open.has(id));
   const added = [...open].filter((id) => !kept.includes(id));
   return [...kept, ...added];
+}
+
+/** O que o Esc faz quando não há overlay aberto (#200): cancela o que estiver em curso; sem nada, abre o menu do jogo. */
+export function escapeTarget(state: { bridgeMode: boolean; buildMode: boolean; hasSelection: boolean }): 'bridge' | 'build' | 'selection' | 'menu' {
+  if (state.bridgeMode) return 'bridge';
+  if (state.buildMode) return 'build';
+  if (state.hasSelection) return 'selection';
+  return 'menu';
 }
