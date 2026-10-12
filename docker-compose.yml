@@ -5,6 +5,9 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
+      # IP desta máquina na rede, para o lobby mostrar o link de convite (o container não enxerga o IP real):
+      # LAN_HOST=$(scripts/lan-ip.sh) docker compose up -d --build
+      - LAN_HOST=${LAN_HOST:-}
     restart: always
     develop:
       watch:
