@@ -20,8 +20,8 @@ curl http://localhost:3000/api/lan-info
 ## 3. Compartilhe
 
 - **Mesma rede:** seus amigos abrem `http://<ip-do-host>:3000` no navegador.
-- Host clica em **Criar Partida**; os demais digitam o mesmo **ID da sala**
-  e clicam em **Entrar**.
+- Host abre **Multiplayer na rede › Criar sala** e, no jogo, **Menu (Esc) › Convidar** copia ou compartilha o
+  link `http://<ip-do-host>:3000/?sala=<código>`; quem abre o link cai direto na sala e clica em **Entrar na sala**.
 - Antes de iniciar, o host escolhe quantos jogadores entram na partida
   (**Treino Solo: jogadores na partida** ou o seletor do lobby): 2, 3 ou 4
   slots — cada um nasce com a própria base.
