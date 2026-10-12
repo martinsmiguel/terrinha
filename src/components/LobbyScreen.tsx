@@ -9,7 +9,8 @@ import type { PlayerSlot } from '../game/networkCommands';
 type GameRole = 'host' | 'client' | 'single';
 
 interface LobbyScreenProps {
-  lanIps: string[];
+  /** Link de convite alcançável na rede, ou `null` quando o servidor não sabe o IP da máquina (ex.: Docker sem LAN_HOST). */
+  lanUrl: string | null;
   copiedIp: boolean;
   copyLanUrl(): void;
   playerName: string;
@@ -30,7 +31,7 @@ interface LobbyScreenProps {
 }
 
 export function LobbyScreen({
-  lanIps, copiedIp, copyLanUrl, playerName, setPlayerName, roomId, setRoomId,
+  lanUrl, copiedIp, copyLanUrl, playerName, setPlayerName, roomId, setRoomId,
   playerSlot, setPlayerSlot, lobbyError, matchSize, setMatchSize, botProfile, setBotProfile, worldSize, setWorldSize, onStartGame,
 }: LobbyScreenProps) {
   return (
@@ -56,23 +57,30 @@ export function LobbyScreen({
               <span className="flex items-center gap-1.5 text-emerald-400">
                 <Wifi className="w-4 h-4" /> Servidor Local (Docker / Localhost)
               </span>
-              <span className="text-slate-400 font-mono">Porta: 3000</span>
+              <span className="text-slate-400 font-mono">Porta: {window.location.port || 3000}</span>
             </div>
 
             <div className="flex items-center gap-2 bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 text-xs font-mono">
-              <span className="text-slate-400">IP na Rede Local:</span>
-              <span className="text-amber-300 font-bold flex-1 truncate">
-                http://{lanIps[0] || 'localhost'}:3000
+              <span className="text-slate-400">Link na Rede Local:</span>
+              <span className={`font-bold flex-1 truncate ${lanUrl ? 'text-amber-300' : 'text-slate-400 font-sans font-normal'}`} data-testid="lan-url">
+                {lanUrl ?? 'IP desta máquina não detectado'}
               </span>
               <button
                 type="button"
+                disabled={!lanUrl}
                 onClick={copyLanUrl}
-                className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg flex items-center gap-1 transition-colors text-[11px] font-sans font-medium"
+                className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg flex items-center gap-1 transition-colors text-[11px] font-sans font-medium disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {copiedIp ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                 {copiedIp ? 'Copiado!' : 'Copiar Link'}
               </button>
             </div>
+            {!lanUrl && (
+              <p className="text-[11px] text-amber-200/90 leading-relaxed" data-testid="lan-hint">
+                No outro aparelho, abra <strong>http://IP-desta-máquina:3000</strong>. O IP está em Ajustes do Sistema › Wi-Fi › Detalhes
+                (ex.: 192.168.1.20). Para o link aparecer aqui, suba o servidor com <code className="font-mono">LAN_HOST=&lt;IP&gt;</code> ou abra esta página pelo IP da rede.
+              </p>
+            )}
             <p className="text-[11px] text-slate-400 leading-relaxed">
               <strong>Dica Multiplayer:</strong> Qualquer pessoa conectada no mesmo Wi-Fi pode abrir este link no navegador do celular ou PC para entrar na sua partida sem precisar de internet!
             </p>
