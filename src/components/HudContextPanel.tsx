@@ -26,6 +26,8 @@ interface HudContextPanelProps {
   onRelicAction(row: RelicRow): void;
   onFocusRelic(x: number, z: number): void;
   talentPoints: number;
+  /** Nome da civilização e nick do jogador (#198). */
+  identity?: { civName: string; nick: string };
   onSelectComposition(composition: HudComposition): void;
   onToggleIdle(enabled: boolean): void;
   onUndo(): void;
@@ -76,6 +78,11 @@ export function HudContextPanel(props: HudContextPanelProps) {
       onMouseEnter={props.onPointerEnterUI}
       onMouseLeave={props.onPointerLeaveUI}
     >
+      {props.identity && (
+        <div className="pointer-events-auto max-w-[16rem] truncate rounded-full border border-slate-700 bg-slate-950/90 px-2.5 py-1 text-[11px] text-slate-200" data-testid="hud-identity" title={`${props.identity.civName} — ${props.identity.nick}`}>
+          <strong className="text-amber-300">{props.identity.civName}</strong> · {props.identity.nick}
+        </div>
+      )}
       <button
         type="button"
         onClick={props.onTogglePanel}

@@ -21,6 +21,7 @@ import { payerLocality } from '../../src/game/networkCommands';
 import { isBoatUnit } from '../../src/game/model';
 import { attackOrder } from '../../src/game/unitOrders';
 import { craftLevels, studyCraft } from '../../src/game/mastery';
+import { setCivName } from '../../src/game/identity';
 import { setRecipe } from '../../src/game/production';
 import { generateRelics } from '../../src/game/mysticism';
 
@@ -165,7 +166,7 @@ export class ScenarioHost {
       const wagon = this.state.units.find((u) => u.id === c.wagonId && u.owner === owner);
       const result = foundCapital(this.state, { owner, wagonId: c.wagonId, position: c.position }, (x, z) => this.siteValid(this.state, owner, x, z, true, wagon?.position), this.createId);
       if (!result.ok) return this.reject(owner, command, `fundação recusada: ${result.reason}`);
-      this.state = result.state;
+      this.state = c.civName ? setCivName(result.state, owner, c.civName) : result.state;
       return true;
     }
     if (c.type === 'build') {

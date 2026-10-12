@@ -30,7 +30,9 @@ Abra <http://localhost:3000>.
 ## 3. Fundamentos (sobreviver os primeiros 2 minutos)
 
 1. **Funde a capital:** clique na carroça, escolha um dos sítios do painel
-   (ele mostra espaço, terreno, acesso e kit) e confirme em **Fundar aqui**.
+   (ele mostra espaço, terreno, acesso e kit), **dê um nome à sua civilização** (sugestão: "Reino de
+   <seu nick>"; até 32 caracteres) e confirme em **Fundar aqui**. O nome e o seu nick aparecem no HUD e no
+   Centro da Vila, para todos os jogadores.
    A fundação leva 20 s e usa o kit reservado de 400 madeira e 200 pedra;
    cancelar não gasta nada. Sem a carroça e sem a capital você é eliminado.
    Depois, selecione unidades clicando nelas (ou arraste um retângulo para

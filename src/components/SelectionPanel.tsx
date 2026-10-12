@@ -7,6 +7,7 @@ import {
 import { isBoatUnit, type Building, type GameState, type PlayerResources, type ResourceNode, type Unit, type UnitType } from '../game/engine';
 import type { BuildingType } from '../game/buildingCatalog';
 import { BUILDING_CATALOG } from '../game/buildingCatalog';
+import { civNameOf, nickOf, suggestCivName } from '../game/identity';
 import { UNIT_LABEL } from '../game/unlocks';
 import type { PlayerSlot } from '../game/networkCommands';
 import type { MultiplayerManager } from '../game/multiplayer';
@@ -161,7 +162,7 @@ export function SelectionPanel(props: SelectionPanelProps) {
                   <>
                     <Castle className="w-4 h-4 text-amber-400 shrink-0" />
                     <span className="font-bold text-white truncate">
-                      {selectedBuilding.type === 'town_center' ? 'Centro da Vila' : BUILDING_CATALOG[selectedBuilding.type as 'house' | 'barracks' | 'tower']?.name || 'Edifício'}
+                      {selectedBuilding.type === 'town_center' ? `Centro da Vila · ${civNameOf(gameState, selectedBuilding.owner)}` : BUILDING_CATALOG[selectedBuilding.type as 'house' | 'barracks' | 'tower']?.name || 'Edifício'}
                       {selectedBuilding.trainingQueue.length > 0 && ` (${selectedBuilding.trainingQueue.length} na fila)`}
                     </span>
                   </>
@@ -484,8 +485,9 @@ export function SelectionPanel(props: SelectionPanelProps) {
                     kit={gameState.foundationKits?.[playerSlot]}
                     getOptions={getCapitalSites}
                     onPreview={focusPoint}
-                    onConfirm={(x, z) => {
-                      const cmd = { type: 'found_capital', wagonId: selectedUnit.id, position: { x, z } };
+                    suggestedCivName={suggestCivName(playerSlot, nickOf(gameState, playerSlot))}
+                    onConfirm={(x, z, civName) => {
+                      const cmd = { type: 'found_capital', wagonId: selectedUnit.id, position: { x, z }, ...(civName ? { civName } : {}) };
                       if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
                       else multiRef.current?.sendToHost(cmd);
                       triggerNotification('Fundando a capital: a carroça foi armada no sítio escolhido.', 'success');

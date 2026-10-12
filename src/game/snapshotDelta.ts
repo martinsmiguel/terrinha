@@ -3,7 +3,7 @@ import type { Building, GameState, ResourceNode, Unit } from './model';
 type Entity = Unit | Building | ResourceNode;
 
 /** Campos da partida enviados por substituição quando mudam (pequenos e raramente alterados). */
-const SCALAR_KEYS = ['playerResources', 'techs', 'match', 'localStocks', 'foundationKits', 'mapSeed', 'mapSize', 'ruleSettings'] as const;
+const SCALAR_KEYS = ['playerResources', 'techs', 'match', 'localStocks', 'foundationKits', 'mapSeed', 'mapSize', 'ruleSettings', 'profiles'] as const;
 type ScalarKey = (typeof SCALAR_KEYS)[number];
 
 export interface EntityDelta<T> { upsert: T[]; remove: string[] }
