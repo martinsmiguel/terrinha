@@ -80,6 +80,16 @@ export interface Building {
   span?: { a: { x: number; z: number }; b: { x: number; z: number } };
 }
 
+/** Enfeite posto numa ilha (card #180): tipo do registro `src/game/decorations/`, dono, posição e quartos de volta. */
+export interface Decoration {
+  id: string;
+  type: string;
+  owner: string;
+  position: { x: number; z: number };
+  /** 0, 1, 2 ou 3 quartos de volta. */
+  rotation: number;
+}
+
 export interface ResourceNode {
   id: string;
   type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school' | 'stone';
@@ -116,6 +126,8 @@ export interface GameState {
   foundationKits?: Record<string, { wood: number; stone: number }>;
   /** Nick e nome da civilização de cada jogador (#198); públicos. */
   profiles?: Record<string, import('./identity').PlayerProfile>;
+  /** Enfeites das ilhas (#180). */
+  decorations?: Decoration[];
   /** Última aplicação de regras da sessão: revisão e instante da partida em que valeu. */
   rulesApplied?: { revision: number; atElapsed: number };
   /** Perfil de comportamento da IA da partida (default Defensivo) e o relógio de cada bot. */

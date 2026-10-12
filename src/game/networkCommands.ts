@@ -9,6 +9,8 @@ import { BUILDING_CATALOG } from './buildingCatalog';
 import { researchBlock } from './tech';
 import { isUnlocked } from './unlocks';
 import { canSetRecipe } from './production';
+import { isDecorationId } from './decorations';
+import { decorationPlacementReason, isDecorationRotation } from './decor';
 import { FOUNDATION_KIT, lifePhase } from './foundation';
 import { canTarget, isExploredBy, type OwnerVision } from './visionAuthority';
 import { bodyOf, type BodyId } from './bodyModel';
@@ -94,6 +96,7 @@ export type NetworkCommand = CommandMetadata & (
   | { type: 'buy_talent'; id: string }
   | { type: 'study_craft'; craft: string }
   | { type: 'set_recipe'; buildingId: string; recipeId: string }
+  | { type: 'place_decoration'; decoration: string; position: Position; rotation: number }
   | { type: 'build_bridge'; a: Position; b: Position; builderIds: string[] }
   | { type: 'harvest_plant' | 'restore_monument'; unitId: string; relicId: string }
   | { type: 'set_route'; boatId: string; a: RoutePort; b: RoutePort; outbound: RouteLeg; back: RouteLeg | null; partial?: boolean }
@@ -242,6 +245,8 @@ export function isValidNetworkCommand(value: unknown, mapSize: number = MAP_LIMI
       return allowedKeys('craft') && isCraftId(value.craft);
     case 'set_recipe':
       return allowedKeys('buildingId', 'recipeId') && isId(value.buildingId) && isId(value.recipeId);
+    case 'place_decoration':
+      return allowedKeys('decoration', 'position', 'rotation') && isDecorationId(value.decoration) && isPosition(value.position) && isDecorationRotation(value.rotation);
     case 'build_bridge':
       return allowedKeys('a', 'b', 'builderIds') && isPosition(value.a) && isPosition(value.b)
         && Array.isArray(value.builderIds) && value.builderIds.length >= 1 && value.builderIds.length <= 100 && value.builderIds.every(isId);
@@ -456,6 +461,10 @@ export function isAuthorizedPlayerCommand(
       const known = (x: number, z: number) => !vision || isExploredBy(vision, owner, x, z);
       return checkRelicAction(state, owner, value.type === 'harvest_plant' ? 'harvest' : 'restore', value.unitId, value.relicId, known).ok;
     }
+    case 'place_decoration':
+      // Era, posição explorada, terreno, sobreposição, rotação e custo do estoque da ilha (#180).
+      if (!canTarget(vision, owner, { position: value.position }, 'explored')) return false;
+      return decorationPlacementReason(state, owner, { type: value.decoration, position: value.position, rotation: value.rotation }, terrain) === null;
     case 'set_recipe':
       // Construção própria, estação da receita, era e ofício exigidos (#178).
       return canSetRecipe(state, owner, value.buildingId, value.recipeId).ok;
