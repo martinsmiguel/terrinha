@@ -1,5 +1,5 @@
 import { hasTalent } from './talents';
-import { ITEM_IDS, type ItemId } from './items';
+import { ITEM_IDS, emptyItems, type ItemId } from './items';
 import { cargoCapacity, cargoTotal, type Cargo } from './colonialTransport';
 import { HOME, creditAt, debitAt, depotsIn, stockAt, type LocalityResolver } from './depots';
 import type { Building, GameState, Unit } from './model';
@@ -56,7 +56,7 @@ function validPort(state: GameState, owner: string, port: RoutePort): Building |
   return dock && dock.type === 'dock' && dock.owner === owner && dock.isComplete && dock.health > 0 ? dock : null;
 }
 
-const cargoOf = (unit: Unit): Cargo => ({ wood: 0, food: 0, gold: 0, stone: 0, planks: 0, ...unit.cargo });
+const cargoOf = (unit: Unit): Cargo => ({ ...emptyItems(), ...unit.cargo });
 const legCargo = (leg: RouteLeg, amount: number): Partial<Cargo> => ({ [leg.resource]: amount });
 
 /** Motivos pelos quais o mercante não pode seguir esta rota; vazio quando é válida. Não altera nada. */
@@ -160,7 +160,7 @@ export function stepRoute(
     const leg = route.phase === 'load_a' ? route.outbound : route.back;
     if (!leg) return travelTo(next('travel_a'), route.a); // retorno vazio
     const onBoard = cargoTotal(boat.cargo);
-    const stock = stockAt(state, boat.owner, found.locality)[leg.resource];
+    const stock = stockAt(state, boat.owner, found.locality)[leg.resource] ?? 0;
     const take = Math.min(leg.amount, stock, cargoCapacity(boat.type) - onBoard);
     if (take < leg.amount && !route.partial) {
       // Espera o estoque completo; nada é debitado.

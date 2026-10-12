@@ -39,7 +39,7 @@ interface Etapa {
 }
 
 describe('roteiro: duas ilhas e a vitória sobre o inimigo (mundo 280, semente 4242)', () => {
-  it('executa as 24 etapas dentro dos orçamentos, sem comando recusado fora do esperado', () => {
+  it('executa as 29 etapas dentro dos orçamentos, sem comando recusado fora do esperado', () => {
     const h = new ScenarioHost({ size: SIZE, seed: SEED });
     const etapas: Etapa[] = [];
     const enemy = 'player2';
@@ -156,6 +156,32 @@ describe('roteiro: duas ilhas e a vitória sobre o inimigo (mundo 280, semente 4
       return Boolean(transporte());
     });
     expect(transporte().type).toBe('colonial_transport');
+
+    /* ---------------- Cadeia da madeira (#178): lenha, cabo, ferramenta de pedra e, no Bronze, carvão vegetal ---------------- */
+    const serraria = h.buildings('player1', 'sawmill')[0];
+    const item = (id: 'firewood' | 'tool_handle' | 'stone_tool' | 'charcoal') => h.resources()[id] ?? 0;
+    const receita = (buildingId: string, recipeId: string) => diz(h.send({ type: 'set_recipe', buildingId, recipeId }), `receita ${recipeId}`);
+    etapa('E11b', '4 Cadeia da madeira', 'Serralheria passa a rachar lenha (combustível): 12 de lenha', 600, () => receita(serraria.id, 'firewood-from-wood'), () => item('firewood') >= 12);
+    etapa('E11c', '4 Cadeia da madeira', 'Serralheria entalha cabo de ferramenta (Carpintaria 2): 1 cabo', 600, () => receita(serraria.id, 'tool-handle-from-wood'), () => item('tool_handle') >= 1);
+    etapa('E11d', '4 Cadeia da madeira', 'Centro da Vila monta a ferramenta de pedra (1 cabo + 5 pedra): a coleta rende +20%; a serralheria volta à lenha', 600, () => {
+      receita(serraria.id, 'firewood-from-wood'); // sem cabo novo, o Centro para depois de uma ferramenta
+      receita(capital.id, 'stone-tool');
+      // A ferramenta gasta 5 de pedra; kit (50) e posto (50) precisam de 100: um aldeão vai à pedreira explorada.
+      const pedreira = h.nearestNode('stone', capital.position);
+      if (pedreira) diz(h.send({ type: 'gather', unitId: villagers()[0].id, targetId: pedreira.id }), 'coletar pedra');
+    }, () => item('stone_tool') >= 0.99 && h.resources().stone >= 100, () => `pedra ${Math.round(h.resources().stone)}, pedreira ${h.nearestNode('stone', capital.position) ? 'explorada' : 'na névoa'}`);
+    const mineracao = () => craftLevel(h.state.mastery, 'player1', 'mineracao');
+    etapa('E11e', '4 Cadeia da madeira', 'Avançar à Era do Bronze (Mineração 2 e Carpintaria 2; 100 madeira + 50 ouro, 15 s)', 1500, () => {
+      if (mineracao() < 2) diz(h.send({ type: 'study_craft', craft: 'mineracao' }), 'estudar mineração');
+    }, () => {
+      const tech = h.state.techs?.player1;
+      if (tech && tech.era === 'pedra' && tech.queue.length === 0 && mineracao() >= 2 && canAffordResources(h.resources(), { wood: 100, gold: 50 })) {
+        diz(h.send({ type: 'research', id: 'era:bronze' }), 'avançar ao Bronze');
+      }
+      return h.state.techs?.player1.era === 'bronze';
+    }, () => `mineração ${mineracao()}, era ${h.state.techs?.player1.era}`);
+    etapa('E11f', '4 Cadeia da madeira', 'Serralheria queima a lenha em carvão vegetal (Bronze): 5 de carvão', 600, () => receita(serraria.id, 'charcoal-from-firewood'), () => item('charcoal') >= 5);
+    receita(serraria.id, 'planks-from-wood'); // volta às tábuas
     etapa('E12', '4 Mar e segunda ilha', 'Carregar o kit de colonização (150 madeira + 50 pedra) no porão', 60, () => diz(h.send({ type: 'load_kit', boatId: transporte().id }), 'carregar kit'), () => Boolean(transporte().kit));
 
     const passageiros = [...villagers().slice(2, 4), ...soldados().slice(0, 4)];
@@ -208,7 +234,14 @@ describe('roteiro: duas ilhas e a vitória sobre o inimigo (mundo 280, semente 4
     etapa('E18', '5 Reforços', 'Embarcar os 6 soldados que ficaram na ilha natal', 2500, () => {
       expect(reforcos(), 'seis soldados esperam no cais').toHaveLength(6);
       diz(h.send({ type: 'embark', unitIds: reforcos().map((u) => u.id), boatId: transporte().id }), 'embarcar reforços');
-    }, () => (transporte().passengers?.length ?? 0) === 6);
+    }, () => {
+      // Quem empacar atrás do cais (o alvo do embarque é o barco, na água): o barco encosta perto deles e a ordem se repete,
+      // como faria o jogador.
+      const fora = reforcos().filter((u) => !transporte().passengers?.some((p) => p.id === u.id));
+      if (fora.length > 0 && h.tick % 400 === 0) diz(h.send({ type: 'move', unitId: transporte().id, target: fora[0].position }), 'aproximar o barco');
+      if (fora.length > 0 && h.tick % 400 === 200) diz(h.send({ type: 'embark', unitIds: fora.map((u) => u.id), boatId: transporte().id }), 'reembarcar reforços');
+      return (transporte().passengers?.length ?? 0) === 6;
+    });
     const idsReforcos = reforcos().map((u) => u.id);
 
     etapa('E19', '5 Reforços', 'Navegar de novo até a costa da segunda ilha', 12000, () => {

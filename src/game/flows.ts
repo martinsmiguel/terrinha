@@ -27,12 +27,12 @@ export interface FlowSample {
 export function sampleFlows(state: Pick<GameState, 'playerResources' | 'localStocks' | 'units' | 'elapsed'>, owner: string): FlowSample {
   const res = state.playerResources[owner];
   const home = empty();
-  if (res) { KEYS.forEach((k) => { home[k] = res[k]; }); home.pop = res.pop; }
+  if (res) { KEYS.forEach((k) => { home[k] = res[k] ?? 0; }); home.pop = res.pop; }
   const colonies = empty();
   const byLocality: Record<string, Bag> = {};
   for (const [locality, stock] of Object.entries(state.localStocks?.[owner] ?? {})) {
     const bag = empty();
-    KEYS.forEach((k) => { bag[k] = stock[k]; colonies[k] += stock[k]; });
+    KEYS.forEach((k) => { bag[k] = stock[k] ?? 0; colonies[k] += stock[k] ?? 0; });
     byLocality[locality] = bag;
   }
   const transit = empty();

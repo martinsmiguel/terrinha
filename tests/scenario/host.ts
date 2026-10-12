@@ -13,14 +13,15 @@ import { applyEmbarkOrder, boatDestination } from '../../src/game/navalTransport
 import { isAuthorizedPlayerCommand, isValidNetworkCommand, soloMatchSlots, type PlayerSlot } from '../../src/game/networkCommands';
 import { findNearestOceanCell, generateProceduralTerrain, type ProceduralMapResult } from '../../src/game/proceduralMap';
 import { tickGameState, type SimulationContext } from '../../src/game/simulation';
-import { createTechState } from '../../src/game/tech';
+import { createTechState, startResearch } from '../../src/game/tech';
 import { isExploredAt } from '../../src/game/visibility';
 import { isExploredBy, updateOwnerVision, type OwnerVision } from '../../src/game/visionAuthority';
 import { debitAt } from '../../src/game/depots';
 import { payerLocality } from '../../src/game/networkCommands';
 import { isBoatUnit } from '../../src/game/model';
 import { attackOrder } from '../../src/game/unitOrders';
-import { studyCraft } from '../../src/game/mastery';
+import { craftLevels, studyCraft } from '../../src/game/mastery';
+import { setRecipe } from '../../src/game/production';
 import { generateRelics } from '../../src/game/mysticism';
 
 /**
@@ -226,6 +227,15 @@ export class ScenarioHost {
       return true;
     }
     if (c.type === 'attack') { this.state = { ...this.state, units: this.state.units.map((u) => (u.id === c.unitId ? attackOrder(u, c.targetId) : u)) }; return true; }
+    if (c.type === 'set_recipe') { this.state = setRecipe(this.state, owner, c.buildingId, c.recipeId); return true; }
+    if (c.type === 'research') {
+      // App.tsx `research`: custo debitado e fila validada no host, com os níveis de ofício do dono.
+      const tech = this.state.techs?.[owner];
+      const started = tech && startResearch(tech, c.id, this.state.playerResources[owner], craftLevels(this.state.mastery, owner));
+      if (!started) return this.reject(owner, command, 'pesquisa recusada');
+      this.state = { ...this.state, techs: { ...this.state.techs, [owner]: started.techState }, playerResources: { ...this.state.playerResources, [owner]: started.resources } };
+      return true;
+    }
     if (c.type === 'study_craft') {
       const studied = studyCraft(this.state, owner, c.craft);
       if (!studied.check.ok) return this.reject(owner, command, studied.check.reason);

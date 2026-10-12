@@ -1,3 +1,4 @@
+import type { ItemId } from './items';
 import type { Era } from './tech';
 
 
@@ -19,7 +20,7 @@ export interface BuildingDef {
   category: 'civil' | 'militar' | 'defesa' | 'economia' | 'naval';
   description: string;
   benefit: string;
-  cost: { wood: number; food?: number; gold?: number; stone?: number; planks?: number };
+  cost: { wood: number } & Partial<Record<ItemId, number>>;
   buildTimeSeconds: number;
   maxHealth: number;
   hotkey: string;

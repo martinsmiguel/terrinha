@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FLOW_WINDOW_SECONDS, flowRows, localityRate, netRate, pushSample, sampleFlows, type FlowSample } from '../../src/game/flows';
 import type { GameState, Unit } from '../../src/game/model';
+import { ITEM_IDS } from '../../src/game/items';
 
 const res = (wood: number, pop = 5) => ({ wood, food: 10, gold: 0, stone: 0, planks: 0, pop, maxPop: 20 });
 const boat = (cargoWood: number, kit = false): Unit => ({ id: 'b', type: 'trade_boat', owner: 'player1', position: { x: 1, z: 1 }, targetPosition: null, targetEntityId: null, health: 1, maxHealth: 1, attackDamage: 0, state: 'idle', cargo: { wood: cargoWood, food: 0, gold: 0, stone: 0, planks: 0 }, ...(kit ? { kit: true } : {}) });
@@ -74,9 +75,9 @@ describe('estoque local versus agregado e transferência interna', () => {
     expect(wood.empire.perMinute).toBeCloseTo(-180, 6);
   });
 
-  it('as seis linhas cobrem os cinco recursos e a população, com dados do dono', () => {
+  it('uma linha por item do registro e a população, com dados do dono', () => {
     const rows = flowRows(series([[0, 100], [10, 100]]));
-    expect(rows.map((r) => r.key)).toEqual(['wood', 'food', 'gold', 'stone', 'planks', 'pop']);
+    expect(rows.map((r) => r.key)).toEqual([...ITEM_IDS, 'pop']);
     expect(sampleFlows(state(0, 100), 'player9').total.wood).toBe(0); // dono sem registro: zeros
   });
 });

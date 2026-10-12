@@ -1,4 +1,4 @@
-import type { ItemId } from './items';
+import type { ItemBalance } from './items';
 import type { MatchStatus } from './victory';
 import type { TechState } from './tech';
 import type { RuleSettings } from './unitAttributes';
@@ -53,7 +53,7 @@ export interface Unit {
   passengers?: Unit[];
   embarkTargetId?: string;
   /** Carga do porão (barcos): recursos retirados do estoque de um posto. */
-  cargo?: Record<ItemId, number>;
+  cargo?: ItemBalance;
   /** Kit de colonização a bordo do transporte colonial (150 madeira e 50 pedra). */
   kit?: boolean;
   /** Segundos até o próximo passageiro poder desembarcar; ausente = sem desembarque em curso. */
@@ -74,6 +74,8 @@ export interface Building {
   attackCooldown?: number;
   trainingQueue: { unitType: UnitType; progress: number }[];
   lastProduceTick?: number;
+  /** Receita escolhida pelo dono nesta estação (`src/game/recipes/`); ausente = a padrão da estação (#178). */
+  recipeId?: string;
   /** Ponte: as duas margens que ela liga (só `bridge`). */
   span?: { a: { x: number; z: number }; b: { x: number; z: number } };
 }
@@ -93,7 +95,7 @@ export interface ResourceNode {
 }
 
 /** Saldo de cada item do registro (`src/game/items/`) mais população atual e máxima. */
-export type PlayerResources = Record<ItemId, number> & { pop: number; maxPop: number };
+export type PlayerResources = ItemBalance & { pop: number; maxPop: number };
 
 export interface GameState {
   /** Regras validadas ao criar a sessão; o host as aplica no tick e as envia no snapshot. */
@@ -130,7 +132,7 @@ export interface GameState {
   /** Maestrias e pontos por dono (XP só do host, por eventos autoritativos; só desta sessão). */
   mastery?: Record<string, import('./mastery').MasteryState>;
   /** Estoques das localidades coloniais (dono → ilha). A metrópole usa `playerResources`. */
-  localStocks?: Record<string, Record<string, { wood: number; food: number; gold: number; stone: number; planks: number }>>;
+  localStocks?: Record<string, Record<string, ItemBalance>>;
 }
 
 /** Dimensão padrão do mundo; a dimensão real da sessão vem de `GameState.mapSize`. */

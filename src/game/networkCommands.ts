@@ -7,6 +7,7 @@ import { UNIT_ATTRIBUTES } from './unitAttributes';
 import { BUILDING_CATALOG } from './buildingCatalog';
 import { researchBlock } from './tech';
 import { isUnlocked } from './unlocks';
+import { canSetRecipe } from './production';
 import { FOUNDATION_KIT, lifePhase } from './foundation';
 import { canTarget, isExploredBy, type OwnerVision } from './visionAuthority';
 import { bodyOf, type BodyId } from './bodyModel';
@@ -29,13 +30,14 @@ const UNIT_TYPES = ['villager', 'soldier', 'cavalry', 'fishing_boat', 'trade_boa
 const RESOURCE_KEYS = ITEM_IDS;
 
 export function canAffordResources(resources: PlayerResources, cost: Partial<PlayerResources>): boolean {
-  return RESOURCE_KEYS.every((key) => resources[key] >= (cost[key] ?? 0));
+  return RESOURCE_KEYS.every((key) => (resources[key] ?? 0) >= (cost[key] ?? 0));
 }
 
 export function deductResourceCost(resources: PlayerResources, cost: Partial<PlayerResources>): PlayerResources {
   const next = { ...resources };
   RESOURCE_KEYS.forEach((key) => {
-    next[key] -= cost[key] ?? 0;
+    if (next[key] === undefined && !cost[key]) return;
+    next[key] = (next[key] ?? 0) - (cost[key] ?? 0);
   });
   return next;
 }
@@ -90,6 +92,7 @@ export type NetworkCommand = CommandMetadata & (
   | { type: 'load_kit'; boatId: string }
   | { type: 'buy_talent'; id: string }
   | { type: 'study_craft'; craft: string }
+  | { type: 'set_recipe'; buildingId: string; recipeId: string }
   | { type: 'build_bridge'; a: Position; b: Position; builderIds: string[] }
   | { type: 'harvest_plant' | 'restore_monument'; unitId: string; relicId: string }
   | { type: 'set_route'; boatId: string; a: RoutePort; b: RoutePort; outbound: RouteLeg; back: RouteLeg | null; partial?: boolean }
@@ -236,6 +239,8 @@ export function isValidNetworkCommand(value: unknown, mapSize: number = MAP_LIMI
       return allowedKeys('id') && isId(value.id);
     case 'study_craft':
       return allowedKeys('craft') && isCraftId(value.craft);
+    case 'set_recipe':
+      return allowedKeys('buildingId', 'recipeId') && isId(value.buildingId) && isId(value.recipeId);
     case 'build_bridge':
       return allowedKeys('a', 'b', 'builderIds') && isPosition(value.a) && isPosition(value.b)
         && Array.isArray(value.builderIds) && value.builderIds.length >= 1 && value.builderIds.length <= 100 && value.builderIds.every(isId);
@@ -449,6 +454,9 @@ export function isAuthorizedPlayerCommand(
       const known = (x: number, z: number) => !vision || isExploredBy(vision, owner, x, z);
       return checkRelicAction(state, owner, value.type === 'harvest_plant' ? 'harvest' : 'restore', value.unitId, value.relicId, known).ok;
     }
+    case 'set_recipe':
+      // Construção própria, estação da receita, era e ofício exigidos (#178).
+      return canSetRecipe(state, owner, value.buildingId, value.recipeId).ok;
     case 'study_craft':
       // O host valida ofício, teto de estudo da era e recursos da metrópole; recusa não debita.
       return canStudy(state, owner, value.craft).ok;

@@ -72,7 +72,9 @@ export const missingCost = (
 /** Deduz o custo dos recursos (assume canAfford). Operação pura. */
 export const applyCost = (resources: PlayerResources, cost: ResourceCost): PlayerResources => {
   const next = { ...resources };
+  // Item opcional ausente do saldo e do custo continua ausente (o saldo não ganha chaves zeradas).
   COST_KEYS.forEach((key) => {
+    if (next[key] === undefined && !cost[key]) return;
     next[key] = (next[key] || 0) - (cost[key] || 0);
   });
   return next;
@@ -82,6 +84,7 @@ export const applyCost = (resources: PlayerResources, cost: ResourceCost): Playe
 export const refundCost = (resources: PlayerResources, cost: ResourceCost): PlayerResources => {
   const next = { ...resources };
   COST_KEYS.forEach((key) => {
+    if (next[key] === undefined && !cost[key]) return;
     next[key] = (next[key] || 0) + (cost[key] || 0);
   });
   return next;

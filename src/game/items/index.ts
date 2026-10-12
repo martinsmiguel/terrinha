@@ -1,7 +1,11 @@
+import { charcoal } from './charcoal';
+import { firewood } from './firewood';
 import { food } from './food';
 import { gold } from './gold';
 import { planks } from './planks';
 import { stone } from './stone';
+import { stoneTool } from './stone_tool';
+import { toolHandle } from './tool_handle';
 import type { ItemDef } from './types';
 import { wood } from './wood';
 
@@ -11,9 +15,15 @@ export type { ItemDef } from './types';
  * Registro dos itens do império, na ordem de exibição. Acrescentar um item = criar o arquivo e incluí-lo aqui
  * (o teste `items.test.ts` confere que todo arquivo da pasta está registrado).
  */
-export const ITEM_DEFS = [wood, food, gold, stone, planks] as const;
+export const ITEM_DEFS = [wood, food, gold, stone, planks, firewood, toolHandle, stoneTool, charcoal] as const;
 
 export type ItemId = (typeof ITEM_DEFS)[number]['id'];
+
+/** Itens que todo saldo tem; os demais entram opcionais (card #178). */
+export type CoreItemId = Extract<(typeof ITEM_DEFS)[number], { core: true }>['id'];
+
+/** Saldo de itens: os de base sempre presentes, os demais opcionais (ausente = 0). */
+export type ItemBalance = Record<CoreItemId, number> & Partial<Record<ItemId, number>>;
 
 /** Ids dos itens estocáveis, na ordem do registro: base de estoques, custos, carga, rede e interface. */
 export const ITEM_IDS: readonly ItemId[] = ITEM_DEFS.map((item) => item.id);

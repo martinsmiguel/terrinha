@@ -1,12 +1,12 @@
 import type { Building, GameState } from './model';
 import { refinePlanks, tradeResource, type MarketResourceType, type ResourceCost } from './economy';
-import { ITEM_IDS, emptyItems, type ItemId } from './items';
+import { ITEM_IDS, emptyItems, type ItemBalance } from './items';
 
 /** Localidade da metrópole: o estoque dela é `playerResources` (pesquisa e capital usam este). */
 export const HOME = 'home';
 
 /** Saldo de cada item do registro numa localidade. */
-export type StockBag = Record<ItemId, number>;
+export type StockBag = ItemBalance;
 /** Estoques das localidades coloniais: dono → ilha → saldo. A metrópole não aparece aqui. */
 export type LocalStocks = Record<string, Record<string, StockBag>>;
 /** Ilha onde uma posição está, do ponto de vista de um dono: `HOME` na natal, o id da ilha nas demais. */
@@ -15,9 +15,9 @@ export type LocalityResolver = (owner: string, position: { x: number; z: number 
 const KEYS = ITEM_IDS;
 const emptyBag = (): StockBag => emptyItems();
 const bagOf = (source: Partial<StockBag>): StockBag => ({ ...emptyBag(), ...source });
-const covers = (bag: StockBag, cost: ResourceCost): boolean => KEYS.every((key) => bag[key] >= (cost[key] ?? 0));
-const sub = (bag: StockBag, cost: ResourceCost): StockBag => bagOf(Object.fromEntries(KEYS.map((key) => [key, bag[key] - (cost[key] ?? 0)])));
-const add = (bag: StockBag, cost: ResourceCost): StockBag => bagOf(Object.fromEntries(KEYS.map((key) => [key, bag[key] + (cost[key] ?? 0)])));
+const covers = (bag: StockBag, cost: ResourceCost): boolean => KEYS.every((key) => (bag[key] ?? 0) >= (cost[key] ?? 0));
+const sub = (bag: StockBag, cost: ResourceCost): StockBag => bagOf(Object.fromEntries(KEYS.map((key) => [key, (bag[key] ?? 0) - (cost[key] ?? 0)])));
+const add = (bag: StockBag, cost: ResourceCost): StockBag => bagOf(Object.fromEntries(KEYS.map((key) => [key, (bag[key] ?? 0) + (cost[key] ?? 0)])));
 const isEmptyCost = (cost: ResourceCost): boolean => KEYS.every((key) => (cost[key] ?? 0) === 0);
 
 type Stocked = Pick<GameState, 'playerResources' | 'localStocks' | 'foundationKits'>;
@@ -59,6 +59,9 @@ function withStock<T extends Stocked>(state: T, owner: string, locality: string,
 }
 
 /** Pagamento local: só o estoque da própria localidade paga; o agregado da metrópole não cobre ação colonial. */
+/** Grava o saldo de uma localidade (metrópole ou colônia). */
+export const withStockAt = <T extends Stocked>(state: T, owner: string, locality: string, bag: StockBag): T => withStock(state, owner, locality, bag);
+
 export function canPayAt(state: Stocked, owner: string, locality: string, cost: ResourceCost): boolean {
   return covers(stockAt(state, owner, locality), cost);
 }
@@ -207,7 +210,7 @@ export function localityOverview(
   });
   const total = emptyBag();
   for (const row of rows) {
-    if (row.stock) KEYS.forEach((key) => { total[key] += row.stock![key]; });
+    if (row.stock) KEYS.forEach((key) => { total[key] += row.stock![key] ?? 0; });
   }
   return { rows: rows.filter((row) => row.kind !== 'regiao' || row.discovered), total };
 }
