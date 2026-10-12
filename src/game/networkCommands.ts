@@ -1,4 +1,5 @@
 import type { Building, BuildingType, GameState, PlayerResources, ResourceNode, Unit, UnitType } from './model';
+import { ITEM_IDS } from './items';
 import { BOAT_CAPACITY, isBoatUnit, worldSizeOf } from './model';
 import { UNIT_ATTRIBUTES } from './unitAttributes';
 import { BUILDING_CATALOG } from './buildingCatalog';
@@ -22,7 +23,7 @@ const MAP_LIMIT = 60;
 const MAX_ID_LENGTH = 128;
 const BUILDING_TYPES = Object.keys(BUILDING_CATALOG).filter((type) => type !== 'town_center');
 const UNIT_TYPES = ['villager', 'soldier', 'cavalry', 'fishing_boat', 'trade_boat', 'warship', 'colonial_transport'];
-const RESOURCE_KEYS = ['wood', 'food', 'gold', 'stone', 'planks'] as const;
+const RESOURCE_KEYS = ITEM_IDS;
 
 export function canAffordResources(resources: PlayerResources, cost: Partial<PlayerResources>): boolean {
   return RESOURCE_KEYS.every((key) => resources[key] >= (cost[key] ?? 0));

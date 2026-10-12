@@ -1,9 +1,10 @@
 import { hasTalent } from './talents';
+import { ITEM_IDS, type ItemId } from './items';
 import { cargoCapacity, cargoTotal, type Cargo } from './colonialTransport';
 import { HOME, creditAt, debitAt, depotsIn, stockAt, type LocalityResolver } from './depots';
 import type { Building, GameState, Unit } from './model';
 
-export type RouteResource = 'wood' | 'food' | 'gold' | 'stone' | 'planks';
+export type RouteResource = ItemId;
 export type RoutePhase = 'load_a' | 'travel_b' | 'unload_b' | 'load_b' | 'travel_a' | 'unload_a';
 
 export const ROUTE_LOAD_SECONDS = 1;
@@ -40,7 +41,7 @@ export interface TradeRoute {
 
 export interface RouteConfig { a: RoutePort; b: RoutePort; outbound: RouteLeg; back: RouteLeg | null; partial?: boolean }
 
-const KEYS: readonly RouteResource[] = ['wood', 'food', 'gold', 'stone', 'planks'];
+const KEYS: readonly RouteResource[] = ITEM_IDS;
 const dist = (p: { x: number; z: number }, q: { x: number; z: number }): number => Math.hypot(p.x - q.x, p.z - q.z);
 
 const routeOf = (unit: Unit): TradeRoute | undefined => unit.route;

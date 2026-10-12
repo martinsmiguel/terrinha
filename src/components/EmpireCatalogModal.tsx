@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { ITEM_IDS } from '../game/items';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 import {
   X,
@@ -225,7 +226,7 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
 
                     <div className="pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
                       <div className="flex items-center gap-2 text-xs font-mono">
-                        {(['wood', 'food', 'gold', 'stone', 'planks'] as const)
+                        {ITEM_IDS
                           .filter((key) => (def.cost[key] || 0) > 0)
                           .map((key) => {
                             const owned = (playerResources[key] || 0) >= (def.cost[key] || 0);

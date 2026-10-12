@@ -38,6 +38,7 @@ import { FOUNDATION_KIT, createStartingForce, findCapitalSites, foundCapital, ho
 import { evaluateCapitalSite, type CapitalSiteTerrain } from './game/capitalSite';
 import { bodyOf } from './game/bodyModel';
 import { planGroupMove } from './game/groupMove';
+import { ITEM_IDS } from './game/items';
 import { attackOrder } from './game/unitOrders';
 import { updateOwnerVision, visionSourcesFor, type OwnerVision } from './game/visionAuthority';
 
@@ -3252,7 +3253,7 @@ export default function App() {
 
                 <div className="mt-1.5 pt-1 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono">
                   <div className="flex items-center gap-1">
-                    {(['wood', 'food', 'gold', 'stone', 'planks'] as const)
+                    {ITEM_IDS
                       .filter((key) => (def.cost[key] || 0) > 0)
                       .map((key) => {
                         const owned = (myResources[key] || 0) >= (def.cost[key] || 0);

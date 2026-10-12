@@ -1,4 +1,5 @@
 import type { GameState } from './model';
+import { ITEM_IDS, type ItemId } from './items';
 
 export type HudComposition = 'map-first' | 'explore' | 'manage';
 export type HudMode = 'full' | 'compact' | 'hidden';
@@ -25,8 +26,8 @@ export const DEFAULT_HUD_CONFIG: HudConfig = {
 };
 
 /** Indicadores vitais: aparecem em toda composição e em todo modo exceto o cinemático (onde a restauração é o único controle). */
-export const VITAL_INDICATORS = ['wood', 'food', 'gold', 'stone', 'planks', 'population'] as const;
-export type VitalIndicator = (typeof VITAL_INDICATORS)[number];
+export type VitalIndicator = ItemId | 'population';
+export const VITAL_INDICATORS: readonly VitalIndicator[] = [...ITEM_IDS, 'population'];
 export type ExtraIndicator = 'idle-villagers' | 'queues' | 'selection' | 'era';
 export type IndicatorId = VitalIndicator | ExtraIndicator;
 

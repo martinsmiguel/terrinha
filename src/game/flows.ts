@@ -1,12 +1,13 @@
+import { ITEM_IDS, emptyItems, type ItemId } from './items';
 import type { GameState } from './model';
 
 export const FLOW_WINDOW_SECONDS = 60;
 export const FLOW_SAMPLE_SECONDS = 1;
-const KEYS = ['wood', 'food', 'gold', 'stone', 'planks'] as const;
-export type FlowKey = (typeof KEYS)[number] | 'pop';
+const KEYS = ITEM_IDS;
+export type FlowKey = ItemId | 'pop';
 
 type Bag = Record<FlowKey, number>;
-const empty = (): Bag => ({ wood: 0, food: 0, gold: 0, stone: 0, planks: 0, pop: 0 });
+const empty = (): Bag => ({ ...emptyItems(), pop: 0 });
 
 export interface FlowSample {
   /** Segundos de partida simulados no instante da amostra. */

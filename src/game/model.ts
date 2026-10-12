@@ -1,3 +1,4 @@
+import type { ItemId } from './items';
 import type { MatchStatus } from './victory';
 import type { TechState } from './tech';
 import type { RuleSettings } from './unitAttributes';
@@ -52,7 +53,7 @@ export interface Unit {
   passengers?: Unit[];
   embarkTargetId?: string;
   /** Carga do porão (barcos): recursos retirados do estoque de um posto. */
-  cargo?: { wood: number; food: number; gold: number; stone: number; planks: number };
+  cargo?: Record<ItemId, number>;
   /** Kit de colonização a bordo do transporte colonial (150 madeira e 50 pedra). */
   kit?: boolean;
   /** Segundos até o próximo passageiro poder desembarcar; ausente = sem desembarque em curso. */
@@ -91,15 +92,8 @@ export interface ResourceNode {
   clusterName?: string; // Human readable name (e.g., 'Bosque da Base Sul')
 }
 
-export interface PlayerResources {
-  wood: number;
-  food: number;
-  gold: number;
-  stone: number;
-  planks: number;
-  pop: number;
-  maxPop: number;
-}
+/** Saldo de cada item do registro (`src/game/items/`) mais população atual e máxima. */
+export type PlayerResources = Record<ItemId, number> & { pop: number; maxPop: number };
 
 export interface GameState {
   /** Regras validadas ao criar a sessão; o host as aplica no tick e as envia no snapshot. */

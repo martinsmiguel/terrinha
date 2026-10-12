@@ -41,6 +41,7 @@ Decisões arquiteturais são registradas como **ADRs** em
   [auditar procedência dos cards](how-to/auditar-procedencia-cards.md) · [proteção da main](how-to/protecao-main.md) ·
   [executar em produção](how-to/executar-producao.md) · [testar o alpha](how-to/validar-alpha.md) ·
   [roteiro de partida](how-to/roteiro-de-partida.md)
+- Referência: [itens e receitas](reference/itens-e-receitas.md)
 - Referência: [mundo e ilhas](reference/mundo-e-ilhas.md) · [economia das ilhas](reference/economia-das-ilhas.md) ·
   [atributos das unidades](reference/atributos-unidades.md) · [toolchain](reference/toolchain.md) · [análise estática](reference/analise-estatica.md)
 

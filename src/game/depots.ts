@@ -1,17 +1,19 @@
 import type { Building, GameState } from './model';
 import { refinePlanks, tradeResource, type MarketResourceType, type ResourceCost } from './economy';
+import { ITEM_IDS, emptyItems, type ItemId } from './items';
 
 /** Localidade da metrópole: o estoque dela é `playerResources` (pesquisa e capital usam este). */
 export const HOME = 'home';
 
-export interface StockBag { wood: number; food: number; gold: number; stone: number; planks: number }
+/** Saldo de cada item do registro numa localidade. */
+export type StockBag = Record<ItemId, number>;
 /** Estoques das localidades coloniais: dono → ilha → saldo. A metrópole não aparece aqui. */
 export type LocalStocks = Record<string, Record<string, StockBag>>;
 /** Ilha onde uma posição está, do ponto de vista de um dono: `HOME` na natal, o id da ilha nas demais. */
 export type LocalityResolver = (owner: string, position: { x: number; z: number }) => string;
 
-const KEYS = ['wood', 'food', 'gold', 'stone', 'planks'] as const;
-const emptyBag = (): StockBag => ({ wood: 0, food: 0, gold: 0, stone: 0, planks: 0 });
+const KEYS = ITEM_IDS;
+const emptyBag = (): StockBag => emptyItems();
 const bagOf = (source: Partial<StockBag>): StockBag => ({ ...emptyBag(), ...source });
 const covers = (bag: StockBag, cost: ResourceCost): boolean => KEYS.every((key) => bag[key] >= (cost[key] ?? 0));
 const sub = (bag: StockBag, cost: ResourceCost): StockBag => bagOf(Object.fromEntries(KEYS.map((key) => [key, bag[key] - (cost[key] ?? 0)])));
