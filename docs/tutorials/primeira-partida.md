@@ -29,8 +29,11 @@ Abra <http://localhost:3000>.
 
 ## 3. Fundamentos (sobreviver os primeiros 2 minutos)
 
-1. **Funde a capital:** clique na carroça, escolha um dos sítios do painel
-   (ele mostra espaço, terreno, acesso e kit) e confirme em **Fundar aqui**.
+1. **Funde a capital:** leve a carroça aonde quiser (clique direito, como uma
+   tropa: perto do mar, num morro…), clique nela e em **Escolher no mapa**. A
+   prévia segue o cursor em verde ou vermelho; toque no ponto e o painel mostra
+   espaço, terreno, acesso e kit. Confirme em **Fundar aqui** (Esc cancela). Os
+   sítios sugeridos do painel continuam como atalho.
    A fundação leva 20 s e usa o kit reservado de 400 madeira e 200 pedra;
    cancelar não gasta nada. Sem a carroça e sem a capital você é eliminado.
    Depois, selecione unidades clicando nelas (ou arraste um retângulo para
