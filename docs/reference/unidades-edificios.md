@@ -48,6 +48,22 @@ recusa `build`, `build_bridge` e `train` bloqueados (a IA passa pela mesma regra
   mesma era ou antes: `validateUnlocks` garante que tudo é alcançável a partir do início.
 - A IA treina mosqueteiro quando a cavalaria está bloqueada e avança de era sozinha quando tem os ofícios e os recursos.
 
+## Decoração (card #180)
+
+Fontes: `src/game/decorations/` (um arquivo por enfeite) e `src/game/decor.ts` (regra). Aba **Decoração** no menu do aldeão.
+
+| Enfeite | Era | Custo | Área (sem girar) |
+| --- | --- | --- | --- |
+| Canteiro de flores | Pedra | 15 madeira | 2 × 1 |
+| Menir | Pedra | 30 pedra | 1 × 1 |
+| Braseiro de bronze | Bronze | 20 pedra + 10 lenha | 1 × 1 |
+| Fonte de pedra | Ferro | 80 pedra + 20 ouro | 2 × 2 |
+| Estandarte | Medieval | 40 madeira + 30 ouro | 1 × 2 |
+
+- **Prévia:** segue o cursor em verde (pode) ou vermelho (não pode); o clique ou toque no mapa fixa a posição. **Girar** (botão ou **R**) vira 90°, trocando largura e profundidade. **Confirmar** (✓ ou **Enter**) aplica; **Cancelar** (✕ ou **Esc**) sai sem gastar nada.
+- **Host** (`place_decoration { decoration, position, rotation }`): enfeite do registro, quartos de volta 0–3, era alcançada, célula explorada, dentro do mapa, terra firme e seca, sem sobrepor construção, outro enfeite ou recurso, e custo pago pelo estoque da ilha onde fica.
+- Enfeites alheios só chegam ao jogador em células já exploradas. Sem efeito de jogo além do custo nesta fatia; desenho provisório, sem arte final.
+
 ## Unidades
 
 | Unidade | Custo | Onde treina | Papel |

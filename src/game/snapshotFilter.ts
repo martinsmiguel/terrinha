@@ -27,6 +27,8 @@ export function filterSnapshotFor(state: GameState, owner: string, vision: Owner
     playerResources: pick(state.playerResources) ?? {},
     ...(state.techs ? { techs: pick(state.techs) } : {}),
     ...(state.foundationKits ? { foundationKits: pick(state.foundationKits) } : {}),
+    // Enfeites (#180): os próprios e os alheios em células já exploradas (são fixos, como os recursos).
+    ...(state.decorations ? { decorations: state.decorations.filter((d) => own(d) || (hasVision && isExploredBy(vision, owner, d.position.x, d.position.z))) } : {}),
     // Relíquias: só as de células já exploradas pelo destinatário.
     ...(state.relics ? { relics: hasVision ? state.relics.filter((relic) => isExploredBy(vision, owner, relic.position.x, relic.position.z)) : [] } : {}),
     // Tempestade: só se a região é conhecida do destinatário ou se ele tem barco por perto (nada de pista sobre frotas alheias).

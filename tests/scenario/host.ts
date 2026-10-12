@@ -22,6 +22,7 @@ import { isBoatUnit } from '../../src/game/model';
 import { attackOrder } from '../../src/game/unitOrders';
 import { craftLevels, studyCraft } from '../../src/game/mastery';
 import { setRecipe } from '../../src/game/production';
+import { placeDecoration } from '../../src/game/decor';
 import { generateRelics } from '../../src/game/mysticism';
 
 /**
@@ -227,6 +228,11 @@ export class ScenarioHost {
       return true;
     }
     if (c.type === 'attack') { this.state = { ...this.state, units: this.state.units.map((u) => (u.id === c.unitId ? attackOrder(u, c.targetId) : u)) }; return true; }
+    if (c.type === 'place_decoration') {
+      // App.tsx `place_decoration`: mesma regra pura, debitando o estoque da ilha (#180).
+      this.state = placeDecoration(this.state, owner, { type: c.decoration, position: c.position, rotation: c.rotation }, this.createId(), terrain);
+      return true;
+    }
     if (c.type === 'set_recipe') { this.state = setRecipe(this.state, owner, c.buildingId, c.recipeId); return true; }
     if (c.type === 'research') {
       // App.tsx `research`: custo debitado e fila validada no host, com os níveis de ofício do dono.

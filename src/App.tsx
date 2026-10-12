@@ -12,6 +12,11 @@ import { canUndoBatch, previewBatch, recordBatch, undoBatch, type BatchCommand, 
 import { RulesPanel } from './components/RulesPanel';
 import { applyRules, canEditRules } from './game/rulesAdmin';
 import { TalentPanel } from './components/TalentPanel';
+import { DECORATION_DEFS, decorationById } from './game/decorations';
+import { decorationPlacementReason, nextRotation, placeDecoration, type DecorationRotation } from './game/decor';
+import { createDecorationGhost, setDecorationGhost } from './game/decorMeshes';
+import { useDecorationSync } from './hooks/useDecorationSync';
+
 import { CommandPalette } from './components/CommandPalette';
 import { focusLocality, type PaletteEntry, type PaletteLocality } from './game/commandPalette';
 import { computeArchipelago } from './game/archipelago';
@@ -82,7 +87,10 @@ import { HOME, debitAt, depotsIn, refundAt, tradeAt } from './game/depots';
 import { PLAYER_SLOTS, payerLocality, hostLeftSessionMessage, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, soloMatchSlots, type PlayerSlot } from './game/networkCommands';
 import { localOutcome, type LocalOutcome } from './game/victory';
 import {
+  ERA_LABEL,
   createTechState,
+  eraReached,
+  normalizeEra,
   researchTarget,
   startResearch,
 } from './game/tech';
@@ -322,6 +330,11 @@ export default function App() {
 
   // Building placement mode & preview
   const [buildMode, setBuildMode] = useState<BuildingType | null>(null);
+  /** Decoração (#180): enfeite escolhido, quartos de volta e a posição fixada pelo clique (aguardando confirmar). */
+  const [decorMode, setDecorMode] = useState<{ type: string; rotation: DecorationRotation; pending: { x: number; z: number } | null } | null>(null);
+  const decorModeRef = useRef(decorMode);
+  const [buildTab, setBuildTab] = useState<'construir' | 'decorar'>('construir');
+  decorModeRef.current = decorMode;
   /** O que falta ao jogador local para construir (vazio = desbloqueado); o host aplica a mesma regra (`unlocks.ts`). */
   const buildLock = (type: BuildingType): string | null => {
     const missing = missingFor(gameStateRef.current, playerSlot, { kind: 'building', type });
@@ -428,6 +441,8 @@ export default function App() {
   const buildingMeshes = useRef<Map<string, THREE.Group>>(new Map());
   const resourceMeshes = useRef<Map<string, THREE.Group>>(new Map());
   const ghostBuildingMesh = useRef<THREE.Group | null>(null);
+  const decorGhost = useRef<THREE.Group | null>(null);
+  const decorPressRef = useRef(false);
   const gameStateRef = useRef<GameState>(gameState);
   gameStateRef.current = gameState;
   const selectedEntityRef = useRef(selectedEntity);
@@ -1036,6 +1051,65 @@ export default function App() {
   };
 
 
+  useDecorationSync({
+    engineRef,
+    heightAt: proceduralMapRef.current?.getHeightAt,
+    decorations: gameState.decorations,
+    playerSlot,
+    visionGridRef,
+  });
+
+  // Prévia do enfeite: segue o cursor até o clique fixar a posição; a cor diz se o host aceitaria.
+  const decorTerrain = () => {
+    const map = proceduralMapRef.current;
+    return map ? withBridges(map, gameStateRef.current.buildings) : undefined;
+  };
+  const decorReason = (type: string, position: { x: number; z: number }, rotation: DecorationRotation) =>
+    decorationPlacementReason(gameStateRef.current, playerSlot, { type, position, rotation }, decorTerrain())
+    ?? (isExploredBy(hostVisionRef.current, playerSlot, position.x, position.z) || role === 'client' ? null : 'Local ainda não explorado.');
+  const groundPointAt = (clientX: number, clientY: number): { x: number; z: number; y: number } | null => {
+    if (!engineRef.current || !containerRef.current) return null;
+    const rect = containerRef.current.getBoundingClientRect();
+    const mouse = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, engineRef.current.camera);
+    const hit = raycaster.intersectObject(engineRef.current.groundMesh)[0];
+    if (!hit) return null;
+    const x = Math.round(hit.point.x);
+    const z = Math.round(hit.point.z);
+    return { x, z, y: proceduralMapRef.current ? proceduralMapRef.current.getHeightAt(x, z) : hit.point.y };
+  };
+  const showDecorGhost = (point: { x: number; y: number; z: number }) => {
+    const mode = decorModeRef.current;
+    if (!mode || !decorGhost.current) return;
+    setDecorationGhost(decorGhost.current, point, decorReason(mode.type, point, mode.rotation) === null);
+  };
+  useEffect(() => {
+    const scene = engineRef.current?.scene;
+    if (decorGhost.current && scene) { scene.remove(decorGhost.current); decorGhost.current = null; }
+    const def = decorMode ? decorationById(decorMode.type) : undefined;
+    if (!decorMode || !def || !scene) return undefined;
+    const ghost = createDecorationGhost(def, decorMode.rotation);
+    const at = decorMode.pending ?? { x: worldSizeRef.current / 2, z: worldSizeRef.current / 2 };
+    ghost.position.set(at.x, proceduralMapRef.current?.getHeightAt(at.x, at.z) ?? 0, at.z);
+    scene.add(ghost);
+    decorGhost.current = ghost;
+    if (decorMode.pending) showDecorGhost({ ...decorMode.pending, y: ghost.position.y });
+    return () => { scene.remove(ghost); if (decorGhost.current === ghost) decorGhost.current = null; };
+  }, [decorMode]);
+  const rotateDecor = () => setDecorMode((mode) => (mode ? { ...mode, rotation: nextRotation(mode.rotation) } : mode));
+  const cancelDecor = () => setDecorMode(null);
+  const confirmDecor = () => {
+    const mode = decorModeRef.current;
+    if (!mode?.pending) return;
+    const reason = decorReason(mode.type, mode.pending, mode.rotation);
+    if (reason) { triggerNotification(`Não dá para pôr aqui: ${reason}`, 'warning'); return; }
+    const cmd = { type: 'place_decoration', decoration: mode.type, position: mode.pending, rotation: mode.rotation };
+    if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+    else multiRef.current?.sendToHost(cmd);
+    setDecorMode({ ...mode, pending: null }); // segue no modo para pôr outro igual; Esc ou Cancelar saem
+  };
+
   useSceneSynchronization({
     engineRef,
     proceduralMapRef,
@@ -1317,6 +1391,11 @@ export default function App() {
       if (!bought.check.ok) { triggerNotification(bought.check.message ?? 'Talento recusado.', 'warning'); return; }
       setGameState((prev) => buyTalent(prev, commandOwner, cmd.id).state);
       triggerNotification(`Talento adquirido: ${talentById(cmd.id)?.name}.`, 'success');
+    } else if (cmd.type === 'place_decoration') {
+      const map = proceduralMapRef.current;
+      const terrain = map ? withBridges(map, gameStateRef.current.buildings) : undefined;
+      setGameState((prev) => placeDecoration(prev, commandOwner, { type: cmd.decoration, position: cmd.position, rotation: cmd.rotation }, uuidv4(), terrain));
+      triggerNotification(`${decorationById(cmd.decoration)?.name ?? 'Enfeite'} posto.`, 'success');
     } else if (cmd.type === 'set_recipe') {
       setGameState((prev) => setRecipe(prev, commandOwner, cmd.buildingId, cmd.recipeId));
       triggerNotification(`Produção: ${recipeById(cmd.recipeId)?.name ?? cmd.recipeId}.`, 'success');
@@ -1636,6 +1715,13 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const state = gameStateRef.current;
+      // Decoração (#180): R gira, Enter confirma, Esc cancela; fora de campos de texto e sem overlay aberto.
+      const editable = e.target instanceof HTMLElement && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable);
+      if (decorModeRef.current && !editable && overlayOrder.length === 0 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.key.toLowerCase() === 'r') { e.preventDefault(); rotateDecor(); return; }
+        if (e.key === 'Enter') { e.preventDefault(); confirmDecor(); return; }
+        if (e.key === 'Escape') { e.preventDefault(); cancelDecor(); return; }
+      }
       const selectedUnit = selectedEntity?.kind === 'unit' ? state.units.find((u) => u.id === selectedEntity.id) : undefined;
       const selectedBuildingEntity = selectedEntity?.kind === 'building'
         ? state.buildings.find((b) => b.id === selectedEntity.id)
@@ -2086,6 +2172,7 @@ export default function App() {
   // Viewport mouse down: initiates marquee drag or placement
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
+    if (decorModeRef.current) { decorPressRef.current = true; return; } // decoração: só toque iniciado no mapa fixa a peça
     if (buildMode) return; // Build mode placement handled on click
 
     isMouseDownRef.current = true;
@@ -2096,6 +2183,11 @@ export default function App() {
   // Global window listeners for smooth marquee drag, ghost placement preview, & release
   useEffect(() => {
     const onWindowMouseMove = (e: MouseEvent) => {
+      // Prévia do enfeite segue o cursor enquanto a posição não foi fixada.
+      if (decorModeRef.current && !decorModeRef.current.pending) {
+        const point = groundPointAt(e.clientX, e.clientY);
+        if (point) showDecorGhost(point);
+      }
       // Real-time 3D building ghost preview & space footprint overlay
       if (buildMode && engineRef.current && containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
@@ -2155,7 +2247,7 @@ export default function App() {
     };
 
     const onWindowMouseUp = (e: MouseEvent) => {
-      if (!isMouseDownRef.current && !buildMode && !bridgeModeRef.current) return;
+      if (!isMouseDownRef.current && !buildMode && !bridgeModeRef.current && !decorPressRef.current) return;
       const wasDragging = isDraggingMarqueeRef.current;
       const startPos = dragStartPosRef.current;
       const dragDist = startPos ? Math.hypot(e.clientX - startPos.x, e.clientY - startPos.y) : 0;
@@ -2172,6 +2264,15 @@ export default function App() {
 
       if (buildMode) {
         handleBuildingPlacementAt(e.clientX, e.clientY);
+        return;
+      }
+
+      // Decoração: o clique (ou toque) no mapa fixa a posição; aplicar só com Confirmar.
+      if (decorPressRef.current) {
+        decorPressRef.current = false;
+        if (!decorModeRef.current) return;
+        const point = groundPointAt(e.clientX, e.clientY);
+        if (point) setDecorMode((mode) => (mode ? { ...mode, pending: { x: point.x, z: point.z } } : mode));
         return;
       }
 
@@ -3230,7 +3331,36 @@ export default function App() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-56 sm:max-h-none overflow-y-auto pr-0.5">
+        <div role="tablist" aria-label="Menu de construção" className="flex gap-1.5">
+          {(['construir', 'decorar'] as const).map((tab) => (
+            <button key={tab} type="button" role="tab" aria-selected={buildTab === tab} onClick={() => setBuildTab(tab)}
+              className={`min-h-9 flex-1 rounded-lg text-[11px] font-bold ${buildTab === tab ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+              {tab === 'construir' ? 'Construir' : 'Decoração'}
+            </button>
+          ))}
+        </div>
+
+        {buildTab === 'decorar' && (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2" data-testid="decor-catalog">
+            {DECORATION_DEFS.map((def) => {
+              const eraLock = eraReached(normalizeEra(gameState.techs?.[playerSlot]?.era), def.era) ? null : ERA_LABEL[def.era];
+              const affordable = canAfford(myResources, def.cost) && !eraLock;
+              const active = decorMode?.type === def.id;
+              return (
+                <button key={def.id} type="button" disabled={Boolean(eraLock)}
+                  onClick={() => { setBuildMode(null); setDecorMode({ type: def.id, rotation: 0, pending: null }); triggerNotification(`Decoração: ${def.name}. Toque no chão para posicionar; gire e confirme.`, 'info'); }}
+                  title={eraLock ? `Exige a ${eraLock}` : def.description}
+                  className={`min-h-16 rounded-xl border p-2 text-left text-[11px] transition-all ${active ? 'border-emerald-400 bg-emerald-900/40' : eraLock ? 'cursor-not-allowed border-slate-800 bg-slate-950/70 text-slate-500' : 'border-slate-700 bg-slate-900/90 hover:border-amber-500/60'}`}>
+                  <div className="font-bold text-slate-100">{def.name}</div>
+                  <div className={`font-mono text-[10px] ${affordable ? 'text-amber-300' : 'text-red-400'}`}>{describeCost(def.cost)}</div>
+                  {eraLock && <div className="text-[10px] text-red-300">Falta: {eraLock}</div>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-56 sm:max-h-none overflow-y-auto pr-0.5 ${buildTab === 'decorar' ? 'hidden' : ''}`}>
           {buildings.map((type) => {
             const def = BUILDING_CATALOG[type];
             const lock = buildLock(type);
@@ -3406,6 +3536,27 @@ export default function App() {
           <button type="button" aria-label="Dispensar" className="px-1 text-slate-400 hover:text-white" onClick={() => setBatchRecord(null)}>×</button>
         </div>
       )}
+
+      {decorMode && (() => {
+        const def = decorationById(decorMode.type);
+        const reason = decorMode.pending ? decorReason(decorMode.type, decorMode.pending, decorMode.rotation) : null;
+        const ready = Boolean(decorMode.pending) && reason === null;
+        return (
+          <div role="toolbar" aria-label="Posicionar enfeite" data-testid="decor-bar"
+            className="fixed bottom-28 left-1/2 z-40 flex w-[min(30rem,calc(100vw-16px))] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/95 p-2 text-xs text-slate-200 shadow-2xl">
+            <div className="min-w-0 flex-1 px-1">
+              <div className="truncate font-bold text-amber-300">{def?.name} · {decorMode.rotation * 90}°</div>
+              <div className={`truncate text-[11px] ${!decorMode.pending ? 'text-slate-400' : ready ? 'text-emerald-300' : 'text-red-300'}`} aria-live="polite">
+                {!decorMode.pending ? 'Toque no chão para posicionar' : ready ? `Pronto: ${describeCost(def?.cost ?? {})}` : reason}
+              </div>
+            </div>
+            <button type="button" onClick={rotateDecor} title="Girar 90° (R)" className="min-h-10 min-w-10 rounded-xl bg-slate-800 px-3 font-bold hover:bg-slate-700">⟳ Girar <kbd className="ml-1 font-mono text-[10px] text-slate-400">R</kbd></button>
+            <button type="button" onClick={confirmDecor} disabled={!ready} title="Confirmar (Enter)" aria-label="Confirmar"
+              className={`min-h-10 min-w-10 rounded-xl px-3 font-bold ${ready ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'cursor-not-allowed bg-slate-800 text-slate-500'}`}>✓</button>
+            <button type="button" onClick={cancelDecor} title="Cancelar (Esc)" aria-label="Cancelar" className="min-h-10 min-w-10 rounded-xl bg-red-700 px-3 font-bold text-white hover:bg-red-600">✕</button>
+          </div>
+        );
+      })()}
 
       {isTalentsOpen && (
         <TalentPanel
