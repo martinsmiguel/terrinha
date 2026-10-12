@@ -71,3 +71,17 @@ export const localOutcome = (
   }
   return match.winner === localOwner ? 'victory' : 'defeat';
 };
+
+/**
+ * Resultado do jogador local a partir do resultado oficial do host (`GameState.match`, calculado com o estado completo).
+ * O cliente recebe um snapshot filtrado pela névoa e não vê os oponentes; por isso só deduz sozinho a própria eliminação
+ * (o que é dele chega sempre inteiro). Vitória e derrota por outro vencedor vêm só do host; sem resultado, segue em
+ * andamento. Assim o host LAN sozinho e o convidado recém-chegado não veem vitória falsa (#190).
+ */
+export const localResult = (localOwner: string, buildings: Building[], units: Unit[], match: MatchStatus | undefined): LocalOutcome => {
+  // Antes do host contar o jogador na partida não há o que julgar (o convidado ainda não recebeu nem as próprias unidades).
+  if (!match || !match.players.includes(localOwner)) return 'running';
+  if (lifePhase(localOwner, buildings, units) === 'eliminated') return 'defeat';
+  if (match.status !== 'finished') return 'running';
+  return match.winner === localOwner ? 'victory' : 'defeat';
+};
