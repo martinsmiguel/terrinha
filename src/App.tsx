@@ -12,6 +12,7 @@ import { canUndoBatch, previewBatch, recordBatch, undoBatch, type BatchCommand, 
 import { RulesPanel } from './components/RulesPanel';
 import { applyRules, canEditRules } from './game/rulesAdmin';
 import { TalentPanel } from './components/TalentPanel';
+import { civNameOf, nickOf, setCivName, setNick } from './game/identity';
 import { CommandPalette } from './components/CommandPalette';
 import { focusLocality, type PaletteEntry, type PaletteLocality } from './game/commandPalette';
 import { computeArchipelago } from './game/archipelago';
@@ -757,7 +758,10 @@ export default function App() {
             activeSlotsRef.current = [...activeSlotsRef.current, joinedSlot];
             setActiveSlots(activeSlotsRef.current);
           }
-          if (role === 'host') spawnStarterBaseFor(joinedSlot);
+          if (role === 'host') {
+            spawnStarterBaseFor(joinedSlot);
+            setGameState((prev) => setNick(prev, joinedSlot, data.playerName)); // nick público do convidado (#198)
+          }
         }
         setChatMessages((prev) => [
           ...prev,
@@ -1196,6 +1200,13 @@ export default function App() {
     return () => clearInterval(interval);
   }, [role]);
 
+  // Nick do host (e do treino solo) no estado público (#198); convidados entram com o deles pelo onPlayerJoined.
+  const ownNick = gameState.profiles?.[playerSlot]?.nick;
+  useEffect(() => {
+    if (!isGameStarted || role === 'client') return;
+    setGameState((prev) => setNick(prev, playerSlot, playerName));
+  }, [isGameStarted, role, playerSlot, playerName, ownNick]);
+
   // Handle incoming network command from peer
   const handleIncomingCommand = (cmd: unknown) => {
     // Valida no tamanho real do mundo (o padrão de 60 recusava fundar e mover além disso nos mundos maiores).
@@ -1212,7 +1223,8 @@ export default function App() {
           (x, z) => evaluateCapitalSite({ x, z }, capitalTerrainFor(prev, commandOwner === playerSlot), { from: wagon?.position }).valid,
           uuidv4
         );
-        return result.ok ? result.state : prev;
+        // Nome da civilização escolhido ao fundar (#198), já validado no formato do comando.
+        return result.ok ? (cmd.civName ? setCivName(result.state, commandOwner, cmd.civName) : result.state) : prev;
       });
       return;
     }
@@ -3468,6 +3480,7 @@ export default function App() {
           }}
           onFocusRelic={(x, z) => engineRef.current?.setCameraTarget(x, z)}
           talentPoints={gameState.mastery?.[playerSlot]?.points ?? 0}
+          identity={{ civName: civNameOf(gameState, playerSlot), nick: nickOf(gameState, playerSlot) ?? playerName }}
           onSelectComposition={hud.setComposition}
           onToggleIdle={hud.setIdleCollapse}
           onUndo={hud.undo}
