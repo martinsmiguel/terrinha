@@ -6,25 +6,22 @@
 import { Check, Coins, Lock, Sparkles, Sword, X } from 'lucide-react';
 import { describeCost } from '../game/economy';
 import type { PlayerResources } from '../game/engine';
+import { CRAFT_DEFS } from '../game/crafts';
 import {
+  ERA_LABEL,
   ERA_ORDER,
   ERA_UPGRADES,
   MAX_RESEARCH_QUEUE,
   TECH_DEFS,
+  eraCraftShortfall,
   eraIndex,
   researchBlock,
   researchTarget,
-  type Era,
+  type CraftLevels,
   type ResearchBlock,
   type TechDef,
   type TechState,
 } from '../game/tech';
-
-const ERA_LABEL: Record<Era, string> = {
-  colonial: 'Era Colonial',
-  commercial: 'Era do Comércio',
-  industrial: 'Era Industrial',
-};
 
 const BLOCK_REASON: Record<ResearchBlock, string> = {
   unknown: 'Pesquisa indisponível',
@@ -32,15 +29,20 @@ const BLOCK_REASON: Record<ResearchBlock, string> = {
   era: 'Exige uma era anterior',
   requires: 'Exige tecnologia anterior',
   busy: `Fila cheia (${MAX_RESEARCH_QUEUE})`,
+  crafts: 'Ofícios abaixo do exigido',
   cost: 'Recursos insuficientes',
 };
 
 export interface TechPanelProps {
   techState: TechState;
   resources: PlayerResources;
+  /** Níveis de ofício do jogador: a passagem de era exige domínio. */
+  crafts?: CraftLevels;
   onResearch: (id: string) => void;
   onClose: () => void;
 }
+
+const craftName = (id: string): string => CRAFT_DEFS.find((craft) => craft.id === id)?.name ?? id;
 
 const TechCard = ({
   tech,
@@ -106,10 +108,11 @@ const TechCard = ({
   );
 };
 
-export const TechPanel = ({ techState, resources, onResearch, onClose }: TechPanelProps) => {
+export const TechPanel = ({ techState, resources, crafts = {}, onResearch, onClose }: TechPanelProps) => {
   const nextEra = ERA_ORDER[eraIndex(techState.era) + 1];
   const eraUpgrade = ERA_UPGRADES.find((upgrade) => upgrade.era === nextEra);
-  const eraBlock = eraUpgrade ? researchBlock(techState, `era:${eraUpgrade.era}`, resources) : 'unknown';
+  const eraBlock = eraUpgrade ? researchBlock(techState, `era:${eraUpgrade.era}`, resources, crafts) : 'unknown';
+  const shortfall = eraUpgrade ? eraCraftShortfall(eraUpgrade.era, crafts) : [];
 
   const economyTechs = TECH_DEFS.filter((tech) => tech.category === 'economia');
   const militaryTechs = TECH_DEFS.filter((tech) => tech.category === 'militar');
@@ -146,6 +149,18 @@ export const TechPanel = ({ techState, resources, onResearch, onClose }: TechPan
               </div>
               <div className="text-[11px] text-slate-400">
                 {describeCost(eraUpgrade.cost)} · {eraUpgrade.durationSeconds}s · abre novas tecnologias
+              </div>
+              <div className="text-[11px] text-slate-300" data-testid="era-crafts">
+                Exige:{' '}
+                {Object.entries(eraUpgrade.crafts).map(([craft, required], index) => {
+                  const missing = shortfall.some((entry) => entry.craft === craft);
+                  return (
+                    <span key={craft} className={missing ? 'text-red-300' : 'text-emerald-300'}>
+                      {index > 0 ? ', ' : ''}
+                      {craftName(craft)} {crafts[craft] ?? 1}/{required}
+                    </span>
+                  );
+                })}
               </div>
             </div>
             <button

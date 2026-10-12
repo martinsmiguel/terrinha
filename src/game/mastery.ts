@@ -4,7 +4,7 @@ import type { ResourceCost } from './economy';
 import type { ItemId } from './items';
 import type { GameState } from './model';
 import type { RecipeDef } from './recipes';
-import { ERA_ORDER, type Era } from './tech';
+import { normalizeEra, type Era } from './tech';
 
 /**
  * Ofícios do império (card #176): o conhecimento evolui pelo trabalho (eventos autoritativos da partida) e pelo estudo pago.
@@ -161,7 +161,7 @@ export function creditAll(table: MasteryTable | undefined, events: readonly { ow
 /* ---------- estudo pago ---------- */
 
 /** Nível máximo que o estudo alcança em cada era (o trabalho pode passar disso). */
-export const STUDY_CAP: Record<Era, number> = { colonial: 3, commercial: 6, industrial: 10 };
+export const STUDY_CAP: Record<Era, number> = { pedra: 2, bronze: 3, ferro: 4, medieval: 5, navegacoes: 7, industrial: 10 };
 /** Cada sessão de estudo rende esta fração do XP que falta para o próximo nível (duas sessões por nível). */
 export const STUDY_FRACTION = 0.5;
 
@@ -174,7 +174,7 @@ export function studyCost(craft: MasteryId, level: number): ResourceCost {
 type Studying = Pick<GameState, 'mastery' | 'techs' | 'playerResources' | 'localStocks' | 'foundationKits'>;
 export type StudyCheck = { ok: true; cost: ResourceCost; xp: number } | { ok: false; reason: string };
 
-const eraOf = (state: Studying, owner: string): Era => (state.techs?.[owner]?.era as Era | undefined) ?? ERA_ORDER[0];
+const eraOf = (state: Studying, owner: string): Era => normalizeEra(state.techs?.[owner]?.era);
 
 /** O dono pode estudar o ofício agora? Recusa ofício desconhecido, nível no teto da era e falta de recurso na metrópole. */
 export function canStudy(state: Studying, owner: string, craft: string): StudyCheck {
@@ -201,6 +201,10 @@ export function studyCraft<T extends Studying>(state: T, owner: string, craft: s
 /** Nível do ofício do dono (1 sem registro). */
 export const craftLevel = (table: MasteryTable | undefined, owner: string, craft: MasteryId): number =>
   normalizeMastery(table?.[owner])?.level[craft] ?? MASTERY_START_LEVEL;
+
+/** Níveis de todos os ofícios do dono (id → nível), para as exigências de era. */
+export const craftLevels = (table: MasteryTable | undefined, owner: string): Record<MasteryId, number> =>
+  Object.fromEntries(MASTERY_IDS.map((craft) => [craft, craftLevel(table, owner, craft)])) as Record<MasteryId, number>;
 
 /** O dono domina o ofício da receita no nível exigido? É a regra que o host aplica antes de produzir. */
 export const canUseRecipe = (table: MasteryTable | undefined, owner: string, recipe: RecipeDef): boolean =>

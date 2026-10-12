@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ERA_LABEL,
+  ERA_ORDER,
   ERA_UPGRADES,
+  UNIT_ERA,
+  eraCraftShortfall,
+  normalizeEra,
   MAX_RESEARCH_QUEUE,
   TECH_DEFS,
   advanceResearch,
@@ -26,20 +31,23 @@ const rich = (overrides: Partial<PlayerResources> = {}): PlayerResources => ({
   ...overrides,
 });
 
+/** Ofícios no nível exigido para a Era do Bronze. */
+const bronzeCrafts = { mineracao: 2, carpintaria: 2 };
+
 const poor = (): PlayerResources => ({ wood: 0, food: 0, gold: 0, stone: 0, planks: 0, pop: 0, maxPop: 15 });
 
 describe('research catalog', () => {
-  it('offers two eras beyond the starting one and seven technologies', () => {
-    expect(ERA_UPGRADES.map((upgrade) => upgrade.era)).toEqual(['commercial', 'industrial']);
+  it('offers five eras beyond the Stone Age and the technologies', () => {
+    expect(ERA_UPGRADES.map((upgrade) => upgrade.era)).toEqual(['bronze', 'ferro', 'medieval', 'navegacoes', 'industrial']);
     expect(TECH_DEFS.length).toBeGreaterThanOrEqual(6);
-    expect(eraReached('commercial', 'colonial')).toBe(true);
-    expect(eraReached('colonial', 'commercial')).toBe(false);
+    expect(eraReached('bronze', 'pedra')).toBe(true);
+    expect(eraReached('pedra', 'bronze')).toBe(false);
   });
 
   it('resolves technology and era targets by id', () => {
     expect(researchTarget('irrigation')?.category).toBe('economia');
-    expect(researchTarget('era:commercial')?.category).toBe('era');
-    expect(researchTarget('era:commercial')?.cost).toEqual({ wood: 300, gold: 250 });
+    expect(researchTarget('era:bronze')?.category).toBe('era');
+    expect(researchTarget('era:bronze')?.cost).toEqual({ wood: 100, gold: 50 });
     expect(researchTarget('does-not-exist')).toBeNull();
   });
 });
@@ -55,18 +63,18 @@ describe('researchBlock', () => {
 
   it('blocks technologies locked behind a later era', () => {
     expect(researchBlock(createTechState(), 'cartography', rich())).toBe('era');
-    expect(researchBlock(createTechState(), 'era:commercial', rich())).toBeNull();
+    expect(researchBlock(createTechState(), 'era:bronze', rich(), bronzeCrafts)).toBeNull();
   });
 
   it('blocks technologies with an unmet prerequisite', () => {
-    const commercial = { ...createTechState(), era: 'commercial' as const };
+    const commercial = { ...createTechState(), era: 'navegacoes' as const };
     expect(researchBlock(commercial, 'cartography', rich())).toBe('requires');
     expect(researchBlock({ ...commercial, completed: ['coinage'] }, 'cartography', rich())).toBeNull();
   });
 
   it('blocks repeats and a full queue', () => {
     expect(researchBlock({ ...createTechState(), completed: ['irrigation'] }, 'irrigation', rich())).toBe('already');
-    expect(researchBlock({ ...createTechState(), era: 'commercial' }, 'era:commercial', rich())).toBe('already');
+    expect(researchBlock({ ...createTechState(), era: 'bronze' }, 'era:bronze', rich())).toBe('already');
     const busy = {
       ...createTechState(),
       queue: [
@@ -110,9 +118,9 @@ describe('advanceResearch', () => {
   });
 
   it('promotes the era when an era upgrade finishes', () => {
-    const started = startResearch(createTechState(), 'era:commercial', rich())!.techState;
+    const started = startResearch(createTechState(), 'era:bronze', rich(), bronzeCrafts)!.techState;
     const done = advanceResearch(started, ERA_UPGRADES[0].durationSeconds);
-    expect(done.era).toBe('commercial');
+    expect(done.era).toBe('bronze');
     expect(done.queue).toEqual([]);
   });
 
@@ -152,5 +160,67 @@ describe('tech effects', () => {
     expect(gatherMultiplier(econ, 'gold_mine')).toBe(1);
     expect(gatherMultiplier(econ, 'stone')).toBe(1);
     expect(gatherMultiplier(econ, 'fish_school')).toBe(1);
+  });
+});
+
+describe('eras da Pedra à Industrial (#175)', () => {
+  it('seis eras em ordem, com nome, começando na Pedra', () => {
+    expect(ERA_ORDER).toEqual(['pedra', 'bronze', 'ferro', 'medieval', 'navegacoes', 'industrial']);
+    expect(createTechState().era).toBe('pedra');
+    for (const era of ERA_ORDER) expect(ERA_LABEL[era]).toMatch(/^Era /);
+  });
+
+  it('mantém o custo total da jornada de eras de antes (madeira 800, ouro 750)', () => {
+    const total = ERA_UPGRADES.reduce((sum, upgrade) => ({ wood: sum.wood + (upgrade.cost.wood ?? 0), gold: sum.gold + (upgrade.cost.gold ?? 0) }), { wood: 0, gold: 0 });
+    expect(total).toEqual({ wood: 800, gold: 750 });
+  });
+
+  it('toda era exige ofícios e cada exigência cabe no teto de estudo da era anterior', async () => {
+    const { STUDY_CAP, MASTERY_IDS } = await import('../../src/game/mastery');
+    for (const upgrade of ERA_UPGRADES) {
+      const previous = ERA_ORDER[ERA_ORDER.indexOf(upgrade.era) - 1];
+      expect(Object.keys(upgrade.crafts).length).toBeGreaterThan(0);
+      for (const [craft, level] of Object.entries(upgrade.crafts)) {
+        expect(MASTERY_IDS).toContain(craft);
+        expect(level).toBeLessThanOrEqual(STUDY_CAP[previous]);
+      }
+    }
+  });
+
+  it('a partir da Pedra, estudando até a exigência, chega à Industrial uma era por vez', () => {
+    let state = createTechState();
+    const crafts: Record<string, number> = {};
+    for (const upgrade of ERA_UPGRADES) {
+      expect(researchBlock(state, `era:${upgrade.era}`, rich(), crafts)).toBe('crafts');
+      Object.assign(crafts, upgrade.crafts);
+      const started = startResearch(state, `era:${upgrade.era}`, rich(), crafts);
+      expect(started).not.toBeNull();
+      state = advanceResearch(started!.techState, upgrade.durationSeconds);
+      expect(state.era).toBe(upgrade.era);
+    }
+    expect(state.era).toBe('industrial');
+  });
+
+  it('CONTROLE NEGATIVO: sem ofício, ou pulando era, o avanço é recusado e nada é debitado', () => {
+    expect(researchBlock(createTechState(), 'era:bronze', rich())).toBe('crafts');
+    expect(eraCraftShortfall('bronze', { mineracao: 2 })).toEqual([{ craft: 'carpintaria', level: 1, required: 2 }]);
+    expect(startResearch(createTechState(), 'era:bronze', rich(), { mineracao: 2 })).toBeNull();
+    expect(researchBlock(createTechState(), 'era:ferro', rich(), { mineracao: 9, carpintaria: 9 })).toBe('era');
+  });
+
+  it('estados de antes do #175 continuam válidos: as eras antigas viram as novas', () => {
+    expect(normalizeEra('colonial')).toBe('pedra');
+    expect(normalizeEra('commercial')).toBe('navegacoes');
+    expect(normalizeEra(undefined)).toBe('pedra');
+    expect(normalizeEra('ferro')).toBe('ferro');
+    const legacy = { ...createTechState(), era: 'commercial' as never };
+    expect(researchBlock(legacy, 'cartography', rich(), {})).toBe('requires');
+    expect(eraReached(legacy.era, 'medieval')).toBe(true);
+  });
+
+  it('toda unidade e todo edifício declaram a era', async () => {
+    const { BUILDING_CATALOG } = await import('../../src/game/buildingCatalog');
+    for (const era of Object.values(UNIT_ERA)) expect(ERA_ORDER).toContain(era);
+    for (const def of Object.values(BUILDING_CATALOG)) expect(ERA_ORDER).toContain(def.era);
   });
 });

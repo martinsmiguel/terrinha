@@ -4,33 +4,43 @@
 > (`ERA_UPGRADES`, `TECH_DEFS`, `MAX_RESEARCH_QUEUE`) e
 > `src/App.tsx` (aplicação no tick).
 
-> **Contrato vigente.** A [alpha](../explanation/contrato-alpha.md) mantém as
-> **três eras e sete tecnologias** com os pré-requisitos desta página. Não há
-> tecnologia “Navegação” nova: cais e barcos não ganham barreira de era, e
-> Cartografia não revela tudo. **Maestrias e talentos complementam** esta
-> progressão (ainda não implementados); tecnologias continuam pesquisadas por
-> recurso, não por XP.
+> **Seis eras (card #175).** A partida começa na **Era da Pedra** e avança uma era por
+> vez até a Industrial. Cada avanço custa recursos **e exige níveis de ofício**
+> ([ofícios](oficios.md)): a era se conquista fazendo. Tecnologias continuam
+> pesquisadas por recurso.
 
 ## Eras
 
-A colonia começa na **Era Colonial**. Avançar de era é uma pesquisa com custo
-e duração próprios, feita pelo botão **Tecnologias** (barra do HUD).
+Avançar de era é uma pesquisa com custo e duração próprios, feita pelo botão
+**Tecnologias** (barra do HUD). O painel mostra cada ofício exigido com o nível
+atual e o necessário (vermelho = falta).
 
-| Era | Custo | Duração | Desbloqueia |
-| --- | --- | --- | --- |
-| Colonial (inicial) | — | — | Canais de Irrigação, Cunhagem, Estriamento do Cano |
-| Era do Comércio | 300 madeira + 250 ouro | 30 s | Cartografia, Corpo de Fuzileiros |
-| Era Industrial | 500 madeira + 500 ouro | 45 s | Logística Montada, Serrarias a Vapor |
+| Era | Custo | Duração | Ofícios exigidos | Desbloqueia |
+| --- | --- | --- | --- | --- |
+| Pedra (inicial) | — | — | — | Canais de Irrigação |
+| Bronze | 100 M + 50 O | 15 s | Mineração 2, Carpintaria 2 | — |
+| Ferro | 100 M + 100 O | 15 s | Mineração 3, Carpintaria 3 | Cunhagem |
+| Medieval | 150 M + 150 O | 15 s | Cantaria 4, Guerra 3, Agricultura 4 | — |
+| Navegações | 200 M + 200 O | 15 s | Navegação 5, Comércio 4 | Estriamento do Cano, Cartografia, Corpo de Fuzileiros |
+| Industrial | 250 M + 250 O | 15 s | Mineração 7, Carpintaria 6, Comércio 6 | Logística Montada, Serrarias a Vapor |
+
+- O total da jornada (800 madeira, 750 ouro, 75 s) é o mesmo das três eras de antes.
+- Cada exigência cabe no **teto de estudo da era anterior** (`STUDY_CAP`), então toda era é
+  alcançável estudando; trabalhar (aprender fazendo) chega lá sem gastar.
+- Estados salvos com as eras antigas continuam válidos: `colonial` vira Pedra,
+  `commercial` vira Navegações (`normalizeEra`).
+- Toda unidade (`UNIT_ERA`) e todo edifício (`BuildingDef.era`) declaram a era; a trava de
+  treino e construção por era entra no card #177.
 
 ## Tecnologias
 
 | Id | Nome | Era | Categoria | Custo | Duração | Pré-requisito | Efeito |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `irrigation` | Canais de Irrigação | Colonial | Economia | 150 M + 60 O | 20 s | — | +25% coleta de madeira |
-| `coinage` | Cunhagem | Colonial | Economia | 120 M + 80 O | 25 s | — | +25% extração de ouro |
-| `rifling` | Estriamento do Cano | Colonial | Militar | 100 M + 120 O | 30 s | — | +25% dano da infantaria |
-| `cartography` | Cartografia | Comércio | Economia | 250 M + 200 O | 35 s | Cunhagem | +25% extração de ouro (acumula) |
-| `musketeer_corps` | Corpo de Fuzileiros | Comércio | Militar | 300 M + 250 O | 40 s | Estriamento do Cano | +35% dano da infantaria |
+| `irrigation` | Canais de Irrigação | Pedra | Economia | 150 M + 60 O | 20 s | — | +25% coleta de madeira |
+| `coinage` | Cunhagem | Ferro | Economia | 120 M + 80 O | 25 s | — | +25% extração de ouro |
+| `rifling` | Estriamento do Cano | Navegações | Militar | 100 M + 120 O | 30 s | — | +25% dano da infantaria |
+| `cartography` | Cartografia | Navegações | Economia | 250 M + 200 O | 35 s | Cunhagem | +25% extração de ouro (acumula) |
+| `musketeer_corps` | Corpo de Fuzileiros | Navegações | Militar | 300 M + 250 O | 40 s | Estriamento do Cano | +35% dano da infantaria |
 | `logistics` | Logística Montada | Industrial | Militar | 350 M + 300 O | 40 s | Corpo de Fuzileiros | +30% dano da cavalaria |
 | `steam_mills` | Serrarias a Vapor | Industrial | Economia | 400 M + 350 O | 45 s | Cartografia | +40% coleta de madeira |
 
@@ -43,10 +53,10 @@ M = madeira, O = ouro.
   o atual chega a 100%.
 - Os recursos são debitados **no início** da pesquisa (custo único de verdade:
   `canAfford`/`applyCost` em `src/game/economy.ts`).
-- O host valida tudo antes de debitar: era, pré-requisito, custo e espaço na
-  fila (`researchBlock` em `src/game/tech.ts`; comando de rede `research`).
+- O host valida tudo antes de debitar: era, pré-requisito, ofícios (avanço de era), custo e
+  espaço na fila (`researchBlock` em `src/game/tech.ts`; comando de rede `research`).
 - Requisitos bloqueados aparecem no `TechPanel` com o motivo (`era`,
-  `requires`, `cost`, `busy`, `already`).
+  `requires`, `crafts`, `cost`, `busy`, `already`).
 
 ## Como o efeito é aplicado
 

@@ -60,8 +60,8 @@ Abra <http://localhost:3000>.
    melhorias de coleta e de dano — a fila guarda até 3 itens.
 2. Selecione um edifício danificado e use os botões **Reparar** e **Demolir**
    (demolição devolve 50% do custo; a TC não pode ser demolida).
-3. Avance de era quando puder pagar: a Era do Comércio abre novas
-   tecnologias.
+3. Avance de era quando puder pagar e tiver os ofícios exigidos (o painel mostra
+   quais faltam): da Pedra ao Bronze pede Mineração e Carpintaria no nível 2.
 
 ## Próximos passos
 

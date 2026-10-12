@@ -25,7 +25,8 @@ Mais trabalhadores produzem mais e, por isso, evoluem o ofício mais rápido.
 - Comando `study_craft` (botão "Estudar" no painel de Talentos, Alt+T). O host valida ofício, teto e recursos; recusa não debita.
 - Custo: o custo base do ofício vezes o nível atual, pago pela **metrópole**.
 - Cada sessão rende metade do XP que falta para o próximo nível (duas sessões por nível).
-- **Teto por era:** o estudo leva até o nível 3 na era inicial, 6 na do Comércio e 10 na Industrial. O trabalho pode passar do teto.
+- **Teto por era:** o estudo leva até o nível 2 na Pedra, 3 no Bronze, 4 no Ferro, 5 na Medieval, 7 nas Navegações e 10 na Industrial. O trabalho pode passar do teto.
+- **Passagem de era:** cada avanço exige níveis de ofício que cabem no teto da era anterior ([eras](tecnologias-eras.md)).
 - A **IA** estuda sozinha a cada 30 s o ofício de economia mais atrasado (carpintaria, agricultura, mineração, cantaria), só se sobrar o dobro do custo.
 
 ## Receitas por nível

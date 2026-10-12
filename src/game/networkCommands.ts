@@ -1,6 +1,6 @@
 import type { Building, BuildingType, GameState, PlayerResources, ResourceNode, Unit, UnitType } from './model';
 import { isCraftId } from './crafts';
-import { canStudy } from './mastery';
+import { canStudy, craftLevels } from './mastery';
 import { ITEM_IDS } from './items';
 import { BOAT_CAPACITY, isBoatUnit, worldSizeOf } from './model';
 import { UNIT_ATTRIBUTES } from './unitAttributes';
@@ -418,7 +418,7 @@ export function isAuthorizedPlayerCommand(
       const techState = state.techs?.[owner];
       const resources = state.playerResources[owner];
       if (!techState || !resources) return false;
-      return researchBlock(techState, value.id, resources) === null;
+      return researchBlock(techState, value.id, resources, craftLevels(state.mastery, owner)) === null;
     }
     case 'set_colony_forestry':
       return true;
