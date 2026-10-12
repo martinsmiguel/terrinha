@@ -22,6 +22,7 @@ Mais trabalhadores produzem mais e, por isso, evoluem o ofício mais rápido.
 
 ## Estudo pago
 
+- **Próximos desbloqueios:** o painel de Talentos (Alt+T) e a aba Ofícios do livro do império (Alt+L) mostram, para cada ofício, o próximo nível que abre algo: receitas, construções, unidades e eras (`craftUnlocks`, `nextCraftUnlock` em `src/game/recipeBook.ts`).
 - Comando `study_craft` (botão "Estudar" no painel de Talentos, Alt+T). O host valida ofício, teto e recursos; recusa não debita.
 - Custo: o custo base do ofício vezes o nível atual, pago pela **metrópole**.
 - Cada sessão rende metade do XP que falta para o próximo nível (duas sessões por nível).

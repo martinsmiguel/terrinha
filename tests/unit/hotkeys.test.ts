@@ -51,8 +51,8 @@ describe('registro de atalhos', () => {
 
 describe('modificadores e controles nativos', () => {
   it.each(['ctrlKey', 'metaKey', 'altKey'] as const)('%s não dispara comandos de jogo por coincidência de letra', (modifier) => {
-    // Ctrl/Cmd+Z e Ctrl/Cmd+K são desfazer e busca (testados à parte); com Alt, seguem sem ação.
-    for (const key of ['c', 'l', 'h', 'm', 'i', 'j', '1', '2', '3', ' ', ...(modifier === 'altKey' ? ['z', 'k'] : [])]) {
+    // Ctrl/Cmd+Z e Ctrl/Cmd+K são desfazer e busca (testados à parte); com Alt, seguem sem ação. Alt+L é o livro (testado à parte).
+    for (const key of [...(modifier === 'altKey' ? [] : ['l']), 'c', 'h', 'm', 'i', 'j', '1', '2', '3', ' ', ...(modifier === 'altKey' ? ['z', 'k'] : [])]) {
       expect(resolveHotkey(press(key, { [modifier]: true }), idle)).toBeNull();
     }
     expect(resolveHotkey(press('q', { [modifier]: true }), { ...idle, hasVillagerSelected: true })).toBeNull();
@@ -141,5 +141,19 @@ describe('talentos (Alt+T)', () => {
     expect(resolveHotkey(press('t', { altKey: true, ctrlKey: true }), idle)).toBeNull();
     expect(resolveHotkey(press('t', { altKey: true }), { ...idle, overlays: ['talents'] })).toBeNull();
     expect(resolveHotkey(press('Escape'), { ...idle, overlays: ['talents'] })).toEqual({ kind: 'close-overlay', overlay: 'talents' });
+  });
+});
+
+describe('livro do império (Alt+L)', () => {
+  it('Alt+L abre o livro, também pelo código da tecla (no Mac o Alt troca o caractere); L sozinho segue travando a câmera', () => {
+    expect(resolveHotkey(press('l', { altKey: true }), idle)).toEqual({ kind: 'toggle-recipe-book' });
+    expect(resolveHotkey(press('¬', { altKey: true, code: 'KeyL' }), idle)).toEqual({ kind: 'toggle-recipe-book' });
+    expect(resolveHotkey(press('l'), idle)).toEqual({ kind: 'toggle-camera-lock' });
+  });
+
+  it('não abre em campo de texto nem com overlay; com o livro aberto, Esc fecha só ele', () => {
+    expect(resolveHotkey({ key: 'l', altKey: true, target: { tagName: 'INPUT' } }, idle)).toBeNull();
+    expect(resolveHotkey(press('l', { altKey: true }), { ...idle, overlays: ['talents'] })).toBeNull();
+    expect(resolveHotkey(press('Escape'), { ...idle, overlays: ['talents', 'recipe-book'] })).toEqual({ kind: 'close-overlay', overlay: 'recipe-book' });
   });
 });
