@@ -18,6 +18,11 @@ interface FoundationPanelProps {
   getOptions(wagon: Unit): CapitalSiteOption[];
   onPreview(x: number, z: number): void;
   onConfirm(x: number, z: number): void;
+  /** Escolha livre no mapa (#195): prévia segue o cursor/toque e o clique fixa o ponto. */
+  picking?: boolean;
+  picked?: CapitalSiteOption | null;
+  onPickOnMap?(): void;
+  onCancelPick?(): void;
 }
 
 const CHECKS: { key: 'space' | 'terrain' | 'access' | 'discovered' | 'kit'; label: string }[] = [
@@ -29,7 +34,7 @@ const CHECKS: { key: 'space' | 'terrain' | 'access' | 'discovered' | 'kit'; labe
 ];
 
 /** Escolha da sede: a carroça só vira capital ao confirmar; cancelar não altera a partida. */
-export function FoundationPanel({ wagon, buildingCount, kit, getOptions, onPreview, onConfirm }: FoundationPanelProps) {
+export function FoundationPanel({ wagon, buildingCount, kit, getOptions, onPreview, onConfirm, picking = false, picked = null, onPickOnMap, onCancelPick }: FoundationPanelProps) {
   const [choice, setChoice] = useState<number | null>(null);
   const options = useMemo(
     () => getOptions(wagon),
@@ -37,7 +42,9 @@ export function FoundationPanel({ wagon, buildingCount, kit, getOptions, onPrevi
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [wagon.id, Math.round(wagon.position.x), Math.round(wagon.position.z), buildingCount, kit?.wood, kit?.stone]
   );
-  const selected = choice === null ? null : options[choice] ?? null;
+  // O ponto escolhido no mapa vale como seleção; os sítios sugeridos seguem como atalho.
+  const selected = picked ?? (choice === null ? null : options[choice] ?? null);
+  const selectedLabel = picked ? `Ponto escolhido (${Math.round(picked.x)}, ${Math.round(picked.z)})` : `Sítio ${(choice ?? 0) + 1}`;
 
   return (
     <section aria-labelledby="foundation-title" className="mt-3 rounded-2xl border border-amber-500/40 bg-slate-950/70 p-3 text-xs text-slate-200">
@@ -45,9 +52,23 @@ export function FoundationPanel({ wagon, buildingCount, kit, getOptions, onPrevi
         <Castle className="h-4 w-4" aria-hidden="true" /> Fundar a capital
       </h4>
       <p className="mt-1 text-slate-400">
-        Escolha o sítio da sede. O kit ({FOUNDATION_KIT.wood} madeira e {FOUNDATION_KIT.stone} pedra) fica reservado e não entra no
+        Ande com a carroça até onde quiser e escolha o ponto no mapa (perto do mar, num morro…) ou use um sítio sugerido. O kit ({FOUNDATION_KIT.wood} madeira e {FOUNDATION_KIT.stone} pedra) fica reservado e não entra no
         suprimento. Cancelar não gasta nada.
       </p>
+
+      {onPickOnMap && (
+        <button
+          type="button"
+          aria-pressed={picking}
+          onClick={() => { setChoice(null); if (picking) onCancelPick?.(); else onPickOnMap(); }}
+          className={`mt-2 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border px-3 font-bold transition-colors ${
+            picking ? 'border-emerald-400 bg-emerald-900/40 text-emerald-200' : 'border-amber-500/60 bg-amber-600 text-white hover:bg-amber-500'
+          }`}
+        >
+          <Compass className="h-4 w-4" aria-hidden="true" />
+          {picking ? (picked ? 'Escolher outro ponto' : 'Toque no mapa onde fundar (Esc cancela)') : 'Escolher no mapa'}
+        </button>
+      )}
 
       {options.length === 0 ? (
         <p role="status" className="mt-2 rounded-xl border border-slate-700 bg-slate-900 p-2 text-slate-300">
@@ -61,6 +82,7 @@ export function FoundationPanel({ wagon, buildingCount, kit, getOptions, onPrevi
                 type="button"
                 aria-pressed={choice === index}
                 onClick={() => {
+                  onCancelPick?.();
                   setChoice(index);
                   onPreview(option.x, option.z);
                 }}
@@ -79,7 +101,8 @@ export function FoundationPanel({ wagon, buildingCount, kit, getOptions, onPrevi
 
       {selected && (
         <div className="mt-3" aria-live="polite">
-          <ul className="grid grid-cols-2 gap-1" aria-label={`Verificação do sítio ${(choice ?? 0) + 1}`}>
+          <p className="mb-1 font-semibold text-amber-200">{selectedLabel}</p>
+          <ul className="grid grid-cols-2 gap-1" aria-label={`Verificação: ${selectedLabel}`}>
             {CHECKS.map(({ key, label }) => (
               <li key={key} className="flex items-center gap-1.5">
                 {selected.report[key] ? (
@@ -107,7 +130,7 @@ export function FoundationPanel({ wagon, buildingCount, kit, getOptions, onPrevi
             </button>
             <button
               type="button"
-              onClick={() => setChoice(null)}
+              onClick={() => { setChoice(null); onCancelPick?.(); }}
               className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-1.5 font-semibold text-slate-300 hover:bg-slate-800"
             >
               Cancelar

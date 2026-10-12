@@ -97,6 +97,11 @@ interface SelectionPanelProps {
   /** Confirma o carregamento: com `cargo`, carga; sem ele, o kit. O host revalida. */
   handleLoadCargo(boatId: string, cargo?: Partial<Record<'wood' | 'food' | 'gold' | 'stone' | 'planks', number>>): void;
   getCapitalSites(wagon: Unit): CapitalSiteOption[];
+  /** Fundação livre (#195): modo ativo, ponto escolhido no mapa e controles. */
+  capitalPicking?: boolean;
+  capitalPicked?: CapitalSiteOption | null;
+  onPickCapitalOnMap?(wagonId: string): void;
+  onCancelCapitalPick?(): void;
   focusPoint(x: number, z: number): void;
   triggerNotification(message: string, type?: 'info' | 'success' | 'warning'): void;
   multiRef: { current: MultiplayerManager | null };
@@ -118,7 +123,7 @@ export function SelectionPanel(props: SelectionPanelProps) {
     handleSetGroveHarvestMode, handleToggleResourceHarvestMode, handleClearForestCluster,
     handleAssignVillagersToResource, handleAssignSelectedSquadToResource, handleRemoveResourceImmediately,
     renderVillagerBuildCatalog, nearestVillagerToSelectedBuilding, handleRepairBuilding,
-    handleDemolishBuilding, handleDisembark, routePorts, holdPreview, disembarkPreview, handleLoadCargo, getCapitalSites, focusPoint, triggerNotification, multiRef, onPointerEnterUI, onPointerLeaveUI,
+    handleDemolishBuilding, handleDisembark, routePorts, holdPreview, disembarkPreview, handleLoadCargo, getCapitalSites, capitalPicking, capitalPicked, onPickCapitalOnMap, onCancelCapitalPick, focusPoint, triggerNotification, multiRef, onPointerEnterUI, onPointerLeaveUI,
     unitLock, recipeOptions, onSetRecipe,
   } = props;
   const lockOf = (unitType: UnitType): string | null => unitLock?.(unitType) ?? null;
@@ -484,7 +489,12 @@ export function SelectionPanel(props: SelectionPanelProps) {
                     kit={gameState.foundationKits?.[playerSlot]}
                     getOptions={getCapitalSites}
                     onPreview={focusPoint}
+                    picking={capitalPicking}
+                    picked={capitalPicked}
+                    onPickOnMap={onPickCapitalOnMap ? () => onPickCapitalOnMap(selectedUnit.id) : undefined}
+                    onCancelPick={onCancelCapitalPick}
                     onConfirm={(x, z) => {
+                      onCancelCapitalPick?.();
                       const cmd = { type: 'found_capital', wagonId: selectedUnit.id, position: { x, z } };
                       if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
                       else multiRef.current?.sendToHost(cmd);
