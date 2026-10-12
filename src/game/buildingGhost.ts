@@ -361,3 +361,34 @@ export function updateBuildingGhost(
     }
   });
 }
+
+/**
+ * Prévia da capital (#195): área do Centro da Vila no chão e o volume do edifício, com os mesmos nomes de peça que
+ * `updateBuildingGhost` colore de verde (sítio válido) ou vermelho.
+ */
+export function createCapitalGhost(size: number): THREE.Group {
+  const ghost = new THREE.Group();
+  ghost.name = 'capital_ghost';
+  const footGeo = new THREE.PlaneGeometry(size, size);
+  const footprint = new THREE.Mesh(footGeo, new THREE.MeshBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }));
+  footprint.name = 'ghost_footprint';
+  footprint.rotation.x = -Math.PI / 2;
+  footprint.position.y = 0.05;
+  ghost.add(footprint);
+  const border = new THREE.LineSegments(new THREE.EdgesGeometry(footGeo), new THREE.LineBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.85 }));
+  border.name = 'ghost_border';
+  border.rotation.x = -Math.PI / 2;
+  border.position.y = 0.06;
+  ghost.add(border);
+  const material = () => new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x059669, emissiveIntensity: 0.4, transparent: true, opacity: 0.55, roughness: 0.3 });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(size * 0.75, 1.8, size * 0.75), material());
+  base.name = 'ghost_part_base';
+  base.position.y = 0.9;
+  ghost.add(base);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(size * 0.6, 1.4, 4), material());
+  roof.name = 'ghost_part_roof';
+  roof.position.y = 2.5;
+  roof.rotation.y = Math.PI / 4;
+  ghost.add(roof);
+  return ghost;
+}

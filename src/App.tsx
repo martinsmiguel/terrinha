@@ -29,7 +29,7 @@ import { Minimap } from './components/Minimap';
 import { TechPanel } from './components/TechPanel';
 import { soundManager } from './game/audio';
 import { update3DHealthBar, align3DHealthBarToCamera } from './game/healthBar';
-import { createBuildingGhost, updateBuildingGhost, checkBuildingPlacementValid } from './game/buildingGhost';
+import { createBuildingGhost, createCapitalGhost, updateBuildingGhost, checkBuildingPlacementValid } from './game/buildingGhost';
 import { BUILDING_CATALOG, BuildingType } from './game/buildingCatalog';
 import { describeMissing, missingFor } from './game/unlocks';
 import { activeRecipe, describeRecipe, recipeLock, setRecipe, stationRecipes } from './game/production';
@@ -39,7 +39,7 @@ import { generateProceduralTerrain, findNearestOceanCell, ProceduralMapResult } 
 import { EmpireCatalogModal } from './components/EmpireCatalogModal';
 import { Tutorial } from './components/Tutorial';
 import { FOUNDATION_KIT, createStartingForce, findCapitalSites, foundCapital, homeAnchor } from './game/foundation';
-import { evaluateCapitalSite, type CapitalSiteTerrain } from './game/capitalSite';
+import { CAPITAL_FOOTPRINT, evaluateCapitalSite, type CapitalSiteTerrain } from './game/capitalSite';
 import { bodyOf } from './game/bodyModel';
 import { planGroupMove } from './game/groupMove';
 import { ITEM_IDS } from './game/items';
@@ -428,6 +428,12 @@ export default function App() {
   const buildingMeshes = useRef<Map<string, THREE.Group>>(new Map());
   const resourceMeshes = useRef<Map<string, THREE.Group>>(new Map());
   const ghostBuildingMesh = useRef<THREE.Group | null>(null);
+  /** Fundação livre (#195): carroça escolhida, ponto fixado pelo clique/toque e a prévia no mapa. */
+  const [capitalPlacement, setCapitalPlacement] = useState<{ wagonId: string; pending: { x: number; z: number } | null } | null>(null);
+  const capitalPlacementRef = useRef(capitalPlacement);
+  capitalPlacementRef.current = capitalPlacement;
+  const capitalGhost = useRef<THREE.Group | null>(null);
+  const capitalPressRef = useRef(false);
   const gameStateRef = useRef<GameState>(gameState);
   gameStateRef.current = gameState;
   const selectedEntityRef = useRef(selectedEntity);
@@ -1036,6 +1042,44 @@ export default function App() {
   };
 
 
+  const groundPointAt = (clientX: number, clientY: number): { x: number; z: number; y: number } | null => {
+    if (!engineRef.current || !containerRef.current) return null;
+    const rect = containerRef.current.getBoundingClientRect();
+    const mouse = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, engineRef.current.camera);
+    const hit = raycaster.intersectObject(engineRef.current.groundMesh)[0];
+    if (!hit) return null;
+    const x = Math.round(hit.point.x);
+    const z = Math.round(hit.point.z);
+    return { x, z, y: proceduralMapRef.current ? proceduralMapRef.current.getHeightAt(x, z) : hit.point.y };
+  };
+  /** Relatório do ponto para a carroça escolhida: a mesma regra que o host aplica ao fundar. */
+  const capitalReportAt = (point: { x: number; z: number }) => {
+    const state = gameStateRef.current;
+    const wagon = state.units.find((unit) => unit.id === capitalPlacementRef.current?.wagonId);
+    return evaluateCapitalSite(point, capitalTerrainFor(state), { from: wagon?.position, kit: state.foundationKits?.[playerSlot] });
+  };
+  const showCapitalGhost = (point: { x: number; y: number; z: number }) => {
+    if (capitalGhost.current) updateBuildingGhost(capitalGhost.current, point, capitalReportAt(point).valid);
+  };
+  useEffect(() => {
+    const scene = engineRef.current?.scene;
+    if (capitalGhost.current && scene) { scene.remove(capitalGhost.current); capitalGhost.current = null; }
+    if (!capitalPlacement || !scene) return undefined;
+    const ghost = createCapitalGhost(CAPITAL_FOOTPRINT);
+    const wagon = gameStateRef.current.units.find((unit) => unit.id === capitalPlacement.wagonId);
+    const at = capitalPlacement.pending ?? wagon?.position ?? { x: worldSizeRef.current / 2, z: worldSizeRef.current / 2 };
+    scene.add(ghost);
+    capitalGhost.current = ghost;
+    showCapitalGhost({ x: at.x, z: at.z, y: proceduralMapRef.current?.getHeightAt(at.x, at.z) ?? 0 });
+    return () => { scene.remove(ghost); if (capitalGhost.current === ghost) capitalGhost.current = null; };
+  }, [capitalPlacement]);
+  // A carroça sumiu (fundou ou morreu) ou deixou de estar selecionada: sai do modo.
+  useEffect(() => {
+    if (capitalPlacement && !gameState.units.some((unit) => unit.id === capitalPlacement.wagonId)) setCapitalPlacement(null);
+  }, [gameState.units, capitalPlacement]);
+
   useSceneSynchronization({
     engineRef,
     proceduralMapRef,
@@ -1635,6 +1679,8 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Fundação livre: Esc sai do modo sem fundar.
+      if (capitalPlacementRef.current && e.key === 'Escape') { e.preventDefault(); setCapitalPlacement(null); return; }
       const state = gameStateRef.current;
       const selectedUnit = selectedEntity?.kind === 'unit' ? state.units.find((u) => u.id === selectedEntity.id) : undefined;
       const selectedBuildingEntity = selectedEntity?.kind === 'building'
@@ -2086,6 +2132,7 @@ export default function App() {
   // Viewport mouse down: initiates marquee drag or placement
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
+    if (capitalPlacementRef.current) { capitalPressRef.current = true; return; } // só toque iniciado no mapa fixa o ponto
     if (buildMode) return; // Build mode placement handled on click
 
     isMouseDownRef.current = true;
@@ -2096,6 +2143,11 @@ export default function App() {
   // Global window listeners for smooth marquee drag, ghost placement preview, & release
   useEffect(() => {
     const onWindowMouseMove = (e: MouseEvent) => {
+      // Prévia da capital segue o cursor até o ponto ser fixado.
+      if (capitalPlacementRef.current && !capitalPlacementRef.current.pending) {
+        const point = groundPointAt(e.clientX, e.clientY);
+        if (point) showCapitalGhost(point);
+      }
       // Real-time 3D building ghost preview & space footprint overlay
       if (buildMode && engineRef.current && containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
@@ -2155,7 +2207,7 @@ export default function App() {
     };
 
     const onWindowMouseUp = (e: MouseEvent) => {
-      if (!isMouseDownRef.current && !buildMode && !bridgeModeRef.current) return;
+      if (!isMouseDownRef.current && !buildMode && !bridgeModeRef.current && !capitalPressRef.current) return;
       const wasDragging = isDraggingMarqueeRef.current;
       const startPos = dragStartPosRef.current;
       const dragDist = startPos ? Math.hypot(e.clientX - startPos.x, e.clientY - startPos.y) : 0;
@@ -2172,6 +2224,14 @@ export default function App() {
 
       if (buildMode) {
         handleBuildingPlacementAt(e.clientX, e.clientY);
+        return;
+      }
+
+      // Fundação livre: o clique/toque no mapa fixa o ponto; fundar só com "Fundar aqui" no painel da carroça.
+      if (capitalPressRef.current) {
+        capitalPressRef.current = false;
+        const point = capitalPlacementRef.current ? groundPointAt(e.clientX, e.clientY) : null;
+        if (point) setCapitalPlacement((mode) => (mode ? { ...mode, pending: { x: point.x, z: point.z } } : mode));
         return;
       }
 
@@ -3635,6 +3695,10 @@ export default function App() {
             if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
             else multiRef.current?.sendToHost(cmd);
           }}
+          capitalPicking={Boolean(capitalPlacement)}
+          capitalPicked={capitalPlacement?.pending ? { ...capitalPlacement.pending, report: capitalReportAt(capitalPlacement.pending) } : null}
+          onPickCapitalOnMap={(wagonId) => { setBuildMode(null); setCapitalPlacement({ wagonId, pending: null }); }}
+          onCancelCapitalPick={() => setCapitalPlacement(null)}
           getCapitalSites={(wagon) =>
             capitalSitesFor(gameState, wagon).map(({ x, z }) => ({
               x,
