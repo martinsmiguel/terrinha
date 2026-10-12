@@ -42,9 +42,10 @@ export const visionRadiusFor = (entity: Unit | Building, settings?: RuleSettings
   if ('attackDamage' in entity) {
     return unitAttribute(entity.type, 'visionRadius', settings);
   }
-  if (entity.type === 'town_center') return 16;
-  if (entity.type === 'barracks') return 12;
-  return 9;
+  // Raios do #194: ~60% maiores que os de antes, para a exploração aparecer nas ilhas 20× maiores (#161).
+  if (entity.type === 'town_center') return 24;
+  if (entity.type === 'barracks') return 18;
+  return 14;
 };
 
 /** Estado de uma célula; células fora do grid são tratadas como nunca vistas. */
