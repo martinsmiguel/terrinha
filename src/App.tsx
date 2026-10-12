@@ -22,6 +22,7 @@ import { COMPOSITION_LABEL, nextComposition, readHud } from './game/hudConfig';
 import { HudContextPanel } from './components/HudContextPanel';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GameEngine, GameState, PlayerResources, Unit, Building, ResourceNode, MAP_SIZE, UnitType, isBoatUnit } from './game/engine';
+import { worldSizeOf } from './game/model';
 import { createVisionGrid, expireVision, isExploredAt, revealVision } from './game/visibility';
 import { MultiplayerManager, ChatMessage } from './game/multiplayer';
 import { Minimap } from './components/Minimap';
@@ -1197,7 +1198,8 @@ export default function App() {
 
   // Handle incoming network command from peer
   const handleIncomingCommand = (cmd: unknown) => {
-    if (!isValidNetworkCommand(cmd)) return;
+    // Valida no tamanho real do mundo (o padrão de 60 recusava fundar e mover além disso nos mundos maiores).
+    if (!isValidNetworkCommand(cmd, worldSizeOf(gameStateRef.current))) return;
     const commandOwner = cmd.playerSlot === undefined ? playerSlot : isPlayerSlot(cmd.playerSlot) ? cmd.playerSlot : null;
     if (!commandOwner || !isAuthorizedPlayerCommand(gameStateRef.current, cmd, commandOwner, hostVisionRef.current, proceduralMapRef.current ? withBridges(proceduralMapRef.current, gameStateRef.current.buildings) : undefined)) return;
 
