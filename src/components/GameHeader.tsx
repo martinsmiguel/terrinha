@@ -7,7 +7,7 @@ import { BUILDING_CATALOG } from '../game/buildingCatalog';
 import { soundManager } from '../game/audio';
 import type { PlayerResources } from '../game/engine';
 import type { ChatMessage } from '../game/multiplayer';
-import type { Era } from '../game/tech';
+import { eraIndex, type Era } from '../game/tech';
 import { ResourceNavMenu } from './ResourceNavMenu';
 
 type HudMode = 'full' | 'compact' | 'hidden';
@@ -346,11 +346,7 @@ export function GameHeader({
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                   <span className="hidden md:inline">Tecnologias</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold bg-slate-900 text-amber-200">
-                    {currentEra === 'commercial'
-                      ? 'E2'
-                      : currentEra === 'industrial'
-                      ? 'E3'
-                      : 'E1'}
+                    {`E${eraIndex(currentEra ?? 'pedra') + 1}`}
                   </span>
                 </button>
 

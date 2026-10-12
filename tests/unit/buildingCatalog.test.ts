@@ -49,7 +49,7 @@ it('preserva os atributos mecânicos do catálogo anterior à extração pura #5
   const before = JSON.parse(readFileSync('tests/fixtures/building-catalog-before-51.json', 'utf8'));
   const mechanics = (catalog: Record<string, object>) => Object.fromEntries(
     Object.entries(catalog).map(([id, definition]) => [id, Object.fromEntries(
-      Object.entries(definition).filter(([key]) => !['name', 'description', 'benefit'].includes(key))
+      Object.entries(definition).filter(([key]) => !['name', 'description', 'benefit', 'era'].includes(key))
     )])
   );
   // O posto avançado (#67) é posterior à extração: só o conjunto anterior é comparado.

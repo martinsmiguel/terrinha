@@ -79,19 +79,20 @@ describe('estudo pago', () => {
   });
 
   it('o estudo para no teto da era; o trabalho pode passar dele', () => {
-    const capped: MasteryState = { ...newMastery(), level: { ...newMastery().level, carpintaria: STUDY_CAP.colonial } };
+    const capped: MasteryState = { ...newMastery(), level: { ...newMastery().level, carpintaria: STUDY_CAP.pedra } };
     const state = world({ mastery: { player1: capped } });
     expect(canStudy(state, 'player1', 'carpintaria')).toMatchObject({ ok: false });
-    const later = world({ mastery: { player1: capped }, techs: { player1: { ...createTechState(), era: 'commercial' }, player2: createTechState() } });
+    const later = world({ mastery: { player1: capped }, techs: { player1: { ...createTechState(), era: 'bronze' }, player2: createTechState() } });
     expect(canStudy(later, 'player1', 'carpintaria').ok).toBe(true);
     let worked = capped;
     for (let i = 0; i < 40; i += 1) worked = creditXp(worked, { kind: 'extraction', amount: 1000, item: 'wood' });
-    expect(worked.level.carpintaria).toBeGreaterThan(STUDY_CAP.colonial);
+    expect(worked.level.carpintaria).toBeGreaterThan(STUDY_CAP.pedra);
   });
 
   it('o custo cresce com o nível', () => {
     const lvl2: MasteryState = { ...newMastery(), level: { ...newMastery().level, cantaria: 2 } };
-    const check = canStudy(world({ mastery: { player1: lvl2 } }), 'player1', 'cantaria');
+    const bronze = { player1: { ...createTechState(), era: 'bronze' as const }, player2: createTechState() };
+    const check = canStudy(world({ mastery: { player1: lvl2 }, techs: bronze }), 'player1', 'cantaria');
     expect(check.ok && check.cost).toEqual({ stone: 80, gold: 40 });
   });
 
@@ -109,7 +110,7 @@ describe('estudo pago', () => {
 
 describe('receitas por nível de ofício', () => {
   it('a receita só vale com o ofício no nível exigido', () => {
-    const advanced: RecipeDef = { ...planksFromWood, id: 'viga', requires: { era: 'colonial', craftLevel: 2 } };
+    const advanced: RecipeDef = { ...planksFromWood, id: 'viga', requires: { era: 'pedra', craftLevel: 2 } };
     const table = { player1: newMastery() };
     expect(canUseRecipe(table, 'player1', planksFromWood)).toBe(true);
     expect(canUseRecipe(table, 'player1', advanced)).toBe(false);

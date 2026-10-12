@@ -53,9 +53,9 @@ describe('grafo de itens', () => {
     expect(validateItemGraph()).toEqual([]);
   });
 
-  const raw = (id: string, tags: string[] = []): ItemDef => ({ id, name: id, short: id[0], era: 'colonial', source: 'coleta', tags, chipClass: '' });
+  const raw = (id: string, tags: string[] = []): ItemDef => ({ id, name: id, short: id[0], era: 'pedra', source: 'coleta', tags, chipClass: '' });
   const refined = (id: string, tags: string[] = []): ItemDef => ({ ...raw(id, tags), source: 'refino' });
-  const recipe = (id: string, inputs: RecipeDef['inputs'], outputs: RecipeDef['outputs']): RecipeDef => ({ id, name: id, station: 'oficina', mode: 'contínua', inputs, outputs, craft: 'carpintaria', requires: { era: 'colonial', craftLevel: 1 } });
+  const recipe = (id: string, inputs: RecipeDef['inputs'], outputs: RecipeDef['outputs']): RecipeDef => ({ id, name: id, station: 'oficina', mode: 'contínua', inputs, outputs, craft: 'carpintaria', requires: { era: 'pedra', craftLevel: 1 } });
 
   it('CONTROLE NEGATIVO: ciclo de receitas é recusado', () => {
     const items = [raw('a'), refined('b'), refined('c')];
@@ -119,7 +119,7 @@ describe('consumo e receita contínua', () => {
   });
 
   it('receita com duas entradas produz na proporção da mais escassa', () => {
-    const r: RecipeDef = { id: 'x', name: 'x', station: 's', mode: 'contínua', inputs: [{ item: 'wood', amount: 2 }, { item: 'stone', amount: 1 }], outputs: [{ item: 'planks', amount: 4 }], craft: 'carpintaria', requires: { era: 'colonial', craftLevel: 1 } };
+    const r: RecipeDef = { id: 'x', name: 'x', station: 's', mode: 'contínua', inputs: [{ item: 'wood', amount: 2 }, { item: 'stone', amount: 1 }], outputs: [{ item: 'planks', amount: 4 }], craft: 'carpintaria', requires: { era: 'pedra', craftLevel: 1 } };
     const next = applyContinuousRecipe(bag({ wood: 10, stone: 0.5 }), r, 1);
     expect(next).toMatchObject({ wood: 9, stone: 0, planks: 2 });
   });

@@ -1,3 +1,6 @@
+import type { Era } from './tech';
+
+
 export type BuildingType =
   | 'house'
   | 'barracks'
@@ -23,11 +26,14 @@ export interface BuildingDef {
   footprintWidth: number;
   footprintDepth: number;
   requiresWater?: boolean; // Docks must be built near river/water
+  /** Era da construção: declarada aqui; a trava por era entra no card #177. */
+  era: Era;
 }
 
 export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
   house: {
     type: 'house',
+    era: 'pedra',
     name: 'Casa Colonial',
     category: 'civil',
     description: 'Habitação para colonos. Essencial para expandir a população da sua vila.',
@@ -41,6 +47,7 @@ export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
   },
   barracks: {
     type: 'barracks',
+    era: 'bronze',
     name: 'Quartel Militar',
     category: 'militar',
     description: 'Guarnição militar para treinamento de infantaria e mosqueteiros imperiais.',
@@ -54,6 +61,7 @@ export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
   },
   tower: {
     type: 'tower',
+    era: 'ferro',
     name: 'Torre de Vigia',
     category: 'defesa',
     description: 'Posto avançado fortificado que atira automaticamente contra invasores.',
@@ -67,6 +75,7 @@ export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
   },
   sawmill: {
     type: 'sawmill',
+    era: 'bronze',
     name: 'Serralheria & Madeireira',
     category: 'economia',
     description: 'Oficina de corte e tábuas. Aumenta a velocidade de coleta florestal e fornece tábuas nobres.',
@@ -80,6 +89,7 @@ export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
   },
   mine: {
     type: 'mine',
+    era: 'bronze',
     name: 'Mineradora & Pedreira',
     category: 'economia',
     description: 'Instalação de extração de veios de pedra, ferro e ouro com forja para lingotes.',
@@ -93,6 +103,7 @@ export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
   },
   market: {
     type: 'market',
+    era: 'ferro',
     name: 'Mercadão do Império',
     category: 'economia',
     description: 'Grande centro comercial. Permite comprar e vender mercadorias e gerenciar preços da colônia.',
@@ -106,6 +117,7 @@ export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
   },
   farm: {
     type: 'farm',
+    era: 'pedra',
     name: 'Fazenda & Granja',
     category: 'economia',
     description: 'Talhão agrícola de trigo e cereais cultivado por aldeões para suprimento contínuo de alimento.',
@@ -119,6 +131,7 @@ export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
   },
   dock: {
     type: 'dock',
+    era: 'pedra',
     name: 'Cais & Doca Naval',
     category: 'naval',
     description: 'Estaleiro construído na margem do oceano navegável para atracar e construir Barcos de Pesca e Comércio.',
@@ -133,6 +146,7 @@ export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
   },
   outpost: {
     type: 'outpost',
+    era: 'bronze',
     name: 'Posto Avançado',
     category: 'economia',
     description: 'Entreposto regional em solo conhecido: marca território, habilita a economia local e cura tropas terrestres próprias.',
@@ -146,6 +160,7 @@ export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
   },
   bridge: {
     type: 'bridge',
+    era: 'ferro',
     name: 'Ponte',
     category: 'economia',
     description: 'Liga duas margens de rio ou lago da mesma ilha; só abre passagem depois de concluída.',

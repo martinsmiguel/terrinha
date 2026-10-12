@@ -9,5 +9,5 @@ export const planksFromWood = {
   inputs: [{ item: 'wood', amount: 0.1 }],
   outputs: [{ item: 'planks', amount: 0.05 }],
   craft: 'carpintaria',
-  requires: { era: 'colonial', craftLevel: 1 },
+  requires: { era: 'pedra', craftLevel: 1 },
 } as const satisfies RecipeDef;

@@ -4,12 +4,29 @@
  */
 
 import { applyCost, canAfford, type ResourceCost } from './economy';
-import type { PlayerResources } from './model';
+import type { PlayerResources, UnitType } from './model';
 
-/** Eras da colonia, em ordem cronologica. */
-export type Era = 'colonial' | 'commercial' | 'industrial';
+/** Eras do desenvolvimento civilizatório, em ordem: a partida começa na Pedra (card #175). */
+export type Era = 'pedra' | 'bronze' | 'ferro' | 'medieval' | 'navegacoes' | 'industrial';
 
-export const ERA_ORDER: readonly Era[] = ['colonial', 'commercial', 'industrial'];
+export const ERA_ORDER: readonly Era[] = ['pedra', 'bronze', 'ferro', 'medieval', 'navegacoes', 'industrial'];
+
+export const ERA_LABEL: Record<Era, string> = {
+  pedra: 'Era da Pedra', bronze: 'Era do Bronze', ferro: 'Era do Ferro', medieval: 'Era Medieval', navegacoes: 'Era das Navegações', industrial: 'Era Industrial',
+};
+
+/** Eras de antes do card #175 e as que as substituem (estados antigos continuam válidos). */
+export const LEGACY_ERA: Readonly<Record<string, Era>> = { colonial: 'pedra', commercial: 'navegacoes', industrial: 'industrial' };
+
+/** Era válida a partir de qualquer valor (era atual, nome antigo ou ausente → Pedra). */
+export const normalizeEra = (value: unknown): Era =>
+  typeof value === 'string' && (ERA_ORDER as readonly string[]).includes(value) ? (value as Era) : LEGACY_ERA[value as string] ?? 'pedra';
+
+/** Era de cada unidade: declarada aqui; a trava de treino por era entra no card #177. */
+export const UNIT_ERA: Record<UnitType, Era> = {
+  villager: 'pedra', wagon: 'pedra', fishing_boat: 'pedra', trade_boat: 'bronze', cavalry: 'ferro', warship: 'medieval',
+  soldier: 'navegacoes', colonial_transport: 'navegacoes',
+};
 
 /** Estatisticas que uma tecnologia pode melhorar. */
 export type TechStat = 'wood_gather' | 'gold_gather' | 'infantry_damage' | 'cavalry_damage';
@@ -33,19 +50,26 @@ export interface EraUpgrade {
   name: string;
   cost: ResourceCost;
   durationSeconds: number;
+  /** Nível mínimo de cada ofício (id do registro `src/game/crafts/`) para começar o avanço: a era se conquista fazendo. */
+  crafts: Readonly<Record<string, number>>;
 }
 
 /** Avancos de era (o custo e o tempo sao a "pesquisa" da nova era). */
 export const ERA_UPGRADES: readonly EraUpgrade[] = [
-  { era: 'commercial', name: 'Era do Comércio', cost: { wood: 300, gold: 250 }, durationSeconds: 30 },
-  { era: 'industrial', name: 'Era Industrial', cost: { wood: 500, gold: 500 }, durationSeconds: 45 },
+  // Totais de madeira (800) e ouro (750) e tempo (75 s) iguais aos das eras de antes: a jornada natal continua sustentável.
+  // Cada exigência de ofício cabe no teto de estudo da era anterior (`STUDY_CAP`): toda era é alcançável estudando.
+  { era: 'bronze', name: 'Era do Bronze', cost: { wood: 100, gold: 50 }, durationSeconds: 15, crafts: { mineracao: 2, carpintaria: 2 } },
+  { era: 'ferro', name: 'Era do Ferro', cost: { wood: 100, gold: 100 }, durationSeconds: 15, crafts: { mineracao: 3, carpintaria: 3 } },
+  { era: 'medieval', name: 'Era Medieval', cost: { wood: 150, gold: 150 }, durationSeconds: 15, crafts: { cantaria: 4, guerra: 3, agricultura: 4 } },
+  { era: 'navegacoes', name: 'Era das Navegações', cost: { wood: 200, gold: 200 }, durationSeconds: 15, crafts: { navegacao: 5, comercio: 4 } },
+  { era: 'industrial', name: 'Era Industrial', cost: { wood: 250, gold: 250 }, durationSeconds: 15, crafts: { mineracao: 7, carpintaria: 6, comercio: 6 } },
 ];
 
 export const TECH_DEFS: readonly TechDef[] = [
   {
     id: 'irrigation',
     name: 'Canais de Irrigação',
-    era: 'colonial',
+    era: 'pedra',
     category: 'economia',
     cost: { wood: 150, gold: 60 },
     durationSeconds: 20,
@@ -55,7 +79,7 @@ export const TECH_DEFS: readonly TechDef[] = [
   {
     id: 'coinage',
     name: 'Cunhagem',
-    era: 'colonial',
+    era: 'ferro',
     category: 'economia',
     cost: { wood: 120, gold: 80 },
     durationSeconds: 25,
@@ -65,7 +89,7 @@ export const TECH_DEFS: readonly TechDef[] = [
   {
     id: 'rifling',
     name: 'Estriamento do Cano',
-    era: 'colonial',
+    era: 'navegacoes',
     category: 'militar',
     cost: { wood: 100, gold: 120 },
     durationSeconds: 30,
@@ -75,7 +99,7 @@ export const TECH_DEFS: readonly TechDef[] = [
   {
     id: 'cartography',
     name: 'Cartografia',
-    era: 'commercial',
+    era: 'navegacoes',
     category: 'economia',
     requires: 'coinage',
     cost: { wood: 250, gold: 200 },
@@ -86,7 +110,7 @@ export const TECH_DEFS: readonly TechDef[] = [
   {
     id: 'musketeer_corps',
     name: 'Corpo de Fuzileiros',
-    era: 'commercial',
+    era: 'navegacoes',
     category: 'militar',
     requires: 'rifling',
     cost: { wood: 300, gold: 250 },
@@ -139,9 +163,9 @@ export interface TechState {
   queue: ResearchQueueItem[];
 }
 
-export const createTechState = (): TechState => ({ era: 'colonial', completed: [], queue: [] });
+export const createTechState = (): TechState => ({ era: 'pedra', completed: [], queue: [] });
 
-export const eraIndex = (era: Era): number => ERA_ORDER.indexOf(era);
+export const eraIndex = (era: Era): number => ERA_ORDER.indexOf(normalizeEra(era));
 
 /** True quando a colonia ja alcancou (ou passou) a era informada. */
 export const eraReached = (current: Era, required: Era): boolean =>
@@ -195,7 +219,19 @@ export const researchTarget = (id: string): ResearchTarget | null => {
 };
 
 /** Motivos pelos quais uma pesquisa nao pode comecar agora. */
-export type ResearchBlock = 'unknown' | 'already' | 'era' | 'requires' | 'busy' | 'cost';
+export type ResearchBlock = 'unknown' | 'already' | 'era' | 'requires' | 'busy' | 'crafts' | 'cost';
+
+/** Níveis de ofício do dono (id → nível); ausente vale 1. */
+export type CraftLevels = Readonly<Record<string, number>>;
+
+/** Ofícios abaixo do exigido para avançar à era, com o nível atual e o exigido. */
+export function eraCraftShortfall(era: Era, crafts: CraftLevels = {}): { craft: string; level: number; required: number }[] {
+  const upgrade = ERA_UPGRADES.find((candidate) => candidate.era === era);
+  if (!upgrade) return [];
+  return Object.entries(upgrade.crafts)
+    .map(([craft, required]) => ({ craft, level: crafts[craft] ?? 1, required }))
+    .filter((entry) => entry.level < entry.required);
+}
 
 /**
  * Devolve o motivo da bloqueio, ou `null` quando a pesquisa pode comecar.
@@ -205,7 +241,8 @@ export type ResearchBlock = 'unknown' | 'already' | 'era' | 'requires' | 'busy' 
 export const researchBlock = (
   state: TechState,
   id: string,
-  resources: PlayerResources
+  resources: PlayerResources,
+  crafts: CraftLevels = {}
 ): ResearchBlock | null => {
   const target = researchTarget(id);
   if (!target) return 'unknown';
@@ -215,6 +252,9 @@ export const researchBlock = (
 
   if (target.category === 'era') {
     if (eraReached(state.era, target.era)) return 'already';
+    // Avança uma era por vez: a anterior precisa estar alcançada.
+    if (eraIndex(target.era) !== eraIndex(state.era) + 1) return 'era';
+    if (eraCraftShortfall(target.era, crafts).length > 0) return 'crafts';
   } else {
     if (state.completed.includes(target.id)) return 'already';
     if (!eraReached(state.era, target.era)) return 'era';
@@ -228,10 +268,11 @@ export const researchBlock = (
 export const startResearch = (
   state: TechState,
   id: string,
-  resources: PlayerResources
+  resources: PlayerResources,
+  crafts: CraftLevels = {}
 ): { techState: TechState; resources: PlayerResources } | null => {
   const target = researchTarget(id);
-  if (!target || researchBlock(state, id, resources)) return null;
+  if (!target || researchBlock(state, id, resources, crafts)) return null;
   return {
     techState: { ...state, queue: [...state.queue, { id: target.id, progress: 0 }] },
     resources: applyCost(resources, target.cost),

@@ -15,7 +15,7 @@ const base = (): GameState => ({
   buildings: [post('own', 'player2', 22, 22), post('hidden', 'player1', 160, 160)],
   resourceNodes: [node('seen', 25, 22), node('unknown', 170, 170)],
   playerResources: { player1: res, player2: { ...res, wood: 99 } },
-  techs: { player1: { era: 'colonial', completed: [], queue: [] }, player2: { era: 'colonial', completed: [], queue: [] } },
+  techs: { player1: { era: 'pedra', completed: [], queue: [] }, player2: { era: 'pedra', completed: [], queue: [] } },
   localStocks: { player2: { '1': { wood: 5, food: 0, gold: 0, stone: 0, planks: 0 } } },
 });
 

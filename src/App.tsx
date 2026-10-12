@@ -4,7 +4,7 @@
  */
 
 import { DEFAULT_BOT_PROFILE, type BotProfile } from './game/bots';
-import { MASTERY_LABEL, creditAll, exploredSectorKeys, studyCraft, type MasteryId } from './game/mastery';
+import { MASTERY_LABEL, craftLevels, creditAll, exploredSectorKeys, studyCraft, type MasteryId } from './game/mastery';
 import { filterSnapshotFor } from './game/snapshotFilter';
 import { DeltaReceiver, DeltaSender, rulesRevisionOf } from './game/snapshotDelta';
 import { BatchModal } from './components/BatchModal';
@@ -1492,7 +1492,7 @@ export default function App() {
         const resources = prev.playerResources[owner];
         if (!techState || !resources) return prev;
 
-        const started = startResearch(techState, cmd.id, resources);
+        const started = startResearch(techState, cmd.id, resources, craftLevels(prev.mastery, owner));
         if (!started) return prev;
 
         if (owner === playerSlotRef.current) {
@@ -3728,6 +3728,7 @@ export default function App() {
         <TechPanel
           techState={gameState.techs?.[playerSlot] ?? createTechState()}
           resources={myResources}
+          crafts={craftLevels(gameState.mastery, playerSlot)}
           onResearch={handleResearch}
           onClose={() => {
             setIsTechPanelOpen(false);
