@@ -4,7 +4,7 @@
  */
 
 import { DEFAULT_BOT_PROFILE, type BotProfile } from './game/bots';
-import { creditAll, exploredSectorKeys } from './game/mastery';
+import { MASTERY_LABEL, creditAll, exploredSectorKeys, studyCraft, type MasteryId } from './game/mastery';
 import { filterSnapshotFor } from './game/snapshotFilter';
 import { DeltaReceiver, DeltaSender, rulesRevisionOf } from './game/snapshotDelta';
 import { BatchModal } from './components/BatchModal';
@@ -1293,6 +1293,11 @@ export default function App() {
       if (!bought.check.ok) { triggerNotification(bought.check.message ?? 'Talento recusado.', 'warning'); return; }
       setGameState((prev) => buyTalent(prev, commandOwner, cmd.id).state);
       triggerNotification(`Talento adquirido: ${talentById(cmd.id)?.name}.`, 'success');
+    } else if (cmd.type === 'study_craft') {
+      const studied = studyCraft(gameStateRef.current, commandOwner, cmd.craft);
+      if (!studied.check.ok) { triggerNotification(studied.check.reason, 'warning'); return; }
+      setGameState((prev) => studyCraft(prev, commandOwner, cmd.craft).state);
+      triggerNotification(`Estudo de ${MASTERY_LABEL[cmd.craft as MasteryId]}: +${studied.check.xp} XP.`, 'success');
     } else if (cmd.type === 'set_route') {
       const result = assignRoute(gameStateRef.current, cmd.boatId, cmd);
       if (result.problems.length > 0) { triggerNotification(result.problems[0], 'warning'); return; }
@@ -3371,6 +3376,11 @@ export default function App() {
           onClose={() => setIsTalentsOpen(false)}
           onBuy={(id) => {
             const cmd = { type: 'buy_talent', id };
+            if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
+            else multiRef.current?.sendToHost(cmd);
+          }}
+          onStudy={(craft) => {
+            const cmd = { type: 'study_craft', craft };
             if (role === 'host' || role === 'single') handleIncomingCommand(cmd);
             else multiRef.current?.sendToHost(cmd);
           }}

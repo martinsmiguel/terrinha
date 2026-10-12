@@ -1,3 +1,4 @@
+import { isCraftId } from './crafts';
 import { ITEM_DEFS, ITEM_IDS, type ItemDef, type ItemId } from './items';
 import { RECIPE_DEFS, type RecipeDef, type RecipeInput } from './recipes';
 
@@ -22,6 +23,8 @@ export function validateItemGraph(items: readonly ItemDef[] = ITEM_DEFS, recipes
   for (const recipe of recipes) {
     if (recipeIds.has(recipe.id)) errors.push(`Receita repetida: ${recipe.id}.`);
     recipeIds.add(recipe.id);
+    if (!isCraftId(recipe.craft)) errors.push(`${recipe.id}: ofício desconhecido ${recipe.craft}.`);
+    if (!(recipe.requires.craftLevel >= 1)) errors.push(`${recipe.id}: nível de ofício inválido.`);
     if (recipe.inputs.length === 0) errors.push(`${recipe.id}: receita sem entrada.`);
     if (recipe.outputs.length === 0) errors.push(`${recipe.id}: receita sem saída.`);
     for (const input of recipe.inputs) {

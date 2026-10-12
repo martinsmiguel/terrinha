@@ -11,19 +11,19 @@ import { isVisibleTo, updateOwnerVision } from '../../src/game/visionAuthority';
 const levelled = (levels: Partial<MasteryState['level']>, points: number): MasteryState => ({ ...newMastery(), level: { ...newMastery().level, ...levels }, points });
 const res = { wood: 500, food: 500, gold: 500, stone: 500, planks: 500, pop: 2, maxPop: 20 };
 const base = (overrides: Partial<GameState> = {}): GameState => ({ units: [], buildings: [], resourceNodes: [], mapSize: 100, playerResources: { player1: res }, ...overrides });
-const owned = (talents: string[], mastery = levelled({ seafaring: 5, settlement: 5, extraction: 5, exploration: 5 }, 5)): GameState => base({ mastery: { player1: mastery }, talents: { player1: talents } });
+const owned = (talents: string[], mastery = levelled({ navegacao: 5, colonizacao: 5, agricultura: 5, exploracao: 5 }, 5)): GameState => base({ mastery: { player1: mastery }, talents: { player1: talents } });
 
 describe('compra no host', () => {
   it('valida nível, pré-requisito, pontos e ID único; recusa não debita nem repete', () => {
-    const low = base({ mastery: { player1: levelled({ seafaring: 1 }, 3) } });
+    const low = base({ mastery: { player1: levelled({ navegacao: 1 }, 3) } });
     expect(canBuyTalent(low, 'player1', 'brisa')).toMatchObject({ ok: false, refusal: 'level' });
-    const noReq = base({ mastery: { player1: levelled({ seafaring: 3 }, 3) } });
+    const noReq = base({ mastery: { player1: levelled({ navegacao: 3 }, 3) } });
     expect(canBuyTalent(noReq, 'player1', 'comboio')).toMatchObject({ ok: false, refusal: 'requires' });
-    const broke = base({ mastery: { player1: levelled({ seafaring: 3 }, 0) } });
+    const broke = base({ mastery: { player1: levelled({ navegacao: 3 }, 0) } });
     expect(canBuyTalent(broke, 'player1', 'brisa')).toMatchObject({ ok: false, refusal: 'points' });
     expect(canBuyTalent(low, 'player1', 'nao-existe')).toMatchObject({ refusal: 'unknown' });
 
-    const ok = base({ mastery: { player1: levelled({ seafaring: 3 }, 2) } });
+    const ok = base({ mastery: { player1: levelled({ navegacao: 3 }, 2) } });
     const first = buyTalent(ok, 'player1', 'brisa');
     expect(first.check.ok).toBe(true);
     expect(first.state.mastery!.player1.points).toBe(1);
@@ -35,7 +35,7 @@ describe('compra no host', () => {
   });
 
   it('o host autoriza só a compra válida', () => {
-    const state = base({ mastery: { player1: levelled({ seafaring: 3 }, 1) } });
+    const state = base({ mastery: { player1: levelled({ navegacao: 3 }, 1) } });
     expect(isAuthorizedPlayerCommand(state, { type: 'buy_talent', id: 'brisa' }, 'player1')).toBe(true);
     expect(isAuthorizedPlayerCommand(state, { type: 'buy_talent', id: 'comboio' }, 'player1')).toBe(false);
     expect(isAuthorizedPlayerCommand(state, { type: 'buy_talent', id: 'brisa' }, 'player2')).toBe(false);

@@ -51,7 +51,7 @@ describe('colher e restaurar, validados no host', () => {
     expect(second.xp).toBeUndefined();
     let mastery = creditAll(undefined, [{ owner: 'player1', event: first.xp! }]);
     mastery = creditAll(mastery, [{ owner: 'player1', event: first.xp! }]);
-    expect(mastery!.player1.xp.exploration).toBe(25); // 25 uma vez só
+    expect(mastery!.player1.xp.exploracao).toBe(25); // 25 uma vez só
   });
 
   it('restaurar cobra o custo uma vez, vira runa com visão 14 e não repete', () => {

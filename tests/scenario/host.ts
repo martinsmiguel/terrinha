@@ -20,6 +20,7 @@ import { debitAt } from '../../src/game/depots';
 import { payerLocality } from '../../src/game/networkCommands';
 import { isBoatUnit } from '../../src/game/model';
 import { attackOrder } from '../../src/game/unitOrders';
+import { studyCraft } from '../../src/game/mastery';
 import { generateRelics } from '../../src/game/mysticism';
 
 /**
@@ -225,6 +226,12 @@ export class ScenarioHost {
       return true;
     }
     if (c.type === 'attack') { this.state = { ...this.state, units: this.state.units.map((u) => (u.id === c.unitId ? attackOrder(u, c.targetId) : u)) }; return true; }
+    if (c.type === 'study_craft') {
+      const studied = studyCraft(this.state, owner, c.craft);
+      if (!studied.check.ok) return this.reject(owner, command, studied.check.reason);
+      this.state = studied.state;
+      return true;
+    }
     if (c.type === 'train') {
       const building = this.state.buildings.find((b) => b.id === c.buildingId);
       const resources = this.state.playerResources[owner];

@@ -1,4 +1,6 @@
 import type { Building, BuildingType, GameState, PlayerResources, ResourceNode, Unit, UnitType } from './model';
+import { isCraftId } from './crafts';
+import { canStudy } from './mastery';
 import { ITEM_IDS } from './items';
 import { BOAT_CAPACITY, isBoatUnit, worldSizeOf } from './model';
 import { UNIT_ATTRIBUTES } from './unitAttributes';
@@ -86,6 +88,7 @@ export type NetworkCommand = CommandMetadata & (
   | { type: 'load_cargo'; boatId: string; cargo: Partial<Record<'wood' | 'food' | 'gold' | 'stone' | 'planks', number>> }
   | { type: 'load_kit'; boatId: string }
   | { type: 'buy_talent'; id: string }
+  | { type: 'study_craft'; craft: string }
   | { type: 'build_bridge'; a: Position; b: Position; builderIds: string[] }
   | { type: 'harvest_plant' | 'restore_monument'; unitId: string; relicId: string }
   | { type: 'set_route'; boatId: string; a: RoutePort; b: RoutePort; outbound: RouteLeg; back: RouteLeg | null; partial?: boolean }
@@ -230,6 +233,8 @@ export function isValidNetworkCommand(value: unknown, mapSize: number = MAP_LIMI
       return allowedKeys('boatId') && isId(value.boatId);
     case 'buy_talent':
       return allowedKeys('id') && isId(value.id);
+    case 'study_craft':
+      return allowedKeys('craft') && isCraftId(value.craft);
     case 'build_bridge':
       return allowedKeys('a', 'b', 'builderIds') && isPosition(value.a) && isPosition(value.b)
         && Array.isArray(value.builderIds) && value.builderIds.length >= 1 && value.builderIds.length <= 100 && value.builderIds.every(isId);
@@ -440,6 +445,9 @@ export function isAuthorizedPlayerCommand(
       const known = (x: number, z: number) => !vision || isExploredBy(vision, owner, x, z);
       return checkRelicAction(state, owner, value.type === 'harvest_plant' ? 'harvest' : 'restore', value.unitId, value.relicId, known).ok;
     }
+    case 'study_craft':
+      // O host valida ofício, teto de estudo da era e recursos da metrópole; recusa não debita.
+      return canStudy(state, owner, value.craft).ok;
     case 'buy_talent':
       // O host valida nível, pré-requisito, pontos e ID único; recusa não debita nem repete.
       return canBuyTalent(state, owner, value.id).ok;

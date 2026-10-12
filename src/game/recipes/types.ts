@@ -1,3 +1,4 @@
+import type { CraftId } from '../crafts';
 import type { ItemId } from '../items';
 import type { Era } from '../tech';
 
@@ -17,6 +18,8 @@ export interface RecipeDef {
   mode: 'contínua';
   inputs: readonly RecipeInput[];
   outputs: readonly RecipeOutput[];
-  /** Exigências para usar a receita. Ofício e pesquisa entram com os cards de ofícios e desbloqueios. */
-  requires: { era: Era };
+  /** Ofício treinado por esta produção. */
+  craft: CraftId;
+  /** Exigências para usar a receita: era e nível mínimo do ofício (pesquisa entra no card de desbloqueios). */
+  requires: { era: Era; craftLevel: number };
 }
