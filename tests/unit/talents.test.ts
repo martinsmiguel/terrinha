@@ -7,6 +7,7 @@ import { isAuthorizedPlayerCommand } from '../../src/game/networkCommands';
 import { tickGameState, type SimulationContext } from '../../src/game/simulation';
 import { buyTalent, canBuyTalent, effectiveBuildCost, hasTalent } from '../../src/game/talents';
 import { isVisibleTo, updateOwnerVision } from '../../src/game/visionAuthority';
+import { unlockAll } from '../fixtures/unlocks';
 
 const levelled = (levels: Partial<MasteryState['level']>, points: number): MasteryState => ({ ...newMastery(), level: { ...newMastery().level, ...levels }, points });
 const res = { wood: 500, food: 500, gold: 500, stone: 500, planks: 500, pop: 2, maxPop: 20 };
@@ -78,7 +79,7 @@ describe('os seis efeitos reais', () => {
     expect(effectiveBuildCost(state, 'player1', 'house', { wood: 60 })).toEqual({ wood: 60 });
     expect(effectiveBuildCost(base(), 'player1', 'outpost', { wood: 150 })).toEqual({ wood: 150 });
     const cmd = { type: 'build', buildingType: 'outpost', owner: 'player1', position: { x: 30, z: 30 } };
-    const poor = (talents: string[]) => ({ ...owned(talents), playerResources: { player1: { ...res, wood: 140 } } });
+    const poor = (talents: string[]) => unlockAll({ ...owned(talents), playerResources: { player1: { ...res, wood: 140 } } }, 'player1', { buildings: true });
     const vision = (s: GameState) => updateOwnerVision(undefined, { ...s, units: [{ ...boat(), position: { x: 30, z: 30 } }] }, ['player1'], 100);
     expect(isAuthorizedPlayerCommand(poor([]), cmd, 'player1', vision(poor([])), { canStandAt: () => true })).toBe(false);
     expect(isAuthorizedPlayerCommand(poor(['desembarque', 'carpintaria']), cmd, 'player1', vision(poor([])), { canStandAt: () => true })).toBe(true);

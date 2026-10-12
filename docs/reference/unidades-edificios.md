@@ -24,6 +24,30 @@
 | População (`pop`) | Casas (+5 cada) | Libera slot ao perder unidade; mantida em `[0, maxPop]` (`src/game/population.ts`) |
 | Tábuas (`planks`) | **Serralheria** (refino) | 0,1 madeira → 0,05 tábua por tick por Serralheria concluída |
 
+## Desbloqueios (card #177)
+
+Fonte: `src/game/unlocks.ts` (`BUILDING_UNLOCKS`, `UNIT_UNLOCKS`), a era em `BuildingDef.era` e `UNIT_ERA`. O host
+recusa `build`, `build_bridge` e `train` bloqueados (a IA passa pela mesma regra); a interface mostra o que falta
+(era, ofício com nível atual/exigido, pesquisa, construção) no catálogo, no menu do aldeão, no painel do edifício e no aviso.
+
+| Peça | Era | Ofício | Pesquisa | Construção de pé |
+| --- | --- | --- | --- | --- |
+| Casa, Fazenda, Cais, Quartel | Pedra | — | — | — |
+| Serralheria | Pedra | Carpintaria 2 | — | — |
+| Posto avançado | Pedra | — | — | Cais |
+| Mineradora | Bronze | Mineração 2 | — | — |
+| Mercado | Ferro | Comércio 2 | — | — |
+| Torre | Ferro | Cantaria 3 | — | Quartel |
+| Ponte | Ferro | Carpintaria 3 | — | — |
+| Aldeão, Soldado, Barco de Pesca, Transporte Colonial | Pedra | — | — | — |
+| Barco Mercante | Bronze | Comércio 2 | — | — |
+| Cavalaria | Ferro | Guerra 2 | — | — |
+| Barco de Guerra | Navegações | Navegação 4 | Cartografia | — |
+
+- Cada nível de ofício exigido cabe no teto de estudo da era da peça, e pesquisa e construção exigidas existem na
+  mesma era ou antes: `validateUnlocks` garante que tudo é alcançável a partir do início.
+- A IA treina mosqueteiro quando a cavalaria está bloqueada e avança de era sozinha quando tem os ofícios e os recursos.
+
 ## Unidades
 
 | Unidade | Custo | Onde treina | Papel |

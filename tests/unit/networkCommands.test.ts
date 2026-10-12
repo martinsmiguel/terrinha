@@ -4,6 +4,7 @@ import { BUILDING_CATALOG } from '../../src/game/buildingCatalog';
 import { createTechState } from '../../src/game/tech';
 import type { GameState } from '../../src/game/engine';
 import { updateOwnerVision } from '../../src/game/visionAuthority';
+import { unlockAll } from '../fixtures/unlocks';
 
 const state: GameState = {
   units: [
@@ -107,7 +108,8 @@ describe('network command validation', () => {
     };
 
     const tower = { type: 'build', buildingType: 'tower', owner: 'player1', position: { x: 20, z: 20 } };
-    expect(isAuthorizedPlayerCommand(richEnough, tower, 'player1')).toBe(true);
+    expect(isAuthorizedPlayerCommand(richEnough, tower, 'player1')).toBe(false); // torre exige Ferro, Cantaria 3 e quartel
+    expect(isAuthorizedPlayerCommand(unlockAll(richEnough, 'player1', { buildings: true }), tower, 'player1')).toBe(true);
 
     const poorState: GameState = {
       ...richEnough,
@@ -212,7 +214,8 @@ describe('cavalry training', () => {
   it('accepts cavalry orders at the barracks and rejects them elsewhere', () => {
     const cavalry = { type: 'train', buildingId: 'barracks-1', unitType: 'cavalry' as const };
     expect(isValidNetworkCommand(cavalry)).toBe(true);
-    expect(isAuthorizedPlayerCommand(barracksState, cavalry, 'player1')).toBe(true);
+    expect(isAuthorizedPlayerCommand(barracksState, cavalry, 'player1')).toBe(false); // cavalaria exige Ferro e Guerra 2
+    expect(isAuthorizedPlayerCommand(unlockAll(barracksState), cavalry, 'player1')).toBe(true);
     expect(isAuthorizedPlayerCommand(barracksState, { ...cavalry, buildingId: 'town-center-1' }, 'player1')).toBe(false);
     expect(isAuthorizedPlayerCommand(barracksState, cavalry, 'player2')).toBe(false);
   });
@@ -303,7 +306,8 @@ describe('naval combat', () => {
   it('trains warships only at the dock', () => {
     const cmd = { type: 'train', buildingId: 'dock-1', unitType: 'warship' as const };
     expect(isValidNetworkCommand(cmd)).toBe(true);
-    expect(isAuthorizedPlayerCommand(navalState, cmd, 'player1')).toBe(true);
+    expect(isAuthorizedPlayerCommand(navalState, cmd, 'player1')).toBe(false); // navio de guerra exige Navegações, Navegação 4 e Cartografia
+    expect(isAuthorizedPlayerCommand(unlockAll(navalState), cmd, 'player1')).toBe(true);
     expect(isAuthorizedPlayerCommand(navalState, { ...cmd, buildingId: 'barracks-1' }, 'player1')).toBe(false);
     expect(isAuthorizedPlayerCommand(navalState, { ...cmd, buildingId: 'town-center-1' }, 'player1')).toBe(false);
     expect(isAuthorizedPlayerCommand(navalState, cmd, 'player2')).toBe(false);

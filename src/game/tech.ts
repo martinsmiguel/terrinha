@@ -22,10 +22,10 @@ export const LEGACY_ERA: Readonly<Record<string, Era>> = { colonial: 'pedra', co
 export const normalizeEra = (value: unknown): Era =>
   typeof value === 'string' && (ERA_ORDER as readonly string[]).includes(value) ? (value as Era) : LEGACY_ERA[value as string] ?? 'pedra';
 
-/** Era de cada unidade: declarada aqui; a trava de treino por era entra no card #177. */
+/** Era de cada unidade; ofício, pesquisa e construção exigidos ficam em `src/game/unlocks.ts` (card #177). */
 export const UNIT_ERA: Record<UnitType, Era> = {
-  villager: 'pedra', wagon: 'pedra', fishing_boat: 'pedra', trade_boat: 'bronze', cavalry: 'ferro', warship: 'medieval',
-  soldier: 'navegacoes', colonial_transport: 'navegacoes',
+  villager: 'pedra', wagon: 'pedra', fishing_boat: 'pedra', soldier: 'pedra', colonial_transport: 'pedra',
+  trade_boat: 'bronze', cavalry: 'ferro', warship: 'navegacoes',
 };
 
 /** Estatisticas que uma tecnologia pode melhorar. */

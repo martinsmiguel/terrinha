@@ -9,6 +9,8 @@ import { UNIT_COSTS } from '../../src/game/economy';
 import { canAffordResources } from '../../src/game/networkCommands';
 import { evaluateMatch } from '../../src/game/victory';
 import { ScenarioHost, TICKS_PER_SECOND } from './host';
+import { craftLevel } from '../../src/game/mastery';
+import { isUnlocked, missingFor } from '../../src/game/unlocks';
 
 /**
  * ROTEIRO BÁSICO DE PARTIDA, passo a passo (20 passos de simulação por segundo; "F" = frame = passo).
@@ -37,7 +39,7 @@ interface Etapa {
 }
 
 describe('roteiro: duas ilhas e a vitória sobre o inimigo (mundo 280, semente 4242)', () => {
-  it('executa as 23 etapas dentro dos orçamentos, sem comando recusado fora do esperado', () => {
+  it('executa as 24 etapas dentro dos orçamentos, sem comando recusado fora do esperado', () => {
     const h = new ScenarioHost({ size: SIZE, seed: SEED });
     const etapas: Etapa[] = [];
     const enemy = 'player2';
@@ -75,7 +77,8 @@ describe('roteiro: duas ilhas e a vitória sobre o inimigo (mundo 280, semente 4
     const gather = (unit: Unit, type: string, skip = 0) => {
       // Prefere o n-ésimo mais próximo; se ainda não explorado, o mais próximo explorado; sem nenhum (arbusto esgotado
       // e o próximo na névoa), cai na madeira: o jogador também só clica no que vê.
-      const node = h.nearestNode(type, capital.position, skip) ?? h.nearestNode(type, capital.position, 0) ?? h.nearestNode('tree', capital.position, skip);
+      const node = h.nearestNode(type, capital.position, skip) ?? h.nearestNode(type, capital.position, 0) ?? h.nearestNode('tree', capital.position, skip) ?? h.nearestNode('tree', capital.position, 0)
+        ?? h.nearestNode('gold_mine', capital.position, 0); // madeira explorada esgotada: o ouro ainda está à vista
       expect(node, `recurso ${type} (ou madeira) explorado`).toBeDefined();
       return h.send({ type: 'gather', unitId: unit.id, targetId: node!.id });
     };
@@ -106,6 +109,14 @@ describe('roteiro: duas ilhas e a vitória sobre o inimigo (mundo 280, semente 4
     recolocar();
     etapa('E05', '2 Economia', 'Construir o quartel (120 madeira + 30 ouro, 14 s)', 700, () => construir('barracks', h.placementNear('barracks', capital.position)), concluido('barracks'));
     recolocar();
+    // Desbloqueio (#177): a serralheria exige Carpintaria 2. Cortar madeira dá XP; o estudo completa o que faltar.
+    const carpintaria = () => craftLevel(h.state.mastery, 'player1', 'carpintaria');
+    const serralheria = { kind: 'building' as const, type: 'sawmill' as const };
+    if (carpintaria() < 2) expect(missingFor(h.state, 'player1', serralheria), 'serralheria ainda bloqueada').toEqual([{ kind: 'craft', craft: 'carpintaria', level: carpintaria(), required: 2 }]);
+    etapa('E05b', '2 Economia', 'Desbloquear a serralheria: Carpintaria 2 (cortar madeira dá XP; um estudo de 60 madeira + 20 ouro completa)', 1500, () => {
+      if (carpintaria() < 2) diz(h.send({ type: 'study_craft', craft: 'carpintaria' }), 'estudar carpintaria');
+    }, () => carpintaria() >= 2, () => `carpintaria ${carpintaria()}, xp ${h.state.mastery?.player1?.xp.carpintaria ?? 0}`);
+    expect(isUnlocked(h.state, 'player1', serralheria)).toBe(true);
     const tree = h.nearestNode('tree', capital.position)!;
     etapa('E06', '2 Economia', 'Construir a serralheria junto das árvores (110 madeira, 11 s): refina tábuas', 600, () => construir('sawmill', h.placementNear('sawmill', tree.position)), concluido('sawmill'));
     recolocar();

@@ -7,6 +7,7 @@ import {
 import { isBoatUnit, type Building, type GameState, type PlayerResources, type ResourceNode, type Unit, type UnitType } from '../game/engine';
 import type { BuildingType } from '../game/buildingCatalog';
 import { BUILDING_CATALOG } from '../game/buildingCatalog';
+import { UNIT_LABEL } from '../game/unlocks';
 import type { PlayerSlot } from '../game/networkCommands';
 import type { MultiplayerManager } from '../game/multiplayer';
 import { soundManager } from '../game/audio';
@@ -70,6 +71,8 @@ interface SelectionPanelProps {
   handleSetUnitWorkZoneRadius(unitIds: string[], radius: number): void;
   handleSendAllIdleVillagersToBuild(buildingId: string): void;
   handleTrainUnit(unitType: UnitType, count?: number): void;
+  /** O que falta para treinar a unidade (null = desbloqueada); mesma regra do host (`unlocks.ts`). */
+  unitLock?: (unitType: UnitType) => string | null;
   handleCancelTrain(buildingId: string, queueIndex: number): void;
   handleTradeResource(type: 'wood' | 'food' | 'stone', action: 'buy' | 'sell', amount: number): void;
   handleSetGroveHarvestMode(targetId: string, mode: 'sustainable' | 'clear_cut'): void;
@@ -113,7 +116,20 @@ export function SelectionPanel(props: SelectionPanelProps) {
     handleAssignVillagersToResource, handleAssignSelectedSquadToResource, handleRemoveResourceImmediately,
     renderVillagerBuildCatalog, nearestVillagerToSelectedBuilding, handleRepairBuilding,
     handleDemolishBuilding, handleDisembark, routePorts, holdPreview, disembarkPreview, handleLoadCargo, getCapitalSites, focusPoint, triggerNotification, multiRef, onPointerEnterUI, onPointerLeaveUI,
+    unitLock,
   } = props;
+  const lockOf = (unitType: UnitType): string | null => unitLock?.(unitType) ?? null;
+  const canTrain = (unitType: UnitType): boolean => canAfford(myResources, UNIT_COSTS[unitType]) && !lockOf(unitType);
+  const lockNotes = (types: UnitType[]) => {
+    const locked = types.map((type) => ({ type, lock: lockOf(type) })).filter((entry) => entry.lock);
+    return locked.length === 0 ? null : (
+      <div className="text-[10px] text-red-300 space-y-0.5" data-testid="unit-locks">
+        {locked.map((entry) => (
+          <div key={entry.type}>{UNIT_LABEL[entry.type]} bloqueado: falta {entry.lock}</div>
+        ))}
+      </div>
+    );
+  };
   return (
     <>
         {/* Selected Entity Command Card */}
@@ -1146,13 +1162,13 @@ export function SelectionPanel(props: SelectionPanelProps) {
                           <button
                             type="button"
                             disabled={
-                              !canAfford(myResources, UNIT_COSTS.cavalry) ||
+                              !canTrain('cavalry') ||
                               selectedBuilding.trainingQueue.length >= 5 ||
                               myResources.pop + totalQueuedForPlayer >= myResources.maxPop
                             }
                             onClick={() => handleTrainUnit('cavalry', 1)}
                             className={`flex-1 p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
-                              canAfford(myResources, UNIT_COSTS.cavalry) &&
+                              canTrain('cavalry') &&
                               selectedBuilding.trainingQueue.length < 5 &&
                               myResources.pop + totalQueuedForPlayer < myResources.maxPop
                                 ? 'bg-amber-700 hover:bg-amber-800 text-white font-bold border-amber-500 shadow-md shadow-amber-700/10 hover:scale-[1.01]'
@@ -1166,13 +1182,13 @@ export function SelectionPanel(props: SelectionPanelProps) {
                           <button
                             type="button"
                             disabled={
-                              !canAfford(myResources, UNIT_COSTS.cavalry) ||
+                              !canTrain('cavalry') ||
                               selectedBuilding.trainingQueue.length >= 5 ||
                               myResources.pop + totalQueuedForPlayer >= myResources.maxPop
                             }
                             onClick={() => handleTrainUnit('cavalry', 5)}
                             className={`px-3 py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1 transition-all ${
-                              canAfford(myResources, UNIT_COSTS.cavalry) &&
+                              canTrain('cavalry') &&
                               selectedBuilding.trainingQueue.length < 5 &&
                               myResources.pop + totalQueuedForPlayer < myResources.maxPop
                                 ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700'
@@ -1184,6 +1200,7 @@ export function SelectionPanel(props: SelectionPanelProps) {
                             <span>+5</span>
                           </button>
                         </div>
+                        {lockNotes(['soldier', 'cavalry'])}
                         </>
                       )}
 
@@ -1193,13 +1210,13 @@ export function SelectionPanel(props: SelectionPanelProps) {
                           <button
                             type="button"
                             disabled={
-                              !canAfford(myResources, UNIT_COSTS.fishing_boat) ||
+                              !canTrain('fishing_boat') ||
                               selectedBuilding.trainingQueue.length >= 5 ||
                               myResources.pop + totalQueuedForPlayer >= myResources.maxPop
                             }
                             onClick={() => handleTrainUnit('fishing_boat', 1)}
                             className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all ${
-                              canAfford(myResources, UNIT_COSTS.fishing_boat) &&
+                              canTrain('fishing_boat') &&
                               selectedBuilding.trainingQueue.length < 5 &&
                               myResources.pop + totalQueuedForPlayer < myResources.maxPop
                                 ? 'bg-blue-600 hover:bg-blue-500 text-white font-bold border-blue-400 shadow-md shadow-blue-500/10 hover:scale-[1.01]'
@@ -1216,13 +1233,13 @@ export function SelectionPanel(props: SelectionPanelProps) {
                           <button
                             type="button"
                             disabled={
-                              !canAfford(myResources, UNIT_COSTS.trade_boat) ||
+                              !canTrain('trade_boat') ||
                               selectedBuilding.trainingQueue.length >= 5 ||
                               myResources.pop + totalQueuedForPlayer >= myResources.maxPop
                             }
                             onClick={() => handleTrainUnit('trade_boat', 1)}
                             className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all ${
-                              canAfford(myResources, UNIT_COSTS.trade_boat) &&
+                              canTrain('trade_boat') &&
                               selectedBuilding.trainingQueue.length < 5 &&
                               myResources.pop + totalQueuedForPlayer < myResources.maxPop
                                 ? 'bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold border-amber-400 shadow-md shadow-amber-500/10 hover:scale-[1.01]'
@@ -1239,13 +1256,13 @@ export function SelectionPanel(props: SelectionPanelProps) {
                           <button
                             type="button"
                             disabled={
-                              !canAfford(myResources, UNIT_COSTS.warship) ||
+                              !canTrain('warship') ||
                               selectedBuilding.trainingQueue.length >= 5 ||
                               myResources.pop + totalQueuedForPlayer >= myResources.maxPop
                             }
                             onClick={() => handleTrainUnit('warship', 1)}
                             className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all ${
-                              canAfford(myResources, UNIT_COSTS.warship) &&
+                              canTrain('warship') &&
                               selectedBuilding.trainingQueue.length < 5 &&
                               myResources.pop + totalQueuedForPlayer < myResources.maxPop
                                 ? 'bg-rose-700 hover:bg-rose-600 text-white font-bold border-rose-400 shadow-md shadow-rose-500/10 hover:scale-[1.01]'
@@ -1258,6 +1275,7 @@ export function SelectionPanel(props: SelectionPanelProps) {
                             </div>
                             <span className="font-mono text-[11px] text-rose-200">{describeCost(UNIT_COSTS.warship)}</span>
                           </button>
+                          <div className="sm:col-span-2">{lockNotes(['fishing_boat', 'trade_boat', 'warship'])}</div>
                         </div>
                       )}
 

@@ -30,7 +30,8 @@ interface GameHeaderProps {
   handleSelectIdleVillager(): void;
   setIsEmpireCatalogOpen(value: boolean): void;
   handleJumpToResource(type: 'tree' | 'gold_mine' | 'food_bush' | 'fish_school' | 'stone'): void;
-  setBuildMode(type: BuildingType): void;
+  /** Devolve `false` quando a construção está bloqueada (o aviso já foi dado). */
+  setBuildMode(type: BuildingType): boolean | void;
   triggerNotification(message: string, type?: 'info' | 'success' | 'warning'): void;
   role: 'host' | 'client' | 'single';
   handleRegenerateProceduralMap(): void;
@@ -210,7 +211,7 @@ export function GameHeader({
                 onOpenMarket={() => setIsEmpireCatalogOpen(true)}
                 onJumpToResource={handleJumpToResource}
                 onQuickBuild={(type) => {
-                  setBuildMode(type);
+                  if (setBuildMode(type) === false) return;
                   soundManager.playClickSound();
                   triggerNotification(`Modo de Construção: ${BUILDING_CATALOG[type]?.name || type}. Clique no terreno para erguer a obra.`, 'info');
                 }}

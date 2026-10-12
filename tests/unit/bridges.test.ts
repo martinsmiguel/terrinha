@@ -4,6 +4,7 @@ import type { Building, GameState, Unit } from '../../src/game/model';
 import { isAuthorizedPlayerCommand } from '../../src/game/networkCommands';
 import { findPath } from '../../src/game/movement/pathfinding';
 import { tickGameState, type SimulationContext } from '../../src/game/simulation';
+import { unlockAll } from '../fixtures/unlocks';
 
 /** Rio vertical em x entre 20 e 28 (largura 8); oceano a x >= 60; ilha única (localidade 'home'). */
 const river = (x: number) => x > 20 && x < 28;
@@ -52,7 +53,8 @@ describe('validação da ponte', () => {
 
   it('o host autoriza só ponte válida e nunca uma ponte pelo comando de construção comum', () => {
     const cmd = { type: 'build_bridge', a: span.a, b: span.b, builderIds: ['v1'] };
-    expect(isAuthorizedPlayerCommand(world(), cmd, 'player1', undefined, terrain)).toBe(true);
+    expect(isAuthorizedPlayerCommand(world(), cmd, 'player1', undefined, terrain)).toBe(false); // ponte exige Era do Ferro e Carpintaria 3
+    expect(isAuthorizedPlayerCommand(unlockAll(world()), cmd, 'player1', undefined, terrain)).toBe(true);
     expect(isAuthorizedPlayerCommand(world(), { ...cmd, b: { x: 60, z: 30 } }, 'player1', undefined, terrain)).toBe(false);
     expect(isAuthorizedPlayerCommand(world(), { type: 'build', buildingType: 'bridge', owner: 'player1', position: { x: 24, z: 30 } }, 'player1', undefined, terrain)).toBe(false);
   });

@@ -6,6 +6,7 @@ import { BOAT_CAPACITY, isBoatUnit, worldSizeOf } from './model';
 import { UNIT_ATTRIBUTES } from './unitAttributes';
 import { BUILDING_CATALOG } from './buildingCatalog';
 import { researchBlock } from './tech';
+import { isUnlocked } from './unlocks';
 import { FOUNDATION_KIT, lifePhase } from './foundation';
 import { canTarget, isExploredBy, type OwnerVision } from './visionAuthority';
 import { bodyOf, type BodyId } from './bodyModel';
@@ -371,6 +372,7 @@ export function isAuthorizedPlayerCommand(
     case 'build': {
       if (value.owner !== owner) return false;
       if (value.buildingType === 'bridge') return false; // ponte só por `build_bridge`, com as duas margens
+      if (!isUnlocked(state, owner, { kind: 'building', type: value.buildingType })) return false;
       const def = BUILDING_CATALOG[value.buildingType];
       const resources = state.playerResources[owner];
       if (!def || !resources || !canPayAt(state, owner, payerLocality(state, owner, value.buildingType, value.position, terrain?.localityOf), effectiveBuildCost(state, owner, value.buildingType, def.cost))) return false;
@@ -385,6 +387,7 @@ export function isAuthorizedPlayerCommand(
     case 'train': {
       const building = ownsBuilding(state, value.buildingId, owner);
       if (!building || !building.isComplete || !canAffordTraining(state, building, value.unitType, terrain?.localityOf)) return false;
+      if (!isUnlocked(state, owner, { kind: 'unit', type: value.unitType })) return false;
       return (
         (building.type === 'town_center' && value.unitType === 'villager') ||
         (building.type === 'barracks' && (value.unitType === 'soldier' || value.unitType === 'cavalry')) ||
@@ -436,6 +439,7 @@ export function isAuthorizedPlayerCommand(
     case 'build_bridge': {
       // Margens da mesma ilha, vão de água doce até 12, declive, aldeões próprios, saldo e posição conhecida: tudo no host.
       if (!terrain || !hasBridgeTerrain(terrain)) return false;
+      if (!isUnlocked(state, owner, { kind: 'building', type: 'bridge' })) return false;
       if (vision && !(isExploredBy(vision, owner, value.a.x, value.a.z) && isExploredBy(vision, owner, value.b.x, value.b.z))) return false;
       return checkBridge(state, owner, { a: value.a, b: value.b }, value.builderIds, terrain).ok;
     }

@@ -26,7 +26,7 @@ export interface BuildingDef {
   footprintWidth: number;
   footprintDepth: number;
   requiresWater?: boolean; // Docks must be built near river/water
-  /** Era da construção: declarada aqui; a trava por era entra no card #177. */
+  /** Era da construção; ofício, pesquisa e construção exigidos ficam em `src/game/unlocks.ts` (card #177). */
   era: Era;
 }
 
@@ -47,7 +47,7 @@ export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
   },
   barracks: {
     type: 'barracks',
-    era: 'bronze',
+    era: 'pedra',
     name: 'Quartel Militar',
     category: 'militar',
     description: 'Guarnição militar para treinamento de infantaria e mosqueteiros imperiais.',
@@ -75,7 +75,7 @@ export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
   },
   sawmill: {
     type: 'sawmill',
-    era: 'bronze',
+    era: 'pedra',
     name: 'Serralheria & Madeireira',
     category: 'economia',
     description: 'Oficina de corte e tábuas. Aumenta a velocidade de coleta florestal e fornece tábuas nobres.',
@@ -146,7 +146,7 @@ export const BUILDING_CATALOG: Record<BuildingType, BuildingDef> = {
   },
   outpost: {
     type: 'outpost',
-    era: 'bronze',
+    era: 'pedra',
     name: 'Posto Avançado',
     category: 'economia',
     description: 'Entreposto regional em solo conhecido: marca território, habilita a economia local e cura tropas terrestres próprias.',
