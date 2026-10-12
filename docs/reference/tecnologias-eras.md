@@ -29,8 +29,8 @@ atual e o necessário (vermelho = falta).
   alcançável estudando; trabalhar (aprender fazendo) chega lá sem gastar.
 - Estados salvos com as eras antigas continuam válidos: `colonial` vira Pedra,
   `commercial` vira Navegações (`normalizeEra`).
-- Toda unidade (`UNIT_ERA`) e todo edifício (`BuildingDef.era`) declaram a era; a trava de
-  treino e construção por era entra no card #177.
+- Toda unidade (`UNIT_ERA`) e todo edifício (`BuildingDef.era`) declaram a era; a trava de treino e construção, com
+  ofício, pesquisa e construção exigidos, está em [desbloqueios](unidades-edificios.md#desbloqueios-card-177).
 
 ## Tecnologias
 

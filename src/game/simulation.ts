@@ -8,7 +8,8 @@ import { bridgeVersion, completedBridges, relocateFromDestroyed, withBridges } f
 import { buildFlowField, followFlowField, type FlowField } from './movement/flowField';
 import { applyStormDamage, stormAt, stormPhase } from './storms';
 import { BLESSING_FARM, BRISA_SPEED, hasTalent } from './talents';
-import { BOT_STUDY_INTERVAL_SECONDS, botStudyChoice, canUseRecipe, creditAll, studyCraft, type XpEvent } from './mastery';
+import { BOT_STUDY_INTERVAL_SECONDS, botStudyChoice, canUseRecipe, craftLevels, creditAll, studyCraft, type XpEvent } from './mastery';
+import { isUnlocked } from './unlocks';
 import { blessingMultiplier, seasonFarmFactor, seasonOf, tickBuffs } from './mysticism';
 import { isExploredBy } from './visionAuthority';
 import { stepRoute } from './tradeRoutes';
@@ -23,7 +24,7 @@ import { consumeReachedWaypoints, findPath } from './movement/pathfinding';
 import { resolveSeparation } from './movement/separation';
 import { stepToward } from './movement/step';
 import { applyPopDelta, countDeathsByOwner } from './population';
-import { advanceResearch, gatherMultiplier, TECH_DEFS, unitDamageMultiplier } from './tech';
+import { advanceResearch, ERA_ORDER, eraIndex, gatherMultiplier, startResearch, TECH_DEFS, unitDamageMultiplier } from './tech';
 import type { TechState } from './tech';
 import type { Building } from './model';
 import { evaluateMatch } from './victory';
@@ -905,7 +906,9 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
         }
       } else if (aiBarracks && aiBarracks.isComplete && aiBarracks.trainingQueue.length === 0 && aiUnits.filter((u) => u.type === 'soldier' || u.type === 'cavalry').length < 8) {
         const militaryCount = aiUnits.filter((u) => u.type === 'soldier' || u.type === 'cavalry').length;
-        trainAt(aiBarracks, militaryCount % 3 === 2 ? 'cavalry' : 'soldier');
+        const unlockState = { buildings: updatedBuildings, techs: updatedTechs, mastery: state.mastery };
+        const cavalryTurn = militaryCount % 3 === 2 && isUnlocked(unlockState, aiSlot, { kind: 'unit', type: 'cavalry' });
+        trainAt(aiBarracks, cavalryTurn ? 'cavalry' : 'soldier');
       }
 
       // Preparo naval (só no perfil Incursões, com quartel pronto e alvo conhecido do outro lado): serraria (tábuas), cais e transporte.
@@ -921,6 +924,7 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
           const found = (type: 'sawmill' | 'dock', cost: { wood: number }, spot: { x: number; z: number } | undefined) => {
             const res = updatedResources[aiSlot];
             if (!res || !spot || !canAfford(res, cost)) return;
+            if (!isUnlocked({ buildings: updatedBuildings, techs: updatedTechs, mastery: state.mastery }, aiSlot, { kind: 'building', type })) return;
             updatedResources[aiSlot] = applyCost(res, cost);
             const id = context.createId();
             updatedBuildings.push({ id, type, owner: aiSlot, position: spot, health: 80, maxHealth: 700, isComplete: false, buildProgress: 0, trainingQueue: [] });
@@ -1017,6 +1021,18 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
           if (studied.check.ok) {
             updatedResources = studied.state.playerResources;
             xpEvents.push({ owner: aiSlot, event: { kind: 'study', craft: command.craft, xp: studied.check.xp } });
+          }
+        }
+        // Era: com os ofícios exigidos e recursos, a IA avança pelo mesmo comando `research` do jogador.
+        const techState = updatedTechs[aiSlot];
+        const nextEra = techState ? ERA_ORDER[eraIndex(techState.era) + 1] : undefined;
+        const research = nextEra ? { type: 'research' as const, id: `era:${nextEra}` } : null;
+        const eraSnapshot = { ...snapshot, playerResources: updatedResources };
+        if (techState && research && isAuthorizedPlayerCommand(eraSnapshot, research, aiSlot as PlayerSlot, context.vision)) {
+          const started = startResearch(techState, research.id, updatedResources[aiSlot], craftLevels(state.mastery, aiSlot));
+          if (started) {
+            updatedTechs[aiSlot] = started.techState;
+            updatedResources = { ...updatedResources, [aiSlot]: started.resources };
           }
         }
       }

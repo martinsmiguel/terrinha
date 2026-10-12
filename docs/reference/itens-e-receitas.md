@@ -38,5 +38,5 @@ Sem item ou receita repetidos; toda entrada e saída aponta para item existente;
 
 ## Limites desta primeira fatia
 
-- Só as receitas contínuas (refino passivo por construção) existem; receitas por lote e pesquisa como exigência entram em #177. Ofícios: ver [ofícios do império](oficios.md).
+- Só as receitas contínuas (refino passivo por construção) existem; receitas por lote ficam para depois; desbloqueio de construções e unidades está em [desbloqueios](unidades-edificios.md#desbloqueios-card-177). Ofícios: ver [ofícios do império](oficios.md).
 - O mercado continua trocando madeira, comida e pedra, que são os itens com a etiqueta `comercializável`.

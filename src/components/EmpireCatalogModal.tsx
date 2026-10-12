@@ -38,6 +38,8 @@ interface EmpireCatalogModalProps {
   onTradeResource: (type: MarketResourceType, action: 'buy' | 'sell', amount: number) => void;
   onSelectBuildingToBuild: (type: BuildingType) => void;
   activeGatherersCount: { wood: number; food: number; gold: number; fish: number };
+  /** O que falta para construir (null = desbloqueada); mesma regra do host. */
+  buildLock?: (type: BuildingType) => string | null;
 }
 
 export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
@@ -47,6 +49,7 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
   onTradeResource,
   onSelectBuildingToBuild,
   activeGatherersCount,
+  buildLock,
 }) => {
   const dialogRef = useDialogFocus<HTMLDivElement>(isOpen);
   const [activeTab, setActiveTab] = useState<'catalog' | 'chains' | 'market' | 'stats'>('catalog');
@@ -171,7 +174,8 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               {buildingList.map((type) => {
                 const def = BUILDING_CATALOG[type];
-                const affordable = canAfford(playerResources, def.cost);
+                const lock = buildLock?.(type) ?? null;
+                const affordable = canAfford(playerResources, def.cost) && !lock;
 
                 return (
                   <div
@@ -240,7 +244,9 @@ export const EmpireCatalogModal: React.FC<EmpireCatalogModalProps> = ({
                             );
                           })}
                         <span className="text-slate-400 text-[10px]">{def.buildTimeSeconds}s</span>
-                        {!affordable && (
+                        {lock ? (
+                          <span className="text-red-400 text-[10px]">Falta: {lock}</span>
+                        ) : !affordable && (
                           <span className="text-red-400 text-[10px]">
                             {missingCost(playerResources, def.cost, 'short')}
                           </span>

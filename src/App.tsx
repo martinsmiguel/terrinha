@@ -30,6 +30,7 @@ import { soundManager } from './game/audio';
 import { update3DHealthBar, align3DHealthBarToCamera } from './game/healthBar';
 import { createBuildingGhost, updateBuildingGhost, checkBuildingPlacementValid } from './game/buildingGhost';
 import { BUILDING_CATALOG, BuildingType } from './game/buildingCatalog';
+import { describeMissing, missingFor } from './game/unlocks';
 import { resolveHotkey, syncOverlayOrder, type OverlayId } from './game/hotkeys';
 import { generateProceduralTerrain, findNearestOceanCell, ProceduralMapResult } from './game/proceduralMap';
 import { EmpireCatalogModal } from './components/EmpireCatalogModal';
@@ -318,6 +319,25 @@ export default function App() {
 
   // Building placement mode & preview
   const [buildMode, setBuildMode] = useState<BuildingType | null>(null);
+  /** O que falta ao jogador local para construir (vazio = desbloqueado); o host aplica a mesma regra (`unlocks.ts`). */
+  const buildLock = (type: BuildingType): string | null => {
+    const missing = missingFor(gameStateRef.current, playerSlot, { kind: 'building', type });
+    return missing.length > 0 ? describeMissing(missing) : null;
+  };
+  const unitLock = (type: UnitType): string | null => {
+    const missing = missingFor(gameStateRef.current, playerSlot, { kind: 'unit', type });
+    return missing.length > 0 ? describeMissing(missing) : null;
+  };
+  /** Entra no modo de construção só se a construção estiver desbloqueada; senão avisa o que falta. */
+  const enterBuildMode = (type: BuildingType): boolean => {
+    const lock = buildLock(type);
+    if (lock) {
+      triggerNotification(`${BUILDING_CATALOG[type]?.name ?? type} bloqueado: falta ${lock}.`, 'warning');
+      return false;
+    }
+    setBuildMode(type);
+    return true;
+  };
   const [buildPreviewInfo, setBuildPreviewInfo] = useState<{
     x: number;
     z: number;
@@ -1747,7 +1767,7 @@ export default function App() {
           break;
         }
         case 'build': {
-          setBuildMode(action.building);
+          if (!enterBuildMode(action.building)) break;
           soundManager.playClickSound();
           const def = BUILDING_CATALOG[action.building];
           triggerNotification(`Modo de Construção: ${def.name}. Clique no chão para posicionar.`, 'info');
@@ -2463,6 +2483,11 @@ export default function App() {
   // Train unit in building with multi-queue support (up to 5 slots)
   const handleTrainUnit = (unitType: UnitType, count: number = 1) => {
     if (!selectedEntity || selectedEntity.kind !== 'building') return;
+    const lock = unitLock(unitType);
+    if (lock) {
+      triggerNotification(`Unidade bloqueada: falta ${lock}.`, 'warning');
+      return;
+    }
 
     const b = gameState.buildings.find((bd) => bd.id === selectedEntity.id);
     if (!b || b.owner !== playerSlot) return;
@@ -3201,7 +3226,8 @@ export default function App() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-56 sm:max-h-none overflow-y-auto pr-0.5">
           {buildings.map((type) => {
             const def = BUILDING_CATALOG[type];
-            const affordable = canAfford(myResources, def.cost);
+            const lock = buildLock(type);
+            const affordable = canAfford(myResources, def.cost) && !lock;
 
             const icon =
               type === 'house' ? (
@@ -3227,8 +3253,9 @@ export default function App() {
                 key={type}
                 type="button"
                 disabled={!affordable}
+                title={lock ? `Bloqueado: falta ${lock}` : undefined}
                 onClick={() => {
-                  setBuildMode(type);
+                  if (!enterBuildMode(type)) return;
                   soundManager.playClickSound();
                   triggerNotification(`Modo de Construção: ${def.name}. Clique no terreno para erguer.`, 'info');
                 }}
@@ -3272,7 +3299,11 @@ export default function App() {
                   <span className="text-slate-400 text-[9px]">{def.buildTimeSeconds}s</span>
                 </div>
 
-                {!affordable && (
+                {lock ? (
+                  <div className="text-[9px] text-red-400 font-medium mt-0.5 truncate" data-testid={`lock-${type}`}>
+                    Falta: {lock}
+                  </div>
+                ) : !affordable && (
                   <div className="text-[9px] text-red-400 font-medium mt-0.5 truncate">
                     {missingCost(myResources, def.cost, 'short')}
                   </div>
@@ -3453,7 +3484,7 @@ export default function App() {
         handleSelectIdleVillager={handleSelectIdleVillager}
         setIsEmpireCatalogOpen={setIsEmpireCatalogOpen}
         handleJumpToResource={handleJumpToResource}
-        setBuildMode={setBuildMode}
+        setBuildMode={enterBuildMode}
         triggerNotification={triggerNotification}
         role={role}
         handleRegenerateProceduralMap={handleRegenerateProceduralMap}
@@ -3578,6 +3609,7 @@ export default function App() {
         </div>
 
         <SelectionPanel
+          unitLock={unitLock}
           getCapitalSites={(wagon) =>
             capitalSitesFor(gameState, wagon).map(({ x, z }) => ({
               x,
@@ -3743,9 +3775,10 @@ export default function App() {
         onClose={() => setIsEmpireCatalogOpen(false)}
         playerResources={myResources}
         onTradeResource={handleTradeResource}
+        buildLock={buildLock}
         onSelectBuildingToBuild={(type) => {
           setIsEmpireCatalogOpen(false);
-          setBuildMode(type);
+          if (!enterBuildMode(type)) return;
           soundManager.playClickSound();
           triggerNotification(`Modo de Construção: ${BUILDING_CATALOG[type]?.name || type}. Posicione no mapa.`, 'info');
         }}

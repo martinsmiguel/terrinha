@@ -6,6 +6,7 @@ import { isAuthorizedPlayerCommand } from '../../src/game/networkCommands';
 import type { Building, GameState, Unit } from '../../src/game/model';
 import { tickGameState, type SimulationContext } from '../../src/game/simulation';
 import { updateOwnerVision } from '../../src/game/visionAuthority';
+import { unlockAll } from '../fixtures/unlocks';
 
 const building = (overrides: Partial<Building> = {}): Building => ({
   id: 'b', type: 'outpost', owner: 'player1', position: { x: 50, z: 50 }, health: 900, maxHealth: 900, isComplete: true, trainingQueue: [], ...overrides,
@@ -99,7 +100,8 @@ describe('autorização de fundar posto', () => {
   const stand = { canStandAt: (_body: string, x: number) => x < 150 };
 
   it('aceita solo conhecido e transitável a 24 ou mais da capital e recusa perto demais', () => {
-    expect(isAuthorizedPlayerCommand(state, command(50, 50 + 24), 'player1', vision, stand as never)).toBe(true);
+    expect(isAuthorizedPlayerCommand(state, command(50, 50 + 24), 'player1', vision, stand as never)).toBe(false); // posto exige cais
+    expect(isAuthorizedPlayerCommand(unlockAll(state, 'player1', { buildings: true }), command(50, 50 + 24), 'player1', vision, stand as never)).toBe(true);
     expect(isAuthorizedPlayerCommand(state, command(50, 50 + 10), 'player1', vision, stand as never)).toBe(false);
   });
 
