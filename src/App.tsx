@@ -12,6 +12,7 @@ import { canUndoBatch, previewBatch, recordBatch, undoBatch, type BatchCommand, 
 import { RulesPanel } from './components/RulesPanel';
 import { applyRules, canEditRules } from './game/rulesAdmin';
 import { TalentPanel } from './components/TalentPanel';
+import { RecipeBook } from './components/RecipeBook';
 import { CommandPalette } from './components/CommandPalette';
 import { focusLocality, type PaletteEntry, type PaletteLocality } from './game/commandPalette';
 import { computeArchipelago } from './game/archipelago';
@@ -204,6 +205,7 @@ export default function App() {
   const [isTechPanelOpen, setIsTechPanelOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isTalentsOpen, setIsTalentsOpen] = useState(false);
+  const [isRecipeBookOpen, setIsRecipeBookOpen] = useState(false);
   const [pendingBatch, setPendingBatch] = useState<{ title: string; preview: BatchPreview } | null>(null);
   const [batchRecord, setBatchRecord] = useState<BatchRecord | null>(null);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
@@ -1624,6 +1626,7 @@ export default function App() {
   if (showTutorial) openOverlays.add('tutorial');
   if (isPaletteOpen) openOverlays.add('palette');
   if (isTalentsOpen) openOverlays.add('talents');
+  if (isRecipeBookOpen) openOverlays.add('recipe-book');
   if (pendingBatch) openOverlays.add('batch');
   if (isRulesOpen) openOverlays.add('rules');
   overlayOrderRef.current = syncOverlayOrder(overlayOrderRef.current, openOverlays);
@@ -1662,6 +1665,7 @@ export default function App() {
           else if (action.overlay === 'controls') setShowControlsModal(false);
           else if (action.overlay === 'palette') setIsPaletteOpen(false);
           else if (action.overlay === 'talents') setIsTalentsOpen(false);
+          else if (action.overlay === 'recipe-book') setIsRecipeBookOpen(false);
           else if (action.overlay === 'batch') setPendingBatch(null);
           else if (action.overlay === 'rules') setIsRulesOpen(false);
           else closeTutorial();
@@ -1711,6 +1715,10 @@ export default function App() {
         case 'toggle-talents':
           e.preventDefault();
           setIsTalentsOpen(true);
+          break;
+        case 'toggle-recipe-book':
+          e.preventDefault();
+          setIsRecipeBookOpen(true);
           break;
         case 'open-palette':
           e.preventDefault();
@@ -3407,6 +3415,10 @@ export default function App() {
         </div>
       )}
 
+      {isRecipeBookOpen && (
+        <RecipeBook state={gameState} owner={playerSlot} onClose={() => setIsRecipeBookOpen(false)} />
+      )}
+
       {isTalentsOpen && (
         <TalentPanel
           state={gameState}
@@ -3446,6 +3458,7 @@ export default function App() {
           canRedo={hud.canRedo}
           onTogglePanel={() => hud.setPanelOpen((prev) => !prev)}
           onOpenTalents={() => setIsTalentsOpen(true)}
+          onOpenRecipeBook={() => setIsRecipeBookOpen(true)}
           bridgeActive={bridgeMode !== null}
           onToggleBridge={() => { setBridgeMode((current) => (current ? null : { first: null })); setBuildMode(null); triggerNotification('Modo ponte: clique nas duas margens do rio ou lago (Esc cancela).', 'info'); }}
           flows={flowRows(flowSamples)}

@@ -3,6 +3,7 @@ import { craftById } from '../game/crafts';
 import { COST_LABEL } from '../game/economy';
 import { MASTERY_IDS, MASTERY_LABEL, MASTERY_MAX_LEVEL, canStudy, normalizeMastery, xpToNext, type MasteryState } from '../game/mastery';
 import { TALENTS, canBuyTalent } from '../game/talents';
+import { describeUnlock, nextCraftUnlock } from '../game/recipeBook';
 import type { GameState } from '../game/model';
 
 interface TalentPanelProps {
@@ -37,6 +38,10 @@ export function TalentPanel({ state, owner, onBuy, onStudy, onClose }: TalentPan
                 <div className="flex justify-between"><span>{MASTERY_LABEL[id]}</span><span className="font-mono text-amber-200">nível {level}{level >= MASTERY_MAX_LEVEL ? ' (máx.)' : ''}</span></div>
                 <div className="mt-1 h-1.5 overflow-hidden rounded bg-slate-800"><div className="h-full bg-amber-500" style={{ width: next ? `${Math.min(100, (xp / next) * 100)}%` : '100%' }} /></div>
                 <div className="mt-0.5 text-[10px] text-slate-400">{next ? `${Math.floor(xp)} / ${next} XP` : 'sem XP além do nível 10'} · {craftById(id)?.learnedBy}</div>
+                {(() => {
+                  const unlock = nextCraftUnlock(state.mastery, owner, id);
+                  return unlock && <div className="text-[10px] text-sky-300">Nível {unlock.level} abre: {unlock.items.map(describeUnlock).join(', ')}</div>;
+                })()}
                 {(() => {
                   const study = canStudy(state, owner, id);
                   const cost = study.ok ? Object.entries(study.cost).map(([key, value]) => `${value} ${COST_LABEL[key as keyof typeof COST_LABEL]}`).join(' + ') : '';

@@ -2,7 +2,7 @@ import type { BuildingType as BuildableType } from './buildingCatalog';
 import type { BuildingType, UnitType } from './model';
 
 /** Overlays modais, na ordem em que foram abertos (o último é o mais recente). */
-export type OverlayId = 'world-map' | 'work-zone' | 'empire-catalog' | 'controls' | 'tutorial' | 'palette' | 'talents' | 'rules' | 'batch';
+export type OverlayId = 'world-map' | 'work-zone' | 'empire-catalog' | 'controls' | 'tutorial' | 'palette' | 'talents' | 'rules' | 'batch' | 'recipe-book';
 
 export type SquadFormation = 'box' | 'line' | 'spread';
 
@@ -16,6 +16,7 @@ export type HotkeyAction =
   | { kind: 'toggle-hud-panel' }
   | { kind: 'open-palette' }
   | { kind: 'toggle-talents' }
+  | { kind: 'toggle-recipe-book' }
   | { kind: 'toggle-rules' }
   | { kind: 'hud-undo' }
   | { kind: 'hud-redo' }
@@ -119,6 +120,8 @@ export interface HotkeyTarget {
 
 export interface HotkeyEventLike {
   key: string;
+  /** Tecla física (`KeyL`), independente do layout e do Alt. */
+  code?: string;
   ctrlKey?: boolean;
   metaKey?: boolean;
   altKey?: boolean;
@@ -171,6 +174,10 @@ export function resolveHotkey(event: HotkeyEventLike, context: HotkeyContext, de
   // Alt+T abre/fecha os talentos (Alt não colide com as teclas de jogo, como o P da pesca); com overlay aberto só o Esc age.
   if (event.key.toLowerCase() === 't' && event.altKey && !event.ctrlKey && !event.metaKey && !isEditableTarget(event.target) && context.overlays.length === 0) {
     return { kind: 'toggle-talents' };
+  }
+  // Alt+L abre o livro do império (receitas e ofícios); usa também o código da tecla, porque no Mac Alt muda o caractere.
+  if ((event.key.toLowerCase() === 'l' || event.code === 'KeyL') && event.altKey && !event.ctrlKey && !event.metaKey && !isEditableTarget(event.target) && context.overlays.length === 0) {
+    return { kind: 'toggle-recipe-book' };
   }
   // Ctrl/Cmd+K abre a busca, mesmo a partir de um botão; em campo de texto e com overlay aberto não age.
   if (event.key.toLowerCase() === 'k' && (event.ctrlKey || event.metaKey) && !event.altKey && !isEditableTarget(event.target) && context.overlays.length === 0) {

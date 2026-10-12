@@ -38,6 +38,10 @@ Os cinco primeiros são **de base** (`core`): todo saldo os tem. Os demais são 
 - **Ferramenta de pedra:** com ao menos uma no estoque da metrópole, cada aldeão coleta em terra **+20%** e gasta 0,0005 ferramenta por passo (uma a cada 100 s de trabalho).
 - A tábua já existia na Pedra antes deste card e continua lá, porque o transporte colonial depende dela. O carvão vegetal é a ponte para a metalurgia.
 
+## Livro do império (#179)
+
+**Alt+L** ou o botão **Receitas** do HUD abrem o livro, lido do registro (`src/game/recipeBook.ts`): toda receita com estação, ofício e nível, era, fórmula por 5 s, o que ela abre na cadeia e, para o jogador, se está disponível ou o que falta. Busca sem acento por nome, item ou construção, e filtros por era e ofício. Receita nova no registro aparece sem mexer na interface. A aba **Ofícios** mostra nível, XP e o que o próximo nível abre.
+
 ## Acrescentar um item
 
 1. Criar `src/game/items/<id>.ts` exportando `{ id, name, short, era, source, tags, chipClass } as const satisfies ItemDef`.

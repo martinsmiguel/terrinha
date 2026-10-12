@@ -19,6 +19,8 @@ interface HudContextPanelProps {
   canRedo: boolean;
   onTogglePanel(): void;
   onOpenTalents(): void;
+  /** Abre o livro do império (receitas e ofícios). */
+  onOpenRecipeBook?(): void;
   bridgeActive: boolean;
   onToggleBridge(): void;
   flows: FlowRow[];
@@ -97,6 +99,17 @@ export function HudContextPanel(props: HudContextPanelProps) {
         Talentos <kbd className="rounded bg-slate-800 px-1 font-mono text-[10px]">Alt+T</kbd>
         {props.talentPoints > 0 && <span className="rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-slate-950" aria-label={`${props.talentPoints} pontos disponíveis`}>{props.talentPoints}</span>}
       </button>
+
+      {props.onOpenRecipeBook && (
+        <button
+          type="button"
+          onClick={props.onOpenRecipeBook}
+          title="Livro do império: receitas e ofícios (Alt+L)"
+          className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-950/90 px-2.5 py-1 text-[11px] font-semibold text-slate-200 hover:border-amber-500/60"
+        >
+          Receitas <kbd className="rounded bg-slate-800 px-1 font-mono text-[10px]">Alt+L</kbd>
+        </button>
+      )}
 
       <button
         type="button"
