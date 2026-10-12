@@ -3,6 +3,7 @@ import { Castle, Check, Compass, X } from 'lucide-react';
 import type { Unit } from '../game/model';
 import { CAPITAL_BUILD_SECONDS, FOUNDATION_KIT } from '../game/foundation';
 import type { CapitalSiteReport } from '../game/capitalSite';
+import { MAX_NAME_LENGTH, sanitizeName } from '../game/identity';
 
 export interface CapitalSiteOption {
   x: number;
@@ -17,12 +18,14 @@ interface FoundationPanelProps {
   kit?: { wood: number; stone: number };
   getOptions(wagon: Unit): CapitalSiteOption[];
   onPreview(x: number, z: number): void;
-  onConfirm(x: number, z: number): void;
+  onConfirm(x: number, z: number, civName?: string): void;
   /** Escolha livre no mapa (#195): prévia segue o cursor/toque e o clique fixa o ponto. */
   picking?: boolean;
   picked?: CapitalSiteOption | null;
   onPickOnMap?(): void;
   onCancelPick?(): void;
+  /** Sugestão para o nome da civilização (#198). */
+  suggestedCivName?: string;
 }
 
 const CHECKS: { key: 'space' | 'terrain' | 'access' | 'discovered' | 'kit'; label: string }[] = [
@@ -34,8 +37,10 @@ const CHECKS: { key: 'space' | 'terrain' | 'access' | 'discovered' | 'kit'; labe
 ];
 
 /** Escolha da sede: a carroça só vira capital ao confirmar; cancelar não altera a partida. */
-export function FoundationPanel({ wagon, buildingCount, kit, getOptions, onPreview, onConfirm, picking = false, picked = null, onPickOnMap, onCancelPick }: FoundationPanelProps) {
+export function FoundationPanel({ wagon, buildingCount, kit, getOptions, onPreview, onConfirm, picking = false, picked = null, onPickOnMap, onCancelPick, suggestedCivName = '' }: FoundationPanelProps) {
   const [choice, setChoice] = useState<number | null>(null);
+  const [civName, setCivNameInput] = useState(suggestedCivName);
+  const cleanCivName = sanitizeName(civName);
   const options = useMemo(
     () => getOptions(wagon),
     // A lista depende de onde a carroça está e do que já ocupa o terreno; não de cada tick.
@@ -55,6 +60,18 @@ export function FoundationPanel({ wagon, buildingCount, kit, getOptions, onPrevi
         Ande com a carroça até onde quiser e escolha o ponto no mapa (perto do mar, num morro…) ou use um sítio sugerido. O kit ({FOUNDATION_KIT.wood} madeira e {FOUNDATION_KIT.stone} pedra) fica reservado e não entra no
         suprimento. Cancelar não gasta nada.
       </p>
+
+      <label htmlFor="civ-name" className="mt-2 block font-semibold text-slate-300">Nome da sua civilização</label>
+      <input
+        id="civ-name"
+        type="text"
+        value={civName}
+        maxLength={MAX_NAME_LENGTH}
+        onChange={(event) => setCivNameInput(event.target.value)}
+        aria-invalid={!cleanCivName}
+        className="mt-1 min-h-10 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm text-white focus:border-amber-500 focus:outline-none"
+      />
+      {!cleanCivName && <p className="mt-1 text-amber-300">Dê um nome de 1 a {MAX_NAME_LENGTH} caracteres.</p>}
 
       {onPickOnMap && (
         <button
@@ -122,8 +139,8 @@ export function FoundationPanel({ wagon, buildingCount, kit, getOptions, onPrevi
           <div className="mt-3 flex gap-2">
             <button
               type="button"
-              disabled={!selected.report.valid}
-              onClick={() => onConfirm(selected.x, selected.z)}
+              disabled={!selected.report.valid || !cleanCivName}
+              onClick={() => onConfirm(selected.x, selected.z, cleanCivName ?? undefined)}
               className="flex items-center gap-1.5 rounded-xl bg-amber-700 px-3 py-1.5 font-bold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-300"
             >
               <Compass className="h-3.5 w-3.5" aria-hidden="true" /> Fundar aqui ({CAPITAL_BUILD_SECONDS} s)

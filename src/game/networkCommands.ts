@@ -1,6 +1,7 @@
 import type { Building, BuildingType, GameState, PlayerResources, ResourceNode, Unit, UnitType } from './model';
 import { isCraftId } from './crafts';
 import { canStudy, craftLevels } from './mastery';
+import { sanitizeName } from './identity';
 import { ITEM_IDS } from './items';
 import { BOAT_CAPACITY, isBoatUnit, worldSizeOf } from './model';
 import { UNIT_ATTRIBUTES } from './unitAttributes';
@@ -100,7 +101,7 @@ export type NetworkCommand = CommandMetadata & (
   | { type: 'pause_route' | 'resume_route'; boatId: string }
   | { type: 'redirect_route'; boatId: string; end: 'a' | 'b'; port: RoutePort }
   | { type: 'trade'; resource: MarketResourceType; action: 'buy' | 'sell'; amount: number; marketId?: string }
-  | { type: 'found_capital'; wagonId: string; position: Position }
+  | { type: 'found_capital'; wagonId: string; position: Position; civName?: string }
 );
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -257,7 +258,8 @@ export function isValidNetworkCommand(value: unknown, mapSize: number = MAP_LIMI
     case 'redirect_route':
       return allowedKeys('boatId', 'end', 'port') && isId(value.boatId) && (value.end === 'a' || value.end === 'b') && isRoutePort(value.port);
     case 'found_capital':
-      return allowedKeys('wagonId', 'position') && isId(value.wagonId) && isPosition(value.position);
+      return allowedKeys('wagonId', 'position', 'civName') && isId(value.wagonId) && isPosition(value.position)
+        && (value.civName === undefined || sanitizeName(value.civName) !== null);
     case 'trade':
       return (
         allowedKeys('resource', 'action', 'amount', 'marketId') &&
