@@ -1,12 +1,16 @@
 import { BOT_PROFILE_LABEL, DEFAULT_BOT_PROFILE, type BotProfile } from '../game/bots';
 import { WORLD_SIZE_OPTIONS } from '../game/worldConfig';
-import type { Dispatch, SetStateAction } from 'react';
-import { Check, Copy, Play, Shield, Sparkles, Users, Wifi } from 'lucide-react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
+import { ArrowLeft, BookOpen, Check, Copy, Play, Shield, Sparkles, Users, Wifi } from 'lucide-react';
 import { FACTION_COLORS } from '../game/factions';
 import { soundManager } from '../game/audio';
 import type { PlayerSlot } from '../game/networkCommands';
+import { HelpContent } from './HelpContent';
 
 type GameRole = 'host' | 'client' | 'single';
+
+/** Telas do menu principal (#200): início com o perfil, treino solo, multiplayer na rede e ajuda. */
+export type LobbyView = 'inicio' | 'solo' | 'multiplayer' | 'ajuda';
 
 interface LobbyScreenProps {
   lanIps: string[];
@@ -27,63 +31,32 @@ interface LobbyScreenProps {
   worldSize: number;
   setWorldSize: Dispatch<SetStateAction<number>>;
   onStartGame(role: GameRole): void;
+  /** Tela inicial: o link de convite (`?sala=`) abre direto no multiplayer. */
+  initialView?: LobbyView;
 }
+
+const MENU_BUTTON = 'flex min-h-14 w-full items-center gap-3 rounded-2xl border px-4 text-left transition-all active:scale-[0.99]';
 
 export function LobbyScreen({
   lanIps, copiedIp, copyLanUrl, playerName, setPlayerName, roomId, setRoomId,
   playerSlot, setPlayerSlot, lobbyError, matchSize, setMatchSize, botProfile, setBotProfile, worldSize, setWorldSize, onStartGame,
+  initialView = 'inicio',
 }: LobbyScreenProps) {
-  return (
+  const [view, setView] = useState<LobbyView>(initialView);
+  const go = (next: LobbyView) => { setView(next); soundManager.playClickSound(); };
+  const back = (
+    <button type="button" onClick={() => go('inicio')} className="flex min-h-10 items-center gap-1.5 rounded-xl bg-slate-800 px-3 text-xs font-semibold text-slate-200 hover:bg-slate-700">
+      <ArrowLeft className="h-4 w-4" /> Menu principal
+    </button>
+  );
 
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/40 flex items-center justify-center p-4 text-slate-100 selection:bg-amber-500 selection:text-slate-950">
-        <div className="max-w-xl w-full bg-slate-900/90 backdrop-blur-xl border border-amber-500/20 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
-          {/* Brand Header */}
-          <div className="text-center space-y-2">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 mb-1 shadow-inner">
-              <Shield className="w-9 h-9" />
-            </div>
-            <h1 className="text-3xl font-black tracking-tight text-white flex items-center justify-center gap-2">
-              Crônicas da Vila <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">AoE3 Web</span>
-            </h1>
-            <p className="text-sm text-slate-400">
-              Jogo de Estratégia em Tempo Real com Construção de Bases e Multiplayer 100% Offline via Wi-Fi/LAN
-            </p>
-          </div>
-
-          {/* LAN Connection Banner */}
-          <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-4 space-y-2">
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
-              <span className="flex items-center gap-1.5 text-emerald-400">
-                <Wifi className="w-4 h-4" /> Servidor Local (Docker / Localhost)
-              </span>
-              <span className="text-slate-400 font-mono">Porta: 3000</span>
-            </div>
-
-            <div className="flex items-center gap-2 bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 text-xs font-mono">
-              <span className="text-slate-400">IP na Rede Local:</span>
-              <span className="text-amber-300 font-bold flex-1 truncate">
-                http://{lanIps[0] || 'localhost'}:3000
-              </span>
-              <button
-                type="button"
-                onClick={copyLanUrl}
-                className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg flex items-center gap-1 transition-colors text-[11px] font-sans font-medium"
-              >
-                {copiedIp ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                {copiedIp ? 'Copiado!' : 'Copiar Link'}
-              </button>
-            </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              <strong>Dica Multiplayer:</strong> Qualquer pessoa conectada no mesmo Wi-Fi pode abrir este link no navegador do celular ou PC para entrar na sua partida sem precisar de internet!
-            </p>
-          </div>
-
-          {/* Player Configurations */}
+  const profile = (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Seu Nome / Título</label>
+                <label htmlFor="player-name" className="block text-xs font-medium text-slate-400 mb-1">Seu nome (como os outros te veem)</label>
                 <input
+                  id="player-name"
                   type="text"
                   value={playerName}
                   onChange={(e) => setPlayerName(e.target.value)}
@@ -91,15 +64,6 @@ export function LobbyScreen({
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Código da Sala (LAN)</label>
-                <input
-                  type="text"
-                  value={roomId}
-                  onChange={(e) => setRoomId(e.target.value)}
-                  className="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 font-mono"
-                />
-              </div>
             </div>
 
             <div>
@@ -123,33 +87,46 @@ export function LobbyScreen({
               </div>
             </div>
           </div>
+  );
 
-          {lobbyError && (
-            <p role="alert" className="rounded-xl border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-200">
-              {lobbyError}
+  return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/40 flex items-center justify-center p-4 text-slate-100 selection:bg-amber-500 selection:text-slate-950">
+        <div className="max-w-xl w-full bg-slate-900/90 backdrop-blur-xl border border-amber-500/20 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+          {/* Brand Header */}
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 mb-1 shadow-inner">
+              <Shield className="w-9 h-9" />
+            </div>
+            <h1 className="text-3xl font-black tracking-tight text-white flex items-center justify-center gap-2">
+              Crônicas da Vila <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">AoE3 Web</span>
+            </h1>
+            <p className="text-sm text-slate-400">
+              Jogo de Estratégia em Tempo Real com Construção de Bases e Multiplayer 100% Offline via Wi-Fi/LAN
             </p>
+          </div>
+
+          {view === 'inicio' && (
+            <>
+              {/* Perfil: vale para o solo e para a rede */}
+              {profile}
+
+              <nav aria-label="Menu principal" className="space-y-2">
+                <button type="button" onClick={() => go('solo')} className={`${MENU_BUTTON} border-amber-500/50 bg-amber-500 text-slate-950 hover:bg-amber-400`}>
+                  <Sparkles className="h-5 w-5" /><span><span className="block font-bold">Jogar solo</span><span className="block text-xs opacity-80">Treino contra a IA, sem internet</span></span>
+                </button>
+                <button type="button" onClick={() => go('multiplayer')} className={`${MENU_BUTTON} border-slate-700 bg-slate-800 hover:bg-slate-700`}>
+                  <Users className="h-5 w-5 text-amber-300" /><span><span className="block font-bold">Multiplayer na rede</span><span className="block text-xs text-slate-400">Criar uma sala ou entrar na de um amigo, na mesma Wi-Fi</span></span>
+                </button>
+                <button type="button" onClick={() => go('ajuda')} className={`${MENU_BUTTON} border-slate-800 bg-slate-900 hover:bg-slate-800`}>
+                  <BookOpen className="h-5 w-5 text-sky-300" /><span><span className="block font-bold">Ajuda</span><span className="block text-xs text-slate-400">Primeiros passos, controles de teclado e toque</span></span>
+                </button>
+              </nav>
+            </>
           )}
 
-          {/* Action Buttons */}
-          <div className="space-y-2 pt-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => onStartGame('host')}
-                className="py-3.5 px-4 rounded-xl font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all active:scale-[0.98]"
-              >
-                <Play className="w-4 h-4 fill-current" /> Criar Partida (Host LAN)
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onStartGame('client')}
-                className="py-3.5 px-4 rounded-xl font-bold bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-              >
-                <Users className="w-4 h-4" /> Entrar via Código
-              </button>
-            </div>
-
+          {view === 'solo' && (
+            <section aria-labelledby="solo-title" className="space-y-4">
+              <div className="flex items-center justify-between gap-2">{back}<h2 id="solo-title" className="text-lg font-bold text-white">Jogar solo</h2></div>
             <div className="pt-1">
               <span className="block text-xs font-medium text-slate-400 mb-1.5">
                 Treino Solo: jogadores na partida (você + IA)
@@ -179,7 +156,6 @@ export function LobbyScreen({
                   : `${matchSize - 1} colônias rivais controladas pela IA.`}
               </p>
             </div>
-
             <div className="pt-1">
               <span id="bot-profile-label" className="block text-xs font-medium text-slate-400 mb-1.5">Comportamento da IA (treino solo)</span>
               <div role="group" aria-labelledby="bot-profile-label" className="grid grid-cols-3 gap-2">
@@ -203,7 +179,6 @@ export function LobbyScreen({
                 {botProfile === 'peaceful' ? 'A IA nunca inicia agressão.' : botProfile === 'defensive' ? 'A IA reage a quem chega perto e solta a perseguição.' : 'A IA tenta incursões depois de 300 s, só contra alvos já descobertos.'}
               </p>
             </div>
-
             <div className="pt-1">
               <span id="world-size-label" className="block text-xs font-medium text-slate-400 mb-1.5">
                 Tamanho do mundo (vale para você como host ou no treino solo)
@@ -233,17 +208,120 @@ export function LobbyScreen({
                 {WORLD_SIZE_OPTIONS.find((option) => option.size === worldSize)?.status === 'experimental' ? ' Tamanho experimental: o desempenho não é garantido.' : ''}
               </p>
             </div>
+              <button
+                type="button"
+                onClick={() => onStartGame('single')}
+                className="w-full min-h-12 rounded-xl font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all active:scale-[0.98]"
+              >
+                <Play className="w-4 h-4 fill-current" /> Começar treino solo
+              </button>
+            </section>
+          )}
 
-            <button
-              type="button"
-              onClick={() => onStartGame('single')}
-              className="w-full py-2.5 px-4 rounded-xl font-medium bg-slate-900/60 hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-slate-800/80 flex items-center justify-center gap-2 text-xs transition-colors"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Jogar Treino Solo Offline (Contra IA)
-            </button>
+          {view === 'multiplayer' && (
+            <section aria-labelledby="mp-title" className="space-y-4">
+              <div className="flex items-center justify-between gap-2">{back}<h2 id="mp-title" className="text-lg font-bold text-white">Multiplayer na rede</h2></div>
+          {/* LAN Connection Banner */}
+          <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-4 space-y-2">
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
+              <span className="flex items-center gap-1.5 text-emerald-400">
+                <Wifi className="w-4 h-4" /> Servidor Local (Docker / Localhost)
+              </span>
+              <span className="text-slate-400 font-mono">Porta: 3000</span>
+            </div>
+
+            <div className="flex items-center gap-2 bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 text-xs font-mono">
+              <span className="text-slate-400">IP na Rede Local:</span>
+              <span className="text-amber-300 font-bold flex-1 truncate">
+                http://{lanIps[0] || 'localhost'}:3000
+              </span>
+              <button
+                type="button"
+                onClick={copyLanUrl}
+                className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg flex items-center gap-1 transition-colors text-[11px] font-sans font-medium"
+              >
+                {copiedIp ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedIp ? 'Copiado!' : 'Copiar Link'}
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              <strong>Dica Multiplayer:</strong> Qualquer pessoa conectada no mesmo Wi-Fi pode abrir este link no navegador do celular ou PC para entrar na sua partida sem precisar de internet!
+            </p>
           </div>
+              <div>
+                <label htmlFor="room-code" className="block text-xs font-medium text-slate-400 mb-1">Código da sala</label>
+                <input
+                  id="room-code"
+                  type="text"
+                  value={roomId}
+                  onChange={(e) => setRoomId(e.target.value)}
+                  className="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 font-mono"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Quem cria escolhe o código; quem entra usa o mesmo (o link de convite já vem com ele).</p>
+              </div>
+              {profile}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => onStartGame('host')}
+                className="py-3.5 px-4 rounded-xl font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all active:scale-[0.98]"
+              >
+                <Play className="w-4 h-4 fill-current" /> Criar sala (você hospeda)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onStartGame('client')}
+                className="py-3.5 px-4 rounded-xl font-bold bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+              >
+                <Users className="w-4 h-4" /> Entrar na sala
+              </button>
+            </div>
+            <div className="pt-1">
+              <span id="world-size-label" className="block text-xs font-medium text-slate-400 mb-1.5">
+                Tamanho do mundo (vale para você como host ou no treino solo)
+              </span>
+              <div role="group" aria-labelledby="world-size-label" className="grid grid-cols-3 gap-2">
+                {WORLD_SIZE_OPTIONS.map((option) => (
+                  <button
+                    key={option.size}
+                    type="button"
+                    aria-pressed={worldSize === option.size}
+                    onClick={() => {
+                      setWorldSize(option.size);
+                      soundManager.playClickSound();
+                    }}
+                    className={`py-2 rounded-xl border text-xs font-semibold transition-all ${
+                      worldSize === option.size
+                        ? 'bg-amber-500/15 border-amber-500/60 text-amber-300 ring-1 ring-amber-500/30'
+                        : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">
+                {WORLD_SIZE_OPTIONS.find((option) => option.size === worldSize)?.note}
+                {WORLD_SIZE_OPTIONS.find((option) => option.size === worldSize)?.status === 'experimental' ? ' Tamanho experimental: o desempenho não é garantido.' : ''}
+              </p>
+            </div>
+            </section>
+          )}
+
+          {view === 'ajuda' && (
+            <section aria-labelledby="help-title" className="space-y-3">
+              <div className="flex items-center justify-between gap-2">{back}<h2 id="help-title" className="text-lg font-bold text-white">Ajuda</h2></div>
+              <HelpContent />
+            </section>
+          )}
+
+          {lobbyError && (
+            <p role="alert" className="rounded-xl border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-200">
+              {lobbyError}
+            </p>
+          )}
         </div>
       </div>
-
   );
 }

@@ -12,6 +12,7 @@ import { canUndoBatch, previewBatch, recordBatch, undoBatch, type BatchCommand, 
 import { RulesPanel } from './components/RulesPanel';
 import { applyRules, canEditRules } from './game/rulesAdmin';
 import { TalentPanel } from './components/TalentPanel';
+import { PauseMenu } from './components/PauseMenu';
 import { CommandPalette } from './components/CommandPalette';
 import { focusLocality, type PaletteEntry, type PaletteLocality } from './game/commandPalette';
 import { computeArchipelago } from './game/archipelago';
@@ -34,7 +35,7 @@ import { BUILDING_CATALOG, BuildingType } from './game/buildingCatalog';
 import { describeMissing, missingFor } from './game/unlocks';
 import { activeRecipe, describeRecipe, recipeLock, setRecipe, stationRecipes } from './game/production';
 import { recipeById } from './game/recipes';
-import { resolveHotkey, syncOverlayOrder, type OverlayId } from './game/hotkeys';
+import { escapeTarget, resolveHotkey, syncOverlayOrder, type OverlayId } from './game/hotkeys';
 import { generateProceduralTerrain, findNearestOceanCell, ProceduralMapResult } from './game/proceduralMap';
 import { EmpireCatalogModal } from './components/EmpireCatalogModal';
 import { Tutorial } from './components/Tutorial';
@@ -129,7 +130,10 @@ export default function App() {
   // Menu / Lobby state
   const [isGameStarted, setIsGameStarted] = useState(isSoloPreviewRoute);
   const [role, setRole] = useState<'host' | 'client' | 'single'>(isSoloPreviewRoute ? 'single' : 'host');
-  const [roomId, setRoomId] = useState('vila-principal');
+  // Link de convite (#200): `?sala=<código>` abre o menu já no multiplayer, com a sala preenchida.
+  const inviteRoom = (() => { try { return new URLSearchParams(window.location.search).get('sala')?.trim() || null; } catch { return null; } })();
+  const [roomId, setRoomId] = useState(inviteRoom ?? 'vila-principal');
+  const [isPauseOpen, setIsPauseOpen] = useState(false);
   const [playerName, setPlayerName] = useState('Comandante');
   const [playerSlot, setPlayerSlot] = useState<PlayerSlot>('player1');
   const [lobbyError, setLobbyError] = useState<string | null>(null);
@@ -1624,6 +1628,7 @@ export default function App() {
   if (showTutorial) openOverlays.add('tutorial');
   if (isPaletteOpen) openOverlays.add('palette');
   if (isTalentsOpen) openOverlays.add('talents');
+  if (isPauseOpen) openOverlays.add('pause');
   if (pendingBatch) openOverlays.add('batch');
   if (isRulesOpen) openOverlays.add('rules');
   overlayOrderRef.current = syncOverlayOrder(overlayOrderRef.current, openOverlays);
@@ -1662,19 +1667,17 @@ export default function App() {
           else if (action.overlay === 'controls') setShowControlsModal(false);
           else if (action.overlay === 'palette') setIsPaletteOpen(false);
           else if (action.overlay === 'talents') setIsTalentsOpen(false);
+          else if (action.overlay === 'pause') setIsPauseOpen(false);
           else if (action.overlay === 'batch') setPendingBatch(null);
           else if (action.overlay === 'rules') setIsRulesOpen(false);
           else closeTutorial();
           break;
         case 'cancel':
-          if (bridgeModeRef.current) {
-            setBridgeMode(null);
-            triggerNotification('Modo ponte cancelado.', 'info');
-          } else if (buildMode) {
-            setBuildMode(null);
-          } else {
-            setSelectedUnitIds([]);
-            setSelectedEntity(null);
+          switch (escapeTarget({ bridgeMode: Boolean(bridgeModeRef.current), buildMode: buildMode !== null, hasSelection: Boolean(selectedEntity) || selectedUnitIdsRef.current.length > 0 })) {
+            case 'bridge': setBridgeMode(null); triggerNotification('Modo ponte cancelado.', 'info'); break;
+            case 'build': setBuildMode(null); break;
+            case 'selection': setSelectedUnitIds([]); setSelectedEntity(null); break;
+            case 'menu': setIsPauseOpen(true); break; // nada a cancelar: Esc abre o menu do jogo (#200)
           }
           break;
         case 'toggle-camera-lock':
@@ -3066,6 +3069,7 @@ export default function App() {
   if (!isGameStarted) {
     return (
       <LobbyScreen
+        initialView={inviteRoom ? 'multiplayer' : 'inicio'}
         lanIps={lanIps}
         copiedIp={copiedIp}
         copyLanUrl={copyLanUrl}
@@ -3407,6 +3411,28 @@ export default function App() {
         </div>
       )}
 
+      {isPauseOpen && (
+        <PauseMenu
+          multiplayer={role !== 'single'}
+          roomId={roomId}
+          inviteUrl={(() => {
+            const host = lanIps[0] || window.location.hostname;
+            if (!host || host === 'localhost' || host.startsWith('127.')) return null;
+            return `http://${host}:${window.location.port || 3000}/?sala=${encodeURIComponent(roomId)}`;
+          })()}
+          players={activeSlots.map((slot) => ({
+            slot,
+            name: slot === playerSlot ? playerName : FACTION_COLORS[slot]?.name ?? slot,
+            colorClass: FACTION_COLORS[slot]?.colorClass ?? 'bg-slate-500',
+            you: slot === playerSlot,
+            kind: role === 'single' && slot !== playerSlot ? 'IA' : 'humano',
+          }))}
+          onResume={() => setIsPauseOpen(false)}
+          onOpenControls={() => { setIsPauseOpen(false); setShowControlsModal(true); }}
+          onExit={() => { setIsPauseOpen(false); setIsGameStarted(false); }}
+        />
+      )}
+
       {isTalentsOpen && (
         <TalentPanel
           state={gameState}
@@ -3446,6 +3472,7 @@ export default function App() {
           canRedo={hud.canRedo}
           onTogglePanel={() => hud.setPanelOpen((prev) => !prev)}
           onOpenTalents={() => setIsTalentsOpen(true)}
+          onOpenMenu={() => setIsPauseOpen(true)}
           bridgeActive={bridgeMode !== null}
           onToggleBridge={() => { setBridgeMode((current) => (current ? null : { first: null })); setBuildMode(null); triggerNotification('Modo ponte: clique nas duas margens do rio ou lago (Esc cancela).', 'info'); }}
           flows={flowRows(flowSamples)}
