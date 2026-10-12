@@ -80,7 +80,7 @@ import {
 } from './game/economy';
 import { HOME, debitAt, depotsIn, refundAt, tradeAt } from './game/depots';
 import { PLAYER_SLOTS, payerLocality, hostLeftSessionMessage, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, soloMatchSlots, type PlayerSlot } from './game/networkCommands';
-import { localOutcome, type LocalOutcome } from './game/victory';
+import { localResult, type LocalOutcome } from './game/victory';
 import {
   createTechState,
   researchTarget,
@@ -3123,8 +3123,9 @@ export default function App() {
   const matchFinished = matchStatus?.status === 'finished';
   const contenders = matchStatus?.players ?? activeSlots;
   const isMatchContender = contenders.includes(playerSlot);
+  // Vitória só pelo resultado oficial do host; o cliente vê o mundo pela névoa e só deduz a própria eliminação (#190).
   const outcome: LocalOutcome = isMatchContender
-    ? localOutcome(playerSlot, gameState.buildings, contenders, gameState.units)
+    ? localResult(playerSlot, gameState.buildings, gameState.units, matchStatus)
     : 'running';
   const showResultScreen = isMatchContender && (matchFinished || outcome !== 'running');
   const isDraw = matchStatus?.status === 'finished' && matchStatus.winner === null;

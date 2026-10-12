@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateMatch, hasTownCenter, localOutcome, townCenterOwners } from '../../src/game/victory';
+import { evaluateMatch, hasTownCenter, localOutcome, localResult, townCenterOwners } from '../../src/game/victory';
 import type { Building } from '../../src/game/engine';
 
 const townCenter = (owner: string, health = 2400): Building => ({
@@ -107,5 +107,32 @@ describe('localOutcome', () => {
   it('hasTownCenter agrees with localOutcome', () => {
     expect(hasTownCenter([townCenter('player1')], 'player1')).toBe(true);
     expect(hasTownCenter([townCenter('player1')], 'player2')).toBe(false);
+  });
+});
+
+describe('localResult (#190): vitória só pelo resultado do host', () => {
+  const wagon = (owner: string) => ({ id: `w-${owner}`, type: 'wagon' as const, owner, position: { x: 1, z: 1 }, targetPosition: null, targetEntityId: null, health: 100, maxHealth: 100, attackDamage: 0, state: 'idle' as const });
+  const running = (players: string[]) => ({ status: 'running' as const, players });
+
+  it('host LAN sozinho: o host diz "em andamento", então não há vitória', () => {
+    expect(localResult('player1', [], [wagon('player1')], running(['player1']))).toBe('running');
+  });
+
+  it('convidado que não vê o oponente pela névoa não vence por isso', () => {
+    // O snapshot do convidado não traz a carroça nem a capital do host: antes isso parecia eliminação do rival.
+    expect(localResult('player2', [], [wagon('player2')], running(['player1', 'player2']))).toBe('running');
+  });
+
+  it('antes do primeiro estado do host, ou fora da lista de jogadores, nada é julgado', () => {
+    expect(localResult('player2', [], [], undefined)).toBe('running');
+    expect(localResult('player2', [], [], running(['player1']))).toBe('running');
+  });
+
+  it('a própria eliminação é derrota; vitória e derrota finais vêm do host', () => {
+    expect(localResult('player1', [], [], running(['player1', 'player2']))).toBe('defeat');
+    const finished = (winner: string | null) => ({ status: 'finished' as const, winner, players: ['player1', 'player2'] });
+    expect(localResult('player1', [townCenter('player1')], [], finished('player1'))).toBe('victory');
+    expect(localResult('player2', [townCenter('player2')], [], finished('player1'))).toBe('defeat');
+    expect(localResult('player1', [townCenter('player1')], [], finished(null))).toBe('defeat');
   });
 });
