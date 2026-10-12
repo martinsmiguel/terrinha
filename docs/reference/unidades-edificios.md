@@ -91,7 +91,7 @@ catálogo de construção nem é treinável.
 | --- | --- |
 | Vida | 300 HP |
 | Velocidade | 0,16 por passo (20 Hz) |
-| Visão | 10 |
+| Visão | 16 |
 | Ataque | nenhum |
 | Origem | só no início da partida (não treinável); conta como 1 de população |
 

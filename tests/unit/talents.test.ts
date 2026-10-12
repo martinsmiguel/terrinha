@@ -91,14 +91,14 @@ describe('os seis efeitos reais', () => {
     expect(food(owned(['bencao'])) / food(base())).toBeCloseTo(1.1, 3);
   });
 
-  it('Farol: visão 14 em cais e posto, e só com o talento', () => {
+  it('Farol: visão 21 em cais e posto, e só com o talento', () => {
     const dock: Building = { id: 'd', type: 'dock', owner: 'player1', position: { x: 50, z: 50 }, health: 700, maxHealth: 700, isComplete: true, trainingQueue: [] };
     const seen = (state: GameState) => {
       const vision = updateOwnerVision(undefined, { ...state, buildings: [dock] }, ['player1'], 100);
-      return [11, 13, 15].map((d) => isVisibleTo(vision, 'player1', 50 + d, 50));
+      return [13, 16, 22].map((d) => isVisibleTo(vision, 'player1', 50 + d, 50));
     };
-    expect(seen(base())).toEqual([false, false, false]); // raio 9 padrão
-    expect(seen(owned(['farol']))).toEqual([true, true, false]); // raio 14
+    expect(seen(base())).toEqual([true, false, false]); // raio 14 padrão
+    expect(seen(owned(['farol']))).toEqual([true, true, false]); // raio 21
     expect(hasTalent(owned(['farol']), 'player1', 'farol')).toBe(true);
   });
 

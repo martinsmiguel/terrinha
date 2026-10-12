@@ -23,7 +23,7 @@ export const TALENTS: readonly TalentDef[] = [
   { id: 'desembarque', name: 'Desembarque ágil', mastery: 'colonizacao', level: 2, cost: 1, effect: 'Desembarque de 0,5 s para 0,25 s por passageiro' },
   { id: 'carpintaria', name: 'Carpintaria', mastery: 'colonizacao', level: 3, requires: 'desembarque', cost: 1, effect: '-20 de madeira no custo de posto e cais' },
   { id: 'bencao', name: 'Bênção agrícola', mastery: 'agricultura', level: 2, cost: 1, effect: '+10% de comida das fazendas' },
-  { id: 'farol', name: 'Farol', mastery: 'exploracao', level: 2, cost: 1, effect: 'Visão 14 em cais e postos' },
+  { id: 'farol', name: 'Farol', mastery: 'exploracao', level: 2, cost: 1, effect: 'Visão 21 em cais e postos' },
 ];
 
 export const talentById = (id: string): TalentDef | undefined => TALENTS.find((talent) => talent.id === id);
@@ -31,7 +31,7 @@ export const talentById = (id: string): TalentDef | undefined => TALENTS.find((t
 export const BRISA_SPEED = 1.15;
 export const CARPENTRY_WOOD_DISCOUNT = 20;
 export const BLESSING_FARM = 1.1;
-export const FAROL_VISION = 14;
+export const FAROL_VISION = 21; // 1,5× o raio padrão de edifício (14, #194)
 
 type Owned = Pick<GameState, 'talents'>;
 

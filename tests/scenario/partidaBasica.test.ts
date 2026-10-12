@@ -127,8 +127,8 @@ describe('roteiro: duas ilhas e a vitória sobre o inimigo (mundo 280, semente 4
     expect(docas, 'sítio de cais na ilha natal').not.toBeNull();
     const scout = h.units('player1', 'soldier')[0];
     etapa('E07', '3 Costa e exército', 'Explorar a costa: o soldado inicial anda até o futuro cais (obra exige local explorado)', 1500, () => {
-      expect(h.explored(docas!), 'a costa começa inexplorada').toBe(false);
-      diz(h.send({ type: 'move', unitId: scout.id, target: docas! }), 'ordem de exploração');
+      // Com a visão maior (#194) a costa pode já estar à vista; só explora se ainda for névoa.
+      if (!h.explored(docas!)) diz(h.send({ type: 'move', unitId: scout.id, target: docas! }), 'ordem de exploração');
     }, () => h.explored(docas!));
     etapa('E08', '3 Costa e exército', 'Construir o cais na margem do oceano navegável (140 madeira, 15 s)', 700, () => construir('dock', docas), concluido('dock'));
     recolocar();
@@ -263,7 +263,7 @@ describe('roteiro: duas ilhas e a vitória sobre o inimigo (mundo 280, semente 4
     const ponto = { x: inimiga.position.x + ((centro.x - inimiga.position.x) / dist) * 14, z: inimiga.position.z + ((centro.z - inimiga.position.z) / dist) * 14 };
     const algumVisivel = () => inimigosVivos().some((u) => canTarget(h.vision, 'player1', u, 'visible'));
     etapa('E21', '6 Combate', 'Marchar em formação até avistar o inimigo (o host só deixa atacar o que se vê)', 1500, () => {
-      expect(algumVisivel(), 'o inimigo começa na névoa').toBe(false);
+      // Com a visão maior (#194) o inimigo pode já estar à vista do desembarque; a marcha segue igual.
       const plano = planGroupMove(tropa().map((u) => ({ id: u.id, position: u.position, body: bodyOf(u.type) })), ponto, 'box', SIZE, h.map.canStandAt);
       expect(plano.unplaced, 'toda unidade recebe um destino válido').toEqual([]);
       for (const ordem of plano.orders) diz(h.send({ type: 'move', unitId: ordem.unitId, target: ordem.target }), 'marchar');

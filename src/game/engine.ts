@@ -50,7 +50,8 @@ export class GameEngine {
   private fogPixels: Uint8Array;
   private static readonly FOG_LEVELS: Record<number, number> = {
     [VISION_UNEXPLORED]: 0,
-    [VISION_EXPLORED]: 110,
+    // Já explorado fica claramente mais claro que o nunca visto (#194); o visível segue pleno.
+    [VISION_EXPLORED]: 170,
     [VISION_VISIBLE]: 255,
   };
 

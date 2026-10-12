@@ -14,14 +14,14 @@ export interface UnitAttributes {
 }
 
 export const UNIT_ATTRIBUTES: Readonly<Record<UnitType, Readonly<UnitAttributes>>> = {
-  villager: { maxHealth: 100, attackDamage: 8, movePerTick: 0.16, attackRangeUnit: 1.2, attackRangeBuilding: 2.5, attackCooldownTicks: 8, bodyRadius: 0.45, visionRadius: 8, canAttack: true },
-  soldier: { maxHealth: 150, attackDamage: 24, movePerTick: 0.2, attackRangeUnit: 4.5, attackRangeBuilding: 5.5, attackCooldownTicks: 12, bodyRadius: 0.45, visionRadius: 11, canAttack: true },
-  cavalry: { maxHealth: 180, attackDamage: 32, movePerTick: 0.3, attackRangeUnit: 2.5, attackRangeBuilding: 3.5, attackCooldownTicks: 8, bodyRadius: 0.55, visionRadius: 8, canAttack: true },
-  fishing_boat: { maxHealth: 220, attackDamage: 0, movePerTick: 0.16, attackRangeUnit: 0, attackRangeBuilding: 0, attackCooldownTicks: 20, bodyRadius: 0.8, visionRadius: 7, canAttack: false },
-  trade_boat: { maxHealth: 220, attackDamage: 0, movePerTick: 0.16, attackRangeUnit: 0, attackRangeBuilding: 0, attackCooldownTicks: 20, bodyRadius: 0.8, visionRadius: 7, canAttack: false },
-  wagon: { maxHealth: 300, attackDamage: 0, movePerTick: 0.16, attackRangeUnit: 0, attackRangeBuilding: 0, attackCooldownTicks: 20, bodyRadius: 0.8, visionRadius: 10, canAttack: false },
-  colonial_transport: { maxHealth: 360, attackDamage: 0, movePerTick: 0.14, attackRangeUnit: 0, attackRangeBuilding: 0, attackCooldownTicks: 20, bodyRadius: 0.9, visionRadius: 7, canAttack: false },
-  warship: { maxHealth: 300, attackDamage: 20, movePerTick: 0.16, attackRangeUnit: 7, attackRangeBuilding: 5, attackCooldownTicks: 16, bodyRadius: 0.8, visionRadius: 8, canAttack: true },
+  villager: { maxHealth: 100, attackDamage: 8, movePerTick: 0.16, attackRangeUnit: 1.2, attackRangeBuilding: 2.5, attackCooldownTicks: 8, bodyRadius: 0.45, visionRadius: 13, canAttack: true },
+  soldier: { maxHealth: 150, attackDamage: 24, movePerTick: 0.2, attackRangeUnit: 4.5, attackRangeBuilding: 5.5, attackCooldownTicks: 12, bodyRadius: 0.45, visionRadius: 16, canAttack: true },
+  cavalry: { maxHealth: 180, attackDamage: 32, movePerTick: 0.3, attackRangeUnit: 2.5, attackRangeBuilding: 3.5, attackCooldownTicks: 8, bodyRadius: 0.55, visionRadius: 14, canAttack: true },
+  fishing_boat: { maxHealth: 220, attackDamage: 0, movePerTick: 0.16, attackRangeUnit: 0, attackRangeBuilding: 0, attackCooldownTicks: 20, bodyRadius: 0.8, visionRadius: 11, canAttack: false },
+  trade_boat: { maxHealth: 220, attackDamage: 0, movePerTick: 0.16, attackRangeUnit: 0, attackRangeBuilding: 0, attackCooldownTicks: 20, bodyRadius: 0.8, visionRadius: 11, canAttack: false },
+  wagon: { maxHealth: 300, attackDamage: 0, movePerTick: 0.16, attackRangeUnit: 0, attackRangeBuilding: 0, attackCooldownTicks: 20, bodyRadius: 0.8, visionRadius: 16, canAttack: false },
+  colonial_transport: { maxHealth: 360, attackDamage: 0, movePerTick: 0.14, attackRangeUnit: 0, attackRangeBuilding: 0, attackCooldownTicks: 20, bodyRadius: 0.9, visionRadius: 11, canAttack: false },
+  warship: { maxHealth: 300, attackDamage: 20, movePerTick: 0.16, attackRangeUnit: 7, attackRangeBuilding: 5, attackCooldownTicks: 16, bodyRadius: 0.8, visionRadius: 13, canAttack: true },
 };
 
 export const RULE_SETTINGS_VERSION = 1;

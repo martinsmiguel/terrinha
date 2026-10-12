@@ -134,14 +134,14 @@ describe('visionRadiusFor', () => {
   });
 
   it('gives soldiers a wider ring than villagers', () => {
-    expect(visionRadiusFor(unit('soldier'))).toBe(11);
-    expect(visionRadiusFor(unit('villager'))).toBe(8);
+    expect(visionRadiusFor(unit('soldier'))).toBe(16);
+    expect(visionRadiusFor(unit('villager'))).toBe(13);
   });
 
   it('gives the town center the widest ring of all buildings', () => {
-    expect(visionRadiusFor(building('town_center'))).toBe(16);
-    expect(visionRadiusFor(building('barracks'))).toBe(12);
-    expect(visionRadiusFor(building('house'))).toBe(9);
+    expect(visionRadiusFor(building('town_center'))).toBe(24);
+    expect(visionRadiusFor(building('barracks'))).toBe(18);
+    expect(visionRadiusFor(building('house'))).toBe(14);
   });
 });
 
