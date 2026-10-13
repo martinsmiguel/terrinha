@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, BookOpen, Check, Copy, Keyboard, LogOut, Play, Share2, Users } from 'lucide-react';
+import { ArrowLeft, BookOpen, Check, Copy, Keyboard, LogOut, Play, Settings, Share2, Users } from 'lucide-react';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 import { HelpContent } from './HelpContent';
 
@@ -22,6 +22,7 @@ interface PauseMenuProps {
   players: PauseMenuPlayer[];
   onResume(): void;
   onOpenControls(): void;
+  onOpenSettings?(): void;
   onExit(): void;
 }
 
@@ -31,7 +32,7 @@ type View = 'menu' | 'ajuda';
  * Menu do jogo (#200): abre por Esc (sem nada a cancelar) ou pelo botão Menu do HUD. A partida continua rodando por
  * trás (no multiplayer o mundo é de todos); sair pede confirmação.
  */
-export function PauseMenu({ multiplayer, inviteUrl, roomId, players, onResume, onOpenControls, onExit }: PauseMenuProps) {
+export function PauseMenu({ multiplayer, inviteUrl, roomId, players, onResume, onOpenControls, onOpenSettings, onExit }: PauseMenuProps) {
   const ref = useDialogFocus<HTMLDivElement>();
   const [view, setView] = useState<View>('menu');
   // Trocar de tela desmonta o botão focado: o foco volta ao diálogo para Esc e Tab seguirem dentro dele.
@@ -105,6 +106,7 @@ export function PauseMenu({ multiplayer, inviteUrl, roomId, players, onResume, o
                 </ul>
               </section>
 
+              {onOpenSettings && <button type="button" onClick={onOpenSettings} className={`${button} bg-slate-800 hover:bg-slate-700`}><Settings className="h-4 w-4" /> Configurações</button>}
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => setView('ajuda')} className={`${button} bg-slate-800 hover:bg-slate-700`}><BookOpen className="h-4 w-4" /> Ajuda</button>
                 <button type="button" onClick={onOpenControls} className={`${button} bg-slate-800 hover:bg-slate-700`}><Keyboard className="h-4 w-4" /> Controles</button>

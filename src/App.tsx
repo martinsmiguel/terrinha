@@ -3,7 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DEFAULT_BOT_PROFILE, type BotProfile } from './game/bots';
+import { type BotProfile } from './game/bots';
+import { loadPreferences, savePreferences } from './game/preferences';
+import { SettingsScreen } from './components/SettingsScreen';
 import { MASTERY_LABEL, craftLevels, creditAll, exploredSectorKeys, studyCraft, type MasteryId } from './game/mastery';
 import { filterSnapshotFor } from './game/snapshotFilter';
 import { DeltaReceiver, DeltaSender, rulesRevisionOf } from './game/snapshotDelta';
@@ -14,7 +16,7 @@ import { applyRules, canEditRules } from './game/rulesAdmin';
 import { TalentPanel } from './components/TalentPanel';
 import { lanShareUrl } from './game/lanAddress';
 import { RecipeBook } from './components/RecipeBook';
-import { civNameOf, nickOf, setCivName, setNick } from './game/identity';
+import { civNameOf, nickOf, sanitizeName, setCivName, setNick } from './game/identity';
 import { PauseMenu } from './components/PauseMenu';
 import { DECORATION_DEFS, decorationById } from './game/decorations';
 import { decorationPlacementReason, nextRotation, placeDecoration, type DecorationRotation } from './game/decor';
@@ -119,7 +121,6 @@ import { applyBuildingFoundation } from './game/buildingOrders';
 import { useSceneSynchronization } from './hooks/useSceneSynchronization';
 import { LobbyScreen } from './components/LobbyScreen';
 import { GameDialogs } from './components/GameDialogs';
-import { DEFAULT_WORLD_SIZE } from './game/worldConfig';
 import { useHudAccessibility } from './hooks/useHudAccessibility';
 import { GameHeader } from './components/GameHeader';
 import { SelectionPanel } from './components/SelectionPanel';
@@ -161,7 +162,14 @@ export default function App() {
   const inviteRoom = (() => { try { return new URLSearchParams(window.location.search).get('sala')?.trim() || null; } catch { return null; } })();
   const [roomId, setRoomId] = useState(inviteRoom ?? 'vila-principal');
   const [isPauseOpen, setIsPauseOpen] = useState(false);
-  const [playerName, setPlayerName] = useState('Comandante');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  // Preferências lembradas no navegador (#199); valores inválidos voltam ao padrão.
+  const [initialPrefs] = useState(() => loadPreferences(typeof window !== 'undefined' ? window.localStorage : undefined));
+  const [isMuted, setIsMuted] = useState(initialPrefs.muted);
+  useEffect(() => {
+    if (soundManager.getMuted() !== isMuted) soundManager.toggleMute();
+  }, [isMuted]);
+  const [playerName, setPlayerName] = useState(initialPrefs.playerName);
   const [playerSlot, setPlayerSlot] = useState<PlayerSlot>('player1');
   const [lobbyError, setLobbyError] = useState<string | null>(null);
   const [lanInfo, setLanInfo] = useState<{ ips: string[]; port?: number }>({ ips: [] });
@@ -176,10 +184,10 @@ export default function App() {
   const [activeSlots, setActiveSlots] = useState<PlayerSlot[]>(['player1', 'player2']);
   const activeSlotsRef = useRef<PlayerSlot[]>(['player1', 'player2']);
   activeSlotsRef.current = activeSlots;
-  const [matchSize, setMatchSize] = useState<2 | 3 | 4>(2);
-  const [botProfile, setBotProfile] = useState<BotProfile>(DEFAULT_BOT_PROFILE);
+  const [matchSize, setMatchSize] = useState<2 | 3 | 4>(initialPrefs.matchSize);
+  const [botProfile, setBotProfile] = useState<BotProfile>(initialPrefs.botProfile);
   /** Dimensão escolhida no lobby (host e solo); a da sessão ativa fica em `worldSizeRef`. */
-  const [worldSizeSetting, setWorldSizeSetting] = useState<number>(DEFAULT_WORLD_SIZE);
+  const [worldSizeSetting, setWorldSizeSetting] = useState<number>(initialPrefs.worldSize);
   const worldSizeRef = useRef<number>(MAP_SIZE);
   /** Visão e exploração por dono, mantidas só no host (autoridade); o cliente apenas desenha a própria névoa. */
   const hostVisionRef = useRef<OwnerVision | undefined>(undefined);
@@ -204,9 +212,15 @@ export default function App() {
 
   // Camera auto-movement locking (locks edge-scrolling for peaceful exploration)
   // Câmera fixa por padrão (#204): sem rolagem pelas bordas, a visão não foge da base ao entrar na partida.
-  const [isCameraAutoMoveLocked, setIsCameraAutoMoveLocked] = useState(true);
-  const isCameraAutoMoveLockedRef = useRef(true);
+  const [isCameraAutoMoveLocked, setIsCameraAutoMoveLocked] = useState(initialPrefs.cameraLocked);
+  const isCameraAutoMoveLockedRef = useRef(initialPrefs.cameraLocked);
   isCameraAutoMoveLockedRef.current = isCameraAutoMoveLocked;
+  // Lembra as preferências no navegador a cada mudança (#199).
+  useEffect(() => {
+    savePreferences(typeof window !== 'undefined' ? window.localStorage : undefined, {
+      playerName, botProfile, worldSize: worldSizeSetting, matchSize, cameraLocked: isCameraAutoMoveLocked, muted: isMuted,
+    });
+  }, [playerName, botProfile, worldSizeSetting, matchSize, isCameraAutoMoveLocked, isMuted]);
 
   // Collapsible bottom cards & minimap state
   const isBottomCardCollapsed = hud.config.selectionCollapsed;
@@ -1783,6 +1797,7 @@ export default function App() {
   if (isTalentsOpen) openOverlays.add('talents');
   if (isRecipeBookOpen) openOverlays.add('recipe-book');
   if (isPauseOpen) openOverlays.add('pause');
+  if (isSettingsOpen) openOverlays.add('settings');
   if (pendingBatch) openOverlays.add('batch');
   if (isRulesOpen) openOverlays.add('rules');
   overlayOrderRef.current = syncOverlayOrder(overlayOrderRef.current, openOverlays);
@@ -1832,6 +1847,7 @@ export default function App() {
           else if (action.overlay === 'talents') setIsTalentsOpen(false);
           else if (action.overlay === 'recipe-book') setIsRecipeBookOpen(false);
           else if (action.overlay === 'pause') setIsPauseOpen(false);
+          else if (action.overlay === 'settings') setIsSettingsOpen(false);
           else if (action.overlay === 'batch') setPendingBatch(null);
           else if (action.overlay === 'rules') setIsRulesOpen(false);
           else closeTutorial();
@@ -3273,10 +3289,39 @@ export default function App() {
     }
   };
 
+  // Configurações (#199): mesma tela no menu principal e no jogo; o que pode mudar com a partida rodando aplica na hora.
+  const settingsScreen = isSettingsOpen ? (
+    <SettingsScreen
+      inGame={isGameStarted}
+      playerName={playerName}
+      onPlayerName={(name) => { const clean = sanitizeName(name); if (clean) { setPlayerName(clean); triggerNotification('Nome atualizado.', 'success'); } }}
+      botProfile={botProfile}
+      botLive={isGameStarted && role !== 'client'}
+      onBotProfile={(profile) => {
+        setBotProfile(profile);
+        if (isGameStarted && role !== 'client') setGameState((prev) => ({ ...prev, botProfile: profile }));
+      }}
+      worldSize={worldSizeSetting}
+      onWorldSize={setWorldSizeSetting}
+      matchSize={matchSize}
+      onMatchSize={setMatchSize}
+      cameraLocked={isCameraAutoMoveLocked}
+      onCameraLocked={(locked) => { setIsCameraAutoMoveLocked(locked); engineRef.current?.setEdgeScrollEnabled(!locked); }}
+      hudMode={hud.config.mode}
+      onHudMode={setHudMode}
+      muted={isMuted}
+      onMuted={setIsMuted}
+      accessibility={accessibility}
+      onClose={() => setIsSettingsOpen(false)}
+    />
+  ) : null;
+
   if (!isGameStarted) {
     return (
+      <>
       <LobbyScreen
         initialView={inviteRoom ? 'multiplayer' : 'inicio'}
+        onOpenSettings={() => setIsSettingsOpen(true)}
         lanUrl={lanUrl}
         copiedIp={copiedIp}
         copyLanUrl={copyLanUrl}
@@ -3300,6 +3345,8 @@ export default function App() {
           setIsGameStarted(true);
         }}
       />
+      {settingsScreen}
+      </>
     );
   }
 
@@ -3653,6 +3700,8 @@ export default function App() {
         <RecipeBook state={gameState} owner={playerSlot} onClose={() => setIsRecipeBookOpen(false)} />
       )}
 
+      {settingsScreen}
+
       {isPauseOpen && (
         <PauseMenu
           multiplayer={role !== 'single'}
@@ -3667,6 +3716,7 @@ export default function App() {
           }))}
           onResume={() => setIsPauseOpen(false)}
           onOpenControls={() => { setIsPauseOpen(false); setShowControlsModal(true); }}
+          onOpenSettings={() => { setIsPauseOpen(false); setIsSettingsOpen(true); }}
           onExit={() => { setIsPauseOpen(false); setIsGameStarted(false); }}
         />
       )}
