@@ -89,7 +89,7 @@ import {
 } from './game/economy';
 import { HOME, debitAt, depotsIn, refundAt, tradeAt } from './game/depots';
 import { PLAYER_SLOTS, payerLocality, hostLeftSessionMessage, isAuthorizedPlayerCommand, isPlayerSlot, isValidNetworkCommand, soloMatchSlots, type PlayerSlot } from './game/networkCommands';
-import { localResult, type LocalOutcome } from './game/victory';
+import { localResult, resultScreenVisible, type LocalOutcome } from './game/victory';
 import {
   ERA_LABEL,
   createTechState,
@@ -121,6 +121,19 @@ import { useHudAccessibility } from './hooks/useHudAccessibility';
 import { GameHeader } from './components/GameHeader';
 import { SelectionPanel } from './components/SelectionPanel';
 
+
+/** Estado de uma partida que ainda não começou: sem unidades, sem resultado, saldos iniciais (#204). */
+const freshMatchState = (): GameState => ({
+  units: [],
+  buildings: [],
+  resourceNodes: [],
+  playerResources: {
+    player1: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 3, maxPop: 15 },
+    player2: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 3, maxPop: 15 },
+    player3: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 3, maxPop: 15 },
+    player4: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 3, maxPop: 15 },
+  },
+});
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -187,8 +200,9 @@ export default function App() {
   const [isHoverPeeking, setIsHoverPeeking] = useState(false);
 
   // Camera auto-movement locking (locks edge-scrolling for peaceful exploration)
-  const [isCameraAutoMoveLocked, setIsCameraAutoMoveLocked] = useState(false);
-  const isCameraAutoMoveLockedRef = useRef(false);
+  // Câmera fixa por padrão (#204): sem rolagem pelas bordas, a visão não foge da base ao entrar na partida.
+  const [isCameraAutoMoveLocked, setIsCameraAutoMoveLocked] = useState(true);
+  const isCameraAutoMoveLockedRef = useRef(true);
   isCameraAutoMoveLockedRef.current = isCameraAutoMoveLocked;
 
   // Collapsible bottom cards & minimap state
@@ -405,17 +419,7 @@ export default function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Core Game State
-  const [gameState, setGameState] = useState<GameState>({
-    units: [],
-    buildings: [],
-    resourceNodes: [],
-    playerResources: {
-      player1: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 3, maxPop: 15 },
-      player2: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 3, maxPop: 15 },
-      player3: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 3, maxPop: 15 },
-      player4: { wood: 350, food: 350, gold: 200, stone: 100, planks: 0, pop: 3, maxPop: 15 },
-    },
-  });
+  const [gameState, setGameState] = useState<GameState>(freshMatchState);
 
   // Alertas agrupados por objeto (rota, tempestade, combate, sede em risco); a memória de vida detecta dano recebido entre leituras.
   const healthMemoryRef = useRef<HealthMemory | undefined>(undefined);
@@ -600,6 +604,13 @@ export default function App() {
 
     const engine = new GameEngine(containerRef.current);
     engineRef.current = engine;
+    engine.setEdgeScrollEnabled(!isCameraAutoMoveLockedRef.current);
+    // Partida nova começa do zero (#204): nada da anterior (resultado, névoa, câmera) passa para esta,
+    // nem no primeiro passo da simulação, que lê o estado pela referência.
+    gameStateRef.current = freshMatchState();
+    setGameState(gameStateRef.current);
+    visionGridRef.current = createVisionGrid({ size: worldSizeRef.current });
+    cameraCenteredRef.current = false;
 
     // Continuous 60fps unit animation callback
     engine.onRenderFrame = (time: number) => {
@@ -959,11 +970,11 @@ export default function App() {
   };
 
   // Ajusta motor, névoa e referência à dimensão do mundo da sessão (host decide; convidado recebe).
-  const applyWorldSize = (size: number) => {
-    if (worldSizeRef.current === size && visionGridRef.current.length === size * size) return;
+  const applyWorldSize = (size: number, options: { resetVision?: boolean } = {}) => {
     worldSizeRef.current = size;
+    // Sempre: o motor da partida nova nasce no tamanho padrão e só ignora quando já está no tamanho (#204).
     engineRef.current?.setWorldSize(size);
-    visionGridRef.current = createVisionGrid({ size });
+    if (options.resetVision || visionGridRef.current.length !== size * size) visionGridRef.current = createVisionGrid({ size });
   };
 
   // Initial map setup with Procedural Archipelago, Town Centers, Resources & Villagers
@@ -983,7 +994,7 @@ export default function App() {
   };
 
   const setupInitialMap = () => {
-    applyWorldSize(worldSizeSetting);
+    applyWorldSize(worldSizeSetting, { resetVision: true });
     const procMap = generateProceduralTerrain(worldSizeSetting);
     proceduralMapRef.current = procMap;
 
@@ -3299,7 +3310,7 @@ export default function App() {
   const outcome: LocalOutcome = isMatchContender
     ? localResult(playerSlot, gameState.buildings, gameState.units, matchStatus)
     : 'running';
-  const showResultScreen = isMatchContender && (matchFinished || outcome !== 'running');
+  const showResultScreen = resultScreenVisible(isMatchContender, matchFinished, outcome, gameState.elapsed ?? 0);
   const isDraw = matchStatus?.status === 'finished' && matchStatus.winner === null;
   const resultLabel = isDraw ? 'EMPATE' : outcome === 'victory' ? 'VITÓRIA' : 'DERROTA';
   const resultToneClass = isDraw
