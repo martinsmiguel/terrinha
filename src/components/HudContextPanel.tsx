@@ -34,6 +34,8 @@ interface HudContextPanelProps {
   identity?: { civName: string; nick: string };
   /** Meta atual (#181): a próxima etapa de crescimento. */
   goal?: { title: string; progress: number; target: number };
+  /** Beleza do império e casas contentes (#206). */
+  beauty?: { total: number; contentHouses: number; houses: number };
   onSelectComposition(composition: HudComposition): void;
   onToggleIdle(enabled: boolean): void;
   onUndo(): void;
@@ -89,6 +91,11 @@ export function HudContextPanel(props: HudContextPanelProps) {
           <span aria-hidden="true">🏰</span>
           <span className="truncate font-semibold">{props.goal.title}</span>
           <span className="font-mono text-amber-300">({props.goal.progress}/{props.goal.target})</span>
+        </div>
+      )}
+      {props.beauty && props.beauty.total > 0 && (
+        <div className="pointer-events-auto rounded-full border border-pink-500/40 bg-slate-950/90 px-2.5 py-1 text-[11px] text-pink-200" data-testid="hud-beauty" title="Enfeites e árvores plantadas perto de fazendas e mercados aumentam a produção (até +25%).">
+          ✿ Beleza {props.beauty.total} · casas contentes {props.beauty.contentHouses}/{props.beauty.houses}
         </div>
       )}
       {props.identity && (

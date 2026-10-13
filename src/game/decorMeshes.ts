@@ -38,6 +38,10 @@ function shapeParts(def: DecorationDef, ghost: boolean, accent: number): THREE.O
       add(new THREE.CylinderGeometry(0.8, 0.8, 0.05, 16), 0x38bdf8, 0.42);
       add(new THREE.CylinderGeometry(0.15, 0.2, 1.1, 8), 0xa8a29e, 0.75);
       break;
+    case 'muda':
+      add(new THREE.CylinderGeometry(0.05, 0.07, 0.5, 6), 0x78350f, 0.25);
+      add(new THREE.ConeGeometry(0.3, 0.6, 7), 0x22c55e, 0.75);
+      break;
     case 'estandarte':
       add(new THREE.CylinderGeometry(0.06, 0.08, 2.4, 6), 0x78350f, 1.2, 0, -0.6);
       add(new THREE.BoxGeometry(0.04, 0.8, 1.0), accent, 1.9, 0, -0.05);
@@ -68,6 +72,12 @@ export function createDecorationGhost(def: DecorationDef, rotation: DecorationRo
   area.position.y = 0.05;
   area.name = 'decor_area';
   group.add(area);
+  // Raio da beleza (#206): anel no chão mostra até onde a peça rende.
+  const ring = new THREE.Mesh(new THREE.RingGeometry(Math.max(0.1, def.radius - 0.12), def.radius, 48), new THREE.MeshBasicMaterial({ color: 0xf472b6, transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.06;
+  ring.name = 'decor_beauty_ring';
+  group.add(ring);
   return group;
 }
 

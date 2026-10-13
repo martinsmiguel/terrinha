@@ -43,6 +43,7 @@ import { BUILDING_CATALOG, BuildingType } from './game/buildingCatalog';
 import { UNIT_LABEL, describeMissing, missingFor } from './game/unlocks';
 import { MobileCommandBar, type OrderMode } from './components/MobileCommandBar';
 import { currentGoal } from './game/goals';
+import { beautySummary } from './game/beauty';
 import { activeRecipe, describeRecipe, recipeLock, setRecipe, stationRecipes } from './game/production';
 import { recipeById } from './game/recipes';
 import { escapeTarget, resolveHotkey, syncOverlayOrder, type OverlayId } from './game/hotkeys';
@@ -3463,6 +3464,7 @@ export default function App() {
                   className={`min-h-16 rounded-xl border p-2 text-left text-[11px] transition-all ${active ? 'border-emerald-400 bg-emerald-900/40' : eraLock ? 'cursor-not-allowed border-slate-800 bg-slate-950/70 text-slate-500' : 'border-slate-700 bg-slate-900/90 hover:border-amber-500/60'}`}>
                   <div className="font-bold text-slate-100">{def.name}</div>
                   <div className={`font-mono text-[10px] ${affordable ? 'text-amber-300' : 'text-red-400'}`}>{describeCost(def.cost)}</div>
+                  <div className="text-[10px] text-pink-300">✿ beleza +{def.beauty} · raio {def.radius}</div>
                   {eraLock && <div className="text-[10px] text-red-300">Falta: {eraLock}</div>}
                 </button>
               );
@@ -3678,7 +3680,7 @@ export default function App() {
             <div className="min-w-0 flex-1 px-1">
               <div className="truncate font-bold text-amber-300">{def?.name} · {decorMode.rotation * 90}°</div>
               <div className={`truncate text-[11px] ${!decorMode.pending ? 'text-slate-400' : ready ? 'text-emerald-300' : 'text-red-300'}`} aria-live="polite">
-                {!decorMode.pending ? 'Toque no chão para posicionar' : ready ? `Pronto: ${describeCost(def?.cost ?? {})}` : reason}
+                {!decorMode.pending ? `Toque no chão para posicionar · ✿ beleza +${def?.beauty ?? 0} (raio ${def?.radius ?? 0})` : ready ? `Pronto: ${describeCost(def?.cost ?? {})} · ✿ +${def?.beauty ?? 0} em ${def?.radius ?? 0} cél.` : reason}
               </div>
             </div>
             <button type="button" onClick={rotateDecor} title="Girar 90° (R)" className="min-h-10 min-w-10 rounded-xl bg-slate-800 px-3 font-bold hover:bg-slate-700">⟳ Girar <kbd className="ml-1 font-mono text-[10px] text-slate-400">R</kbd></button>
@@ -3754,6 +3756,7 @@ export default function App() {
           talentPoints={gameState.mastery?.[playerSlot]?.points ?? 0}
           identity={{ civName: civNameOf(gameState, playerSlot), nick: nickOf(gameState, playerSlot) ?? playerName }}
           goal={currentGoal(gameState, playerSlot)}
+          beauty={beautySummary(gameState, playerSlot)}
           onSelectComposition={hud.setComposition}
           onToggleIdle={hud.setIdleCollapse}
           onUndo={hud.undo}
@@ -3922,7 +3925,7 @@ export default function App() {
               decorations={DECORATION_DEFS.map((def) => ({
                 id: def.id,
                 name: def.name,
-                cost: describeCost(def.cost),
+                cost: `${describeCost(def.cost)} · ✿${def.beauty}`,
                 lock: eraReached(normalizeEra(gameState.techs?.[playerSlot]?.era), def.era) ? null : ERA_LABEL[def.era],
                 affordable: canAfford(myResources, def.cost),
               }))}

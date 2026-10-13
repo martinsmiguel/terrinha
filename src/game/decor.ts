@@ -73,7 +73,7 @@ export function decorationPlacementReason(
   const box: Box = { x, z, w: size.width, d: size.depth };
   if (state.buildings.some((building) => building.health > 0 && overlaps(box, buildingBox(building)))) return 'Sobrepõe uma construção.';
   if ((state.decorations ?? []).some((other) => { const otherBox = decorationBox(other); return otherBox ? overlaps(box, otherBox) : false; })) return 'Sobrepõe outro enfeite.';
-  if (state.resourceNodes.some((node) => node.remaining > 0 && overlaps(box, { x: node.position.x, z: node.position.z, w: 1, d: 1 }))) return 'Sobrepõe um recurso.';
+  if (state.resourceNodes.some((node) => (node.remaining > 0 || node.isRegrowing) && overlaps(box, { x: node.position.x, z: node.position.z, w: 1, d: 1 }))) return 'Sobrepõe um recurso.';
   if (!canPayAt(state, owner, decorationPayer(owner, request.position, terrain), def.cost)) return 'Recursos insuficientes na ilha.';
   return null;
 }
@@ -84,6 +84,11 @@ export function placeDecoration<T extends GameState>(state: T, owner: string, re
   const def = decorationById(request.type)!;
   const paid = debitAt(state, owner, decorationPayer(owner, request.position, terrain), def.cost);
   if (!paid) return state;
+  if (def.kind === 'arvore') {
+    // Muda (#207): entra como árvore em crescimento (o mesmo ciclo do reflorestamento) e é de quem plantou.
+    const tree = { id, type: 'tree' as const, position: { x: request.position.x, z: request.position.z }, remaining: 0, maxCapacity: 150, isRegrowing: true, regrowthProgress: 0, plantedBy: owner };
+    return { ...paid, resourceNodes: [...paid.resourceNodes, tree] };
+  }
   const decoration: Decoration = { id, type: def.id, owner, position: { x: request.position.x, z: request.position.z }, rotation: request.rotation as DecorationRotation };
   return { ...paid, decorations: [...(paid.decorations ?? []), decoration] };
 }
