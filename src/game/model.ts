@@ -102,6 +102,8 @@ export interface ResourceNode {
   regrowthProgress?: number; // 0 to 100
   clusterId?: string; // Id of the forest grove or mineral vein
   clusterName?: string; // Human readable name (e.g., 'Bosque da Base Sul')
+  /** Dono de quem plantou a árvore (#207): conta como beleza dele quando adulta. */
+  plantedBy?: string;
 }
 
 /** Saldo de cada item do registro (`src/game/items/`) mais população atual e máxima. */

@@ -10,6 +10,7 @@ import { applyStormDamage, stormAt, stormPhase } from './storms';
 import { BLESSING_FARM, BRISA_SPEED, hasTalent } from './talents';
 import { BOT_STUDY_INTERVAL_SECONDS, botStudyChoice, craftLevels, creditAll, studyCraft, type XpEvent } from './mastery';
 import { isUnlocked } from './unlocks';
+import { beautyAt, beautyMultiplier, beautySources } from './beauty';
 import { blessingMultiplier, seasonFarmFactor, seasonOf, tickBuffs } from './mysticism';
 import { isExploredBy } from './visionAuthority';
 import { stepRoute } from './tradeRoutes';
@@ -850,12 +851,17 @@ export function tickGameState(state: GameState, context: SimulationContext): Sim
     );
     // Cada fazenda rende 0,1 por passo vezes a fertilidade declarada da ilha onde está.
     const blessing = (hasTalent(state, slot, 'bencao') ? BLESSING_FARM : 1) * seasonFarmFactor(seasonOf(state.elapsed ?? 0));
-    for (const farm of completedFarms) res.food += 0.1 * blessing * (context.fertilityAt?.(farm.position.x, farm.position.z) ?? 1);
+    // Beleza por perto (#206): até +25% na produção da fazenda.
+    const sources = beautySources({ decorations: state.decorations, resourceNodes: updatedNodes }, slot);
+    for (const farm of completedFarms) res.food += 0.1 * blessing * (context.fertilityAt?.(farm.position.x, farm.position.z) ?? 1) * beautyMultiplier(beautyAt(state, slot, farm.position, sources));
 
     const completedMarkets = updatedBuildings.filter(
       (building) => building.owner === slot && building.type === 'market' && building.isComplete && building.health > 0
     ).length;
-    if (completedMarkets > 0) res.gold = (res.gold || 0) + completedMarkets * 0.05;
+    if (completedMarkets > 0) {
+      const markets = updatedBuildings.filter((building) => building.owner === slot && building.type === 'market' && building.isComplete && building.health > 0);
+      res.gold = (res.gold || 0) + markets.reduce((total, market) => total + 0.05 * beautyMultiplier(beautyAt(state, slot, market.position, sources)), 0);
+    }
 
     // Receitas (#178): cada estação da metrópole roda a receita escolhida (ou a padrão) se o dono tem era e ofício.
     const stations = updatedBuildings.filter((building) => building.owner === slot && building.isComplete && building.health > 0

@@ -21,11 +21,12 @@ const world = (era: Era = 'pedra', extra: Partial<GameState> = {}): GameState =>
 const at = (type: string, x: number, z: number, rotation = 0) => ({ type, position: { x, z }, rotation });
 
 describe('registro de enfeites (#180)', () => {
-  it('cinco enfeites, um por arquivo, com era, custo e área', () => {
+  it('enfeites e a muda, um por arquivo, com era, custo, área e beleza', () => {
     const files = readdirSync(join(__dirname, '../../src/game/decorations')).filter((f) => f.endsWith('.ts') && !['index.ts', 'types.ts'].includes(f));
     expect(files).toHaveLength(DECORATION_DEFS.length);
-    expect(DECORATION_DEFS).toHaveLength(5);
-    expect(DECORATION_DEFS.map((def) => def.era)).toEqual(['pedra', 'pedra', 'bronze', 'ferro', 'medieval']);
+    expect(DECORATION_DEFS).toHaveLength(6);
+    expect(DECORATION_DEFS.map((def) => def.era)).toEqual(['pedra', 'pedra', 'pedra', 'bronze', 'ferro', 'medieval']);
+    for (const def of DECORATION_DEFS) expect(def.beauty > 0 && def.radius > 0).toBe(true);
     for (const def of DECORATION_DEFS) expect(Object.values(def.cost).every((amount) => (amount ?? 0) > 0)).toBe(true);
   });
 

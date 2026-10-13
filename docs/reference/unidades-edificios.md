@@ -62,6 +62,11 @@ Fontes: `src/game/decorations/` (um arquivo por enfeite) e `src/game/decor.ts` (
 
 - **Prévia:** segue o cursor em verde (pode) ou vermelho (não pode); o clique ou toque no mapa fixa a posição. **Girar** (botão ou **R**) vira 90°, trocando largura e profundidade. **Confirmar** (✓ ou **Enter**) aplica; **Cancelar** (✕ ou **Esc**) sai sem gastar nada.
 - **Host** (`place_decoration { decoration, position, rotation }`): enfeite do registro, quartos de volta 0–3, era alcançada, célula explorada, dentro do mapa, terra firme e seca, sem sobrepor construção, outro enfeite ou recurso, e custo pago pelo estoque da ilha onde fica.
+- **Beleza (#206):** cada enfeite irradia beleza num raio (canteiro 2/5, menir 1/4, braseiro 2/5, fonte 4/7, estandarte 2/6;
+  árvore plantada adulta 1/4). Fazendas e mercados ganham +5% de produção por ponto de beleza que os alcança, até +25%.
+  Casas com beleza ≥ 2 por perto contam como contentes (HUD: "✿ Beleza · casas contentes"). A prévia mostra o anel do raio.
+- **Plantar árvore (#207):** "Plantar árvore" (5 madeira + 5 comida) na aba Decoração cria uma muda que cresce em ~18 s e
+  vira árvore cortável (150 de madeira), de quem plantou; não se planta sobre outra árvore ou muda.
 - Enfeites alheios só chegam ao jogador em células já exploradas. Sem efeito de jogo além do custo nesta fatia; desenho provisório, sem arte final.
 
 ## Unidades
