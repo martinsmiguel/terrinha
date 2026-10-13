@@ -1,3 +1,4 @@
+import { isPresenceList, type PresenceEntry } from './presence';
 import { io, Socket } from 'socket.io-client';
 import { isValidNetworkCommand, type NetworkCommand, type PlayerSlot } from './networkCommands';
 
@@ -20,6 +21,8 @@ export class MultiplayerManager {
   onPlayerJoined?: (data: { id: string; playerName: string; playerCount: number; playerSlot?: string }) => void;
   onPlayerLeft?: (data: { id: string; playerName: string; playerCount: number; playerSlot?: string; isHost?: boolean }) => void;
   onChatMessage?: (chat: ChatMessage) => void;
+  /** Lista de presença da sala (#211): quem está online e quem já passou. */
+  onPresence?: (players: PresenceEntry[]) => void;
   onConnectionStatus?: (connected: boolean) => void;
   onJoinError?: (message: string) => void;
   /** Lado do mundo da sessão: o host valida as posições dos comandos recebidos contra ele. */
@@ -92,6 +95,11 @@ export class MultiplayerManager {
     });
 
     // Chat
+    this.socket.on('presence', (data: unknown) => {
+      const players = (data as { players?: unknown } | null)?.players;
+      if (isPresenceList(players)) this.onPresence?.(players);
+    });
+
     this.socket.on('chat-message-broadcast', (chat: ChatMessage) => {
       this.onChatMessage?.(chat);
     });

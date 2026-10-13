@@ -58,4 +58,12 @@ describe('aviso de saída de jogador', () => {
     guest.disconnect();
     expect(await left).toMatchObject({ isHost: false, playerSlot: 'player2' });
   });
+
+  it('presença (#211): todos recebem a lista; quem sai continua como offline', async () => {
+    const { host, guest } = await room();
+    const update = waitFor<{ players: { slot: string; online: boolean }[] }>(host, 'presence');
+    guest.disconnect();
+    const { players } = await update;
+    expect(players.map((p) => [p.slot, p.online])).toEqual([['player1', true], ['player2', false]]);
+  });
 });
