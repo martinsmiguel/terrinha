@@ -32,6 +32,8 @@ interface HudContextPanelProps {
   talentPoints: number;
   /** Nome da civilização e nick do jogador (#198). */
   identity?: { civName: string; nick: string };
+  /** Meta atual (#181): a próxima etapa de crescimento. */
+  goal?: { title: string; progress: number; target: number };
   onSelectComposition(composition: HudComposition): void;
   onToggleIdle(enabled: boolean): void;
   onUndo(): void;
@@ -82,6 +84,13 @@ export function HudContextPanel(props: HudContextPanelProps) {
       onMouseEnter={props.onPointerEnterUI}
       onMouseLeave={props.onPointerLeaveUI}
     >
+      {props.goal && (
+        <div className="pointer-events-auto flex max-w-[18rem] items-center gap-2 rounded-xl border border-amber-500/50 bg-slate-950/90 px-2.5 py-1 text-[11px] text-amber-100" data-testid="hud-goal" aria-live="polite">
+          <span aria-hidden="true">🏰</span>
+          <span className="truncate font-semibold">{props.goal.title}</span>
+          <span className="font-mono text-amber-300">({props.goal.progress}/{props.goal.target})</span>
+        </div>
+      )}
       {props.identity && (
         <div className="pointer-events-auto max-w-[16rem] truncate rounded-full border border-slate-700 bg-slate-950/90 px-2.5 py-1 text-[11px] text-slate-200" data-testid="hud-identity" title={`${props.identity.civName} — ${props.identity.nick}`}>
           <strong className="text-amber-300">{props.identity.civName}</strong> · {props.identity.nick}
