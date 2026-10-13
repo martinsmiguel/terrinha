@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateMatch, hasTownCenter, localOutcome, townCenterOwners } from '../../src/game/victory';
+import { RESULT_GRACE_SECONDS, evaluateMatch, hasTownCenter, localOutcome, resultScreenVisible, townCenterOwners } from '../../src/game/victory';
 import type { Building } from '../../src/game/engine';
 
 const townCenter = (owner: string, health = 2400): Building => ({
@@ -107,5 +107,19 @@ describe('localOutcome', () => {
   it('hasTownCenter agrees with localOutcome', () => {
     expect(hasTownCenter([townCenter('player1')], 'player1')).toBe(true);
     expect(hasTownCenter([townCenter('player1')], 'player2')).toBe(false);
+  });
+});
+
+describe('resultScreenVisible (#204): nada de resultado no início', () => {
+  it('nos primeiros segundos não há tela de resultado, mesmo com a partida marcada como terminada', () => {
+    expect(resultScreenVisible(true, true, 'defeat', 0)).toBe(false);
+    expect(resultScreenVisible(true, true, 'victory', RESULT_GRACE_SECONDS - 0.05)).toBe(false);
+  });
+
+  it('depois do início, mostra quando a partida termina ou o jogador cai; nunca para quem não disputa', () => {
+    expect(resultScreenVisible(true, true, 'victory', RESULT_GRACE_SECONDS)).toBe(true);
+    expect(resultScreenVisible(true, false, 'defeat', 60)).toBe(true);
+    expect(resultScreenVisible(true, false, 'running', 60)).toBe(false);
+    expect(resultScreenVisible(false, true, 'victory', 60)).toBe(false);
   });
 });
