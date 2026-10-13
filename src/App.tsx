@@ -40,7 +40,9 @@ import { soundManager } from './game/audio';
 import { update3DHealthBar, align3DHealthBarToCamera } from './game/healthBar';
 import { createBuildingGhost, createCapitalGhost, updateBuildingGhost, checkBuildingPlacementValid } from './game/buildingGhost';
 import { BUILDING_CATALOG, BuildingType } from './game/buildingCatalog';
-import { describeMissing, missingFor } from './game/unlocks';
+import { UNIT_LABEL, describeMissing, missingFor } from './game/unlocks';
+import { MobileCommandBar, type OrderMode } from './components/MobileCommandBar';
+import { currentGoal } from './game/goals';
 import { activeRecipe, describeRecipe, recipeLock, setRecipe, stationRecipes } from './game/production';
 import { recipeById } from './game/recipes';
 import { escapeTarget, resolveHotkey, syncOverlayOrder, type OverlayId } from './game/hotkeys';
@@ -462,6 +464,20 @@ export default function App() {
   const capitalGhost = useRef<THREE.Group | null>(null);
   const capitalPressRef = useRef(false);
   const decorGhost = useRef<THREE.Group | null>(null);
+  /** Celular e tela estreita (#181): barra de comando no pé da tela e ordens por toque. */
+  const [isTouchLayout, setIsTouchLayout] = useState(() => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse), (max-width: 767px)').matches);
+  useEffect(() => {
+    const query = window.matchMedia('(pointer: coarse), (max-width: 767px)');
+    const update = () => setIsTouchLayout(query.matches);
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+  /** Ação escolhida na barra (Mover/Atacar): o próximo toque no mapa envia a ordem. */
+  const [orderMode, setOrderMode] = useState<OrderMode | null>(null);
+  const orderModeRef = useRef(orderMode);
+  orderModeRef.current = orderMode;
+  const orderPressRef = useRef(false);
+  const contextOrderRef = useRef<(clientX: number, clientY: number) => void>(() => {});
   const decorPressRef = useRef(false);
   const gameStateRef = useRef<GameState>(gameState);
   gameStateRef.current = gameState;
@@ -2242,6 +2258,7 @@ export default function App() {
     if (e.button !== 0) return;
     if (capitalPlacementRef.current) { capitalPressRef.current = true; return; } // só toque iniciado no mapa fixa o ponto
     if (decorModeRef.current) { decorPressRef.current = true; return; } // decoração: só toque iniciado no mapa fixa a peça
+    if (orderModeRef.current) { orderPressRef.current = true; return; } // ordem por toque: o toque no mapa é o destino (#181)
     if (buildMode) return; // Build mode placement handled on click
 
     isMouseDownRef.current = true;
@@ -2321,7 +2338,7 @@ export default function App() {
     };
 
     const onWindowMouseUp = (e: MouseEvent) => {
-      if (!isMouseDownRef.current && !buildMode && !bridgeModeRef.current && !capitalPressRef.current && !decorPressRef.current) return;
+      if (!isMouseDownRef.current && !buildMode && !bridgeModeRef.current && !capitalPressRef.current && !decorPressRef.current && !orderPressRef.current) return;
       const wasDragging = isDraggingMarqueeRef.current;
       const startPos = dragStartPosRef.current;
       const dragDist = startPos ? Math.hypot(e.clientX - startPos.x, e.clientY - startPos.y) : 0;
@@ -2350,6 +2367,14 @@ export default function App() {
       }
 
       // Decoração: o clique (ou toque) no mapa fixa a posição; aplicar só com Confirmar.
+      // Ordem por toque (#181): o mesmo caminho do clique direito, no ponto tocado.
+      if (orderPressRef.current) {
+        orderPressRef.current = false;
+        contextOrderRef.current(e.clientX, e.clientY);
+        setOrderMode(null);
+        return;
+      }
+
       if (decorPressRef.current) {
         decorPressRef.current = false;
         if (!decorModeRef.current) return;
@@ -2462,6 +2487,8 @@ export default function App() {
   };
 
   // Right-click action (Command Move, Gather, Attack, or Build/Repair)
+  // A ordem por toque chama a versão mais recente do clique direito (o handler do mapa é criado uma vez).
+  contextOrderRef.current = (clientX, clientY) => handleContextMenu({ clientX, clientY, preventDefault: () => {} } as unknown as React.MouseEvent);
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     if (!engineRef.current || !containerRef.current) return;
@@ -3726,6 +3753,7 @@ export default function App() {
           onFocusRelic={(x, z) => engineRef.current?.setCameraTarget(x, z)}
           talentPoints={gameState.mastery?.[playerSlot]?.points ?? 0}
           identity={{ civName: civNameOf(gameState, playerSlot), nick: nickOf(gameState, playerSlot) ?? playerName }}
+          goal={currentGoal(gameState, playerSlot)}
           onSelectComposition={hud.setComposition}
           onToggleIdle={hud.setIdleCollapse}
           onUndo={hud.undo}
@@ -3873,7 +3901,38 @@ export default function App() {
           />
         </div>
 
-        <SelectionPanel
+        {isTouchLayout && !buildMode && !decorMode && !capitalPlacement && (() => {
+          const myGroup = selectedUnitsList.filter((u) => u.owner === playerSlot && u.type !== 'wagon');
+          const showsPanel = Boolean(selectedEntity && (selectedEntity.kind !== 'unit' || myGroup.length === 0));
+          if (showsPanel) return null;
+          const groupTitle = myGroup.length === 0 ? '' : new Set(myGroup.map((u) => u.type)).size > 1 ? 'Tropa mista' : UNIT_LABEL[myGroup[0].type];
+          return (
+            <MobileCommandBar
+              selection={myGroup.length > 0 ? { title: groupTitle, count: myGroup.length, health: myGroup.reduce((t, u) => t + u.health, 0), maxHealth: myGroup.reduce((t, u) => t + u.maxHealth, 0) } : null}
+              orderMode={orderMode}
+              onOrderMode={setOrderMode}
+              onClearSelection={() => { setSelectedUnitIds([]); setSelectedEntity(null); }}
+              buildings={(['house', 'farm', 'barracks', 'tower', 'sawmill', 'mine', 'dock', 'market', 'outpost'] as const).map((type) => ({
+                id: type,
+                name: BUILDING_CATALOG[type].name.split(' ')[0],
+                cost: describeCost(BUILDING_CATALOG[type].cost),
+                lock: buildLock(type),
+                affordable: canAfford(myResources, BUILDING_CATALOG[type].cost),
+              }))}
+              decorations={DECORATION_DEFS.map((def) => ({
+                id: def.id,
+                name: def.name,
+                cost: describeCost(def.cost),
+                lock: eraReached(normalizeEra(gameState.techs?.[playerSlot]?.era), def.era) ? null : ERA_LABEL[def.era],
+                affordable: canAfford(myResources, def.cost),
+              }))}
+              onBuild={(type) => { if (enterBuildMode(type as BuildingType)) triggerNotification('Toque no mapa para posicionar.', 'info'); }}
+              onDecorate={(id) => { setBuildMode(null); setDecorMode({ type: id, rotation: 0, pending: null }); }}
+            />
+          );
+        })()}
+
+        {(!isTouchLayout || Boolean(selectedEntity && (selectedEntity.kind !== 'unit' || selectedUnitsList.every((u) => u.owner !== playerSlot || u.type === 'wagon')))) && <SelectionPanel
           unitLock={unitLock}
           recipeOptions={(() => {
             const selected = selectedEntity?.kind === 'building' ? gameState.buildings.find((b) => b.id === selectedEntity.id) : undefined;
@@ -3991,7 +4050,7 @@ export default function App() {
           multiRef={multiRef}
           onPointerEnterUI={() => engineRef.current?.setIsPointerOverUI(true)}
           onPointerLeaveUI={() => engineRef.current?.setIsPointerOverUI(false)}
-        />
+        />}
       </footer>
       )}
 

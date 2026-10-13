@@ -7,7 +7,7 @@ import vm from 'node:vm';
 const rulesDir = path.resolve(process.argv[2] ?? 'src/game');
 const roots = process.argv[3] ? [process.argv[3]] : [
   'model', 'simulation', 'navalTransport', 'networkCommands', 'buildingCatalog',
-  'economy', 'tech', 'population', 'victory', 'visibility', 'foundation', 'capitalSite', 'worldProofs', 'visionAuthority', 'islandEconomy', 'bodyModel', 'colonies', 'depots', 'colonialTransport', 'tradeRoutes', 'hudConfig', 'commandPalette', 'snapshotFilter', 'snapshotDelta', 'mastery', 'talents', 'mysticism', 'flows', 'waves', 'storms', 'bridges', 'bots', 'alerts', 'rulesAdmin', 'botNaval', 'batchOrders', 'groupMove', 'unlocks', 'production', 'lanAddress', 'recipeBook', 'identity', 'decor',
+  'economy', 'tech', 'population', 'victory', 'visibility', 'foundation', 'capitalSite', 'worldProofs', 'visionAuthority', 'islandEconomy', 'bodyModel', 'colonies', 'depots', 'colonialTransport', 'tradeRoutes', 'hudConfig', 'commandPalette', 'snapshotFilter', 'snapshotDelta', 'mastery', 'talents', 'mysticism', 'flows', 'waves', 'storms', 'bridges', 'bots', 'alerts', 'rulesAdmin', 'botNaval', 'batchOrders', 'groupMove', 'unlocks', 'production', 'goals', 'lanAddress', 'recipeBook', 'identity', 'decor',
 ];
 const visited = new Set();
 function visit(file, chain) {
