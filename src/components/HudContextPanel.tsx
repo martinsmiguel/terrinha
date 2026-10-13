@@ -34,6 +34,8 @@ interface HudContextPanelProps {
   identity?: { civName: string; nick: string };
   /** Meta atual (#181): a próxima etapa de crescimento. */
   goal?: { title: string; progress: number; target: number };
+  /** Mundo em rede (#211): nome e quantos estão online. */
+  world?: { name: string; online: number; total: number };
   /** Beleza do império e casas contentes (#206). */
   beauty?: { total: number; contentHouses: number; houses: number };
   onSelectComposition(composition: HudComposition): void;
@@ -86,6 +88,11 @@ export function HudContextPanel(props: HudContextPanelProps) {
       onMouseEnter={props.onPointerEnterUI}
       onMouseLeave={props.onPointerLeaveUI}
     >
+      {props.world && (
+        <div className="pointer-events-auto rounded-full border border-sky-500/40 bg-slate-950/90 px-2.5 py-1 text-[11px] text-sky-100" data-testid="hud-world" title="Mundo compartilhado: abra o menu (Esc) para ver os jogadores.">
+          🌍 {props.world.name} · {props.world.online} online{props.world.total > props.world.online ? ` · ${props.world.total - props.world.online} offline` : ''}
+        </div>
+      )}
       {props.goal && (
         <div className="pointer-events-auto flex max-w-[18rem] items-center gap-2 rounded-xl border border-amber-500/50 bg-slate-950/90 px-2.5 py-1 text-[11px] text-amber-100" data-testid="hud-goal" aria-live="polite">
           <span aria-hidden="true">🏰</span>

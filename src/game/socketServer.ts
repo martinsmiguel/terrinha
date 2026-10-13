@@ -1,3 +1,4 @@
+import { presenceJoin, presenceLeave, type PresenceEntry } from './presence';
 import type { Server } from 'socket.io';
 
 const PLAYER_SLOTS = ['player1', 'player2', 'player3', 'player4'] as const;
@@ -40,6 +41,9 @@ function isCommandEnvelope(value: unknown): value is Record<string, unknown> {
 
 /** Registers the room relay used by the host and LAN clients. */
 export function registerGameSocketHandlers(io: Server): void {
+  // Presença por sala (#211): quem está no mundo e quem já passou por ele.
+  const presence = new Map<string, PresenceEntry[]>();
+  const broadcastPresence = (roomId: string) => io.to(roomId).emit('presence', { roomId, players: presence.get(roomId) ?? [] });
   io.on('connection', (socket) => {
     socket.on('join-room', (request: unknown) => {
       if (!isJoinRequest(request)) {
@@ -69,6 +73,8 @@ export function registerGameSocketHandlers(io: Server): void {
       const playerCount = room ? room.size : 1;
       socket.to(roomId).emit('player-joined', { id: socket.id, playerName, isHost, playerSlot, playerCount });
       socket.emit('joined-success', { id: socket.id, playerSlot, playerCount });
+      presence.set(roomId, presenceJoin(presence.get(roomId) ?? [], { slot: playerSlot, name: playerName, isHost }, Date.now()));
+      broadcastPresence(roomId);
     });
 
     // O host envia um snapshot por convidado, já filtrado pela visão dele; o servidor só entrega ao destinatário.
@@ -127,6 +133,10 @@ export function registerGameSocketHandlers(io: Server): void {
           isHost: socket.data.isHost === true,
           playerCount,
         });
+        if (typeof socket.data.playerSlot === 'string') {
+          presence.set(roomId, presenceLeave(presence.get(roomId) ?? [], socket.data.playerSlot, Date.now()));
+          broadcastPresence(roomId);
+        }
       }
     });
   });

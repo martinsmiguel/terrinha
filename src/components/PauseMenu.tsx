@@ -9,8 +9,8 @@ export interface PauseMenuPlayer {
   /** Cor da facção (classe Tailwind de fundo). */
   colorClass: string;
   you: boolean;
-  /** 'humano' na LAN; 'IA' no treino solo. */
-  kind: 'humano' | 'IA';
+  /** 'IA' no treino solo; 'online' ou 'offline' no mundo em rede (#211). */
+  kind: string;
 }
 
 interface PauseMenuProps {
@@ -100,7 +100,7 @@ export function PauseMenu({ multiplayer, inviteUrl, roomId, players, onResume, o
                   {players.map((player) => (
                     <li key={player.slot} className="flex items-center justify-between gap-2 text-xs">
                       <span className="flex items-center gap-2"><span className={`h-3 w-3 rounded-full ${player.colorClass}`} aria-hidden="true" />{player.name}{player.you ? ' (você)' : ''}</span>
-                      <span className="text-slate-400">{player.kind}</span>
+                      <span className={player.kind === 'online' ? 'text-emerald-300' : 'text-slate-400'}>{player.kind}</span>
                     </li>
                   ))}
                 </ul>

@@ -45,6 +45,7 @@ import { BUILDING_CATALOG, BuildingType } from './game/buildingCatalog';
 import { UNIT_LABEL, describeMissing, missingFor } from './game/unlocks';
 import { MobileCommandBar, type OrderMode } from './components/MobileCommandBar';
 import { currentGoal } from './game/goals';
+import { onlineCount, type PresenceEntry } from './game/presence';
 import { beautySummary } from './game/beauty';
 import { activeRecipe, describeRecipe, recipeLock, setRecipe, stationRecipes } from './game/production';
 import { recipeById } from './game/recipes';
@@ -163,6 +164,9 @@ export default function App() {
   const [roomId, setRoomId] = useState(inviteRoom ?? 'vila-principal');
   const [isPauseOpen, setIsPauseOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  /** Presença na sala (#211); vazia no treino solo. */
+  const [presence, setPresence] = useState<PresenceEntry[]>([]);
+  const presenceRef = useRef<PresenceEntry[]>([]);
   // Preferências lembradas no navegador (#199); valores inválidos voltam ao padrão.
   const [initialPrefs] = useState(() => loadPreferences(typeof window !== 'undefined' ? window.localStorage : undefined));
   const [isMuted, setIsMuted] = useState(initialPrefs.muted);
@@ -895,6 +899,19 @@ export default function App() {
 
       multi.onCommand = (cmd) => {
         handleIncomingCommand(cmd);
+      };
+
+      multi.onPresence = (players) => {
+        // Aviso de quem entrou ou saiu do mundo, comparando com a lista anterior.
+        const before = new Map(presenceRef.current.map((entry) => [entry.slot, entry.online]));
+        for (const entry of players) {
+          if (entry.slot === playerSlot) continue;
+          const was = before.get(entry.slot);
+          if (entry.online && was !== true) triggerNotification(`${entry.name} entrou no mundo.`, 'info');
+          if (!entry.online && was === true) triggerNotification(`${entry.name} saiu do mundo.`, 'warning');
+        }
+        presenceRef.current = players;
+        setPresence(players);
       };
 
       multi.onChatMessage = (chat) => {
@@ -3707,13 +3724,21 @@ export default function App() {
           multiplayer={role !== 'single'}
           roomId={roomId}
           inviteUrl={lanUrl ? `${lanUrl}/?sala=${encodeURIComponent(roomId)}` : null}
-          players={activeSlots.map((slot) => ({
-            slot,
-            name: nickOf(gameState, slot) ?? (slot === playerSlot ? playerName : civNameOf(gameState, slot)),
-            colorClass: FACTION_COLORS[slot]?.colorClass ?? 'bg-slate-500',
-            you: slot === playerSlot,
-            kind: role === 'single' && slot !== playerSlot ? 'IA' : 'humano',
-          }))}
+          players={role !== 'single' && presence.length > 0
+            ? presence.map((entry) => ({
+              slot: entry.slot,
+              name: `${entry.name}${entry.isHost ? ' (anfitrião)' : ''}`,
+              colorClass: FACTION_COLORS[entry.slot]?.colorClass ?? 'bg-slate-500',
+              you: entry.slot === playerSlot,
+              kind: entry.online ? 'online' : 'offline',
+            }))
+            : activeSlots.map((slot) => ({
+              slot,
+              name: nickOf(gameState, slot) ?? (slot === playerSlot ? playerName : civNameOf(gameState, slot)),
+              colorClass: FACTION_COLORS[slot]?.colorClass ?? 'bg-slate-500',
+              you: slot === playerSlot,
+              kind: role === 'single' && slot !== playerSlot ? 'IA' : 'humano',
+            }))}
           onResume={() => setIsPauseOpen(false)}
           onOpenControls={() => { setIsPauseOpen(false); setShowControlsModal(true); }}
           onOpenSettings={() => { setIsPauseOpen(false); setIsSettingsOpen(true); }}
@@ -3806,6 +3831,7 @@ export default function App() {
           talentPoints={gameState.mastery?.[playerSlot]?.points ?? 0}
           identity={{ civName: civNameOf(gameState, playerSlot), nick: nickOf(gameState, playerSlot) ?? playerName }}
           goal={currentGoal(gameState, playerSlot)}
+          world={role !== 'single' && presence.length > 0 ? { name: roomId, online: onlineCount(presence), total: presence.length } : undefined}
           beauty={beautySummary(gameState, playerSlot)}
           onSelectComposition={hud.setComposition}
           onToggleIdle={hud.setIdleCollapse}
