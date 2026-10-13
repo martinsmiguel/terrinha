@@ -71,3 +71,10 @@ export const localOutcome = (
   }
   return match.winner === localOwner ? 'victory' : 'defeat';
 };
+
+/** Segundos de jogo antes dos quais nenhum resultado aparece: ninguém vence, perde ou empata tão cedo (#204). */
+export const RESULT_GRACE_SECONDS = 5;
+
+/** Mostra a tela de resultado? Só para quem disputa, depois do início, com a partida terminada ou o jogador fora. */
+export const resultScreenVisible = (contender: boolean, matchFinished: boolean, outcome: LocalOutcome, elapsedSeconds: number): boolean =>
+  contender && elapsedSeconds >= RESULT_GRACE_SECONDS && (matchFinished || outcome !== 'running');
