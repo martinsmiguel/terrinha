@@ -2,7 +2,7 @@ import type { BuildingType as BuildableType } from './buildingCatalog';
 import type { BuildingType, UnitType } from './model';
 
 /** Overlays modais, na ordem em que foram abertos (o último é o mais recente). */
-export type OverlayId = 'world-map' | 'work-zone' | 'empire-catalog' | 'controls' | 'tutorial' | 'palette' | 'talents' | 'rules' | 'batch' | 'recipe-book' | 'pause';
+export type OverlayId = 'world-map' | 'work-zone' | 'empire-catalog' | 'controls' | 'tutorial' | 'palette' | 'talents' | 'rules' | 'batch' | 'recipe-book' | 'pause' | 'settings';
 
 export type SquadFormation = 'box' | 'line' | 'spread';
 

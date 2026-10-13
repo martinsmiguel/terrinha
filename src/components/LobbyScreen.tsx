@@ -1,7 +1,7 @@
 import { BOT_PROFILE_LABEL, DEFAULT_BOT_PROFILE, type BotProfile } from '../game/bots';
 import { WORLD_SIZE_OPTIONS } from '../game/worldConfig';
 import { useState, type Dispatch, type SetStateAction } from 'react';
-import { ArrowLeft, BookOpen, Check, Copy, Play, Shield, Sparkles, Users, Wifi } from 'lucide-react';
+import { ArrowLeft, BookOpen, Check, Copy, Play, Settings, Shield, Sparkles, Users, Wifi } from 'lucide-react';
 import { FACTION_COLORS } from '../game/factions';
 import { soundManager } from '../game/audio';
 import type { PlayerSlot } from '../game/networkCommands';
@@ -34,6 +34,8 @@ interface LobbyScreenProps {
   onStartGame(role: GameRole): void;
   /** Tela inicial: o link de convite (`?sala=`) abre direto no multiplayer. */
   initialView?: LobbyView;
+  /** Abre as Configurações (#199). */
+  onOpenSettings?(): void;
 }
 
 const MENU_BUTTON = 'flex min-h-14 w-full items-center gap-3 rounded-2xl border px-4 text-left transition-all active:scale-[0.99]';
@@ -41,7 +43,7 @@ const MENU_BUTTON = 'flex min-h-14 w-full items-center gap-3 rounded-2xl border 
 export function LobbyScreen({
   lanUrl, copiedIp, copyLanUrl, playerName, setPlayerName, roomId, setRoomId,
   playerSlot, setPlayerSlot, lobbyError, matchSize, setMatchSize, botProfile, setBotProfile, worldSize, setWorldSize, onStartGame,
-  initialView = 'inicio',
+  initialView = 'inicio', onOpenSettings,
 }: LobbyScreenProps) {
   const [view, setView] = useState<LobbyView>(initialView);
   const go = (next: LobbyView) => { setView(next); soundManager.playClickSound(); };
@@ -118,6 +120,11 @@ export function LobbyScreen({
                 <button type="button" onClick={() => go('multiplayer')} className={`${MENU_BUTTON} border-slate-700 bg-slate-800 hover:bg-slate-700`}>
                   <Users className="h-5 w-5 text-amber-300" /><span><span className="block font-bold">Multiplayer na rede</span><span className="block text-xs text-slate-400">Criar uma sala ou entrar na de um amigo, na mesma Wi-Fi</span></span>
                 </button>
+                {onOpenSettings && (
+                  <button type="button" onClick={onOpenSettings} className={`${MENU_BUTTON} border-slate-800 bg-slate-900 hover:bg-slate-800`}>
+                    <Settings className="h-5 w-5 text-slate-300" /><span><span className="block font-bold">Configurações</span><span className="block text-xs text-slate-400">Jogo, interface, som e acessibilidade</span></span>
+                  </button>
+                )}
                 <button type="button" onClick={() => go('ajuda')} className={`${MENU_BUTTON} border-slate-800 bg-slate-900 hover:bg-slate-800`}>
                   <BookOpen className="h-5 w-5 text-sky-300" /><span><span className="block font-bold">Ajuda</span><span className="block text-xs text-slate-400">Primeiros passos, controles de teclado e toque</span></span>
                 </button>
